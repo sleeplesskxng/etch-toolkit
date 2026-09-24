@@ -537,7 +537,7 @@
 			schedule();
 		} );
 
-		const bar = el( 'div', { className: 'etk-bulk-bar', hidden: true }, [
+		const bar = el( 'div', { className: 'etk-bulk-bar etk-bulk-bar--styles', hidden: true }, [
 			el( 'div', { className: 'etk-bulk-bar__left' }, [ clearButton, count, selectAll ] ),
 			el( 'div', { className: 'etk-bulk-bar__divider' } ),
 			el( 'div', { className: 'etk-bulk-bar__actions' }, [
@@ -565,7 +565,7 @@
 
 	const renderBar = ( root ) => {
 		const screen = root && ( root.closest( SCREEN ) ?? root );
-		let bar = document.querySelector( '.etk-bulk-bar' );
+		let bar = document.querySelector( '.etk-bulk-bar--styles' );
 		const show = Boolean( screen && selected.size );
 
 		if ( ! bar ) {
@@ -656,7 +656,7 @@
 		( event ) => {
 			const root = getRoot();
 			const focus = document.activeElement;
-			if ( event.key !== 'Escape' || ! selected.size || ! ( root?.contains( focus ) || focus?.closest( '.etk-bulk-bar' ) ) ) return;
+			if ( event.key !== 'Escape' || ! selected.size || ! ( root?.contains( focus ) || focus?.closest( '.etk-bulk-bar--styles' ) ) ) return;
 			event.preventDefault();
 			event.stopPropagation();
 			clear();
