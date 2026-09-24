@@ -2396,7 +2396,11 @@
 				// Keep typing in the panel away from Etch's keyboard shortcuts.
 				onkeydown: ( e ) => {
 					e.stopPropagation();
-					if ( e.key === 'Escape' && ! e.target.closest( 'dialog' ) ) close();
+					if ( e.key === 'Escape' && ! e.target.closest( 'dialog' ) ) {
+						// Or the Escape would also cancel the unsaved-changes dialog close() may open.
+						e.preventDefault();
+						close();
+					}
 					// Except Cmd/Ctrl+S, which saves instead of opening the browser's Save Page. Etch only
 					// matches a shortcut when it saw the Cmd or Ctrl press too, so this calls its save directly.
 					if ( ( e.metaKey || e.ctrlKey ) && ( e.code === 'KeyS' || e.key.toLowerCase() === 's' ) ) {
