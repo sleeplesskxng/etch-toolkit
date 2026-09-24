@@ -1630,6 +1630,31 @@
 	color: var(--etk-fonts-text-50);
 }
 
+/* The Files tab's weight and style popover, like a menu with room for fields. */
+.etk-fonts__popover {
+	position: fixed;
+	z-index: 10;
+	inline-size: 280px;
+	border: var(--e-border, 1px solid #36363a);
+	border-radius: var(--etch-border-radius, 6px);
+	background: var(--etk-fonts-field);
+	box-shadow:
+		0 4px 12px rgb(0 0 0 / 0.25),
+		0 1px 3px rgb(0 0 0 / 0.2);
+}
+
+.etk-fonts__popover-head {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	padding: 10px 12px;
+	border-block-end: 1px solid var(--etk-fonts-line);
+}
+
+.etk-fonts__popover-body {
+	padding: 12px;
+}
+
 /* Weight and style, while they're being changed. */
 .etk-fonts__file-row.is-open {
 	box-shadow: inset 0 0 0 1px var(--etk-fonts-line);
@@ -1993,14 +2018,18 @@
 	}
 
 	th:nth-child(4) {
-		inline-size: 210px;
+		inline-size: 170px;
 	}
 
 	th:nth-child(5) {
-		inline-size: 64px;
+		inline-size: 210px;
 	}
 
 	th:nth-child(6) {
+		inline-size: 64px;
+	}
+
+	th:nth-child(7) {
 		inline-size: 140px;
 	}
 
@@ -2042,6 +2071,43 @@
 	.is-unused & {
 		color: var(--etk-fonts-text-55);
 	}
+}
+
+/* A file's weight and style, opening its popover. Its text lines up with the header's. */
+.etk-fonts__weight-cell {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-inline-size: 100%;
+	margin-inline-start: -6px;
+	padding: 4px 6px;
+	border: 0;
+	border-radius: var(--etk-fonts-radius-sm);
+	background: none;
+	color: var(--etk-fonts-text);
+	font: inherit;
+	line-height: 16px;
+	cursor: pointer;
+
+	&:is(:hover, [aria-expanded="true"]) {
+		background: var(--etk-fonts-selected);
+	}
+
+	&:focus-visible {
+		outline: none;
+		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+	}
+}
+
+.etk-fonts__weight-cell-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.etk-fonts__weight-cell-icon {
+	display: inline-flex;
+	flex: none;
+	color: var(--etk-fonts-text-45);
 }
 
 .etk-fonts__files-quiet {

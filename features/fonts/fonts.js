@@ -121,6 +121,7 @@
 	};
 
 	const weightLabel = ( weight ) => ( weight.includes( ' ' ) ? `Variable ${ weight.replace( ' ', '–' ) }` : `${ weight } ${ WEIGHT_NAMES[ weight ] || '' }` ).trim();
+	const variantLabel = ( variant ) => `${ weightLabel( variant.weight ) }${ variant.style === 'italic' ? ' Italic' : '' }`;
 	const size = ( bytes ) => ( bytes < 1024 * 1024 ? `${ Math.max( 1, Math.round( bytes / 1024 ) ) } KB` : `${ ( bytes / 1024 / 1024 ).toFixed( 1 ) } MB` );
 	const plural = ( n, one, many ) => `${ n } ${ n === 1 ? one : many }`;
 	const clone = ( value ) => JSON.parse( JSON.stringify( value ) );
@@ -568,7 +569,7 @@
 	};
 	const closeMenu = ( { focus = false } = {} ) => {
 		if ( ! openMenu ) return;
-		const { trigger, popup } = openMenu;
+		const { trigger, popup, onclose } = openMenu;
 		openMenu = null;
 		popup.remove();
 		trigger.setAttribute( 'aria-expanded', 'false' );
@@ -577,6 +578,26 @@
 		document.removeEventListener( 'scroll', onMenuOutside, true );
 		window.removeEventListener( 'resize', onMenuOutside );
 		if ( focus && trigger.isConnected ) trigger.focus();
+		onclose?.();
+	};
+
+	// Show a menu or popover under its trigger, or above when there's no room.
+	const openPopup = ( trigger, popup, { align = 'end', onclose } = {} ) => {
+		// In the panel, for its tokens and its keyboard fence. Fixed, so no scroller clips it.
+		panel.append( popup );
+		const box = trigger.getBoundingClientRect();
+		const size = popup.getBoundingClientRect();
+		const left = Math.max( 8, Math.min( align === 'end' ? box.right - size.width : box.left, window.innerWidth - size.width - 8 ) );
+		const top = box.bottom + 4 + size.height > window.innerHeight - 8 ? Math.max( 8, box.top - 4 - size.height ) : box.bottom + 4;
+		popup.style.left = `${ left }px`;
+		popup.style.top = `${ top }px`;
+
+		openMenu = { trigger, popup, onclose };
+		trigger.setAttribute( 'aria-expanded', 'true' );
+		trigger.setAttribute( 'selected', 'true' );
+		document.addEventListener( 'pointerdown', onMenuOutside, true );
+		document.addEventListener( 'scroll', onMenuOutside, true );
+		window.addEventListener( 'resize', onMenuOutside );
 	};
 
 	const menu = ( trigger, items, { label, align = 'end' } = {} ) => {
@@ -633,21 +654,7 @@
 					return node;
 				} )
 			);
-			// In the panel, for its tokens and its keyboard fence. Fixed, so no scroller clips it.
-			panel.append( popup );
-			const box = trigger.getBoundingClientRect();
-			const size = popup.getBoundingClientRect();
-			const left = Math.max( 8, Math.min( align === 'end' ? box.right - size.width : box.left, window.innerWidth - size.width - 8 ) );
-			const top = box.bottom + 4 + size.height > window.innerHeight - 8 ? Math.max( 8, box.top - 4 - size.height ) : box.bottom + 4;
-			popup.style.left = `${ left }px`;
-			popup.style.top = `${ top }px`;
-
-			openMenu = { trigger, popup };
-			trigger.setAttribute( 'aria-expanded', 'true' );
-			trigger.setAttribute( 'selected', 'true' );
-			document.addEventListener( 'pointerdown', onMenuOutside, true );
-			document.addEventListener( 'scroll', onMenuOutside, true );
-			window.addEventListener( 'resize', onMenuOutside );
+			openPopup( trigger, popup, { align } );
 			choices.at( first )?.focus();
 		};
 
@@ -918,6 +925,7 @@
 			h( 'td', { class: 'etk-fonts__files-pick' } ),
 			iconCell( entry.error ? 'alert' : entry.done ? 'check' : busy ? 'spinner' : null ),
 			h( 'td', {}, h( 'span', { class: 'etk-fonts__files-name', textContent: entry.name } ) ),
+			h( 'td' ),
 			h(
 				'td',
 				{},
@@ -1083,6 +1091,86 @@
 		] );
 	};
 
+	// Save one file's weight and style into its family.
+	const saveVariant = async ( familyName, variant ) => {
+		const families = clone( state.families );
+		const variants = families.find( ( f ) => f.name === familyName )?.variants || [];
+		const i = variants.findIndex( ( v ) => v.file === variant.file );
+		if ( i < 0 ) return;
+		variants[ i ] = variant;
+		try {
+			await saveFamilies( families, `Saved ${ variant.file } as ${ variantLabel( variant ) }.` );
+		} catch ( error ) {
+			warn( errorText( error ) );
+		}
+	};
+
+	/*
+	 * A file's weight and style, on a button that opens them in a popover.
+	 * Changes save to its family when the popover closes. A file with no
+	 * family has nowhere to keep them yet.
+	 */
+	const weightCell = ( file ) => {
+		const family = state.families.find( ( f ) => f.name === file.family );
+		const variant = family?.variants.find( ( v ) => v.file === file.name );
+		if ( ! variant ) return h( 'td', { class: 'etk-fonts__files-none', title: 'Add it to a family to set its weight and style.', textContent: '—' } );
+		const label = variantLabel( variant );
+		const trigger = h(
+			'button',
+			{ type: 'button', class: 'etk-fonts__weight-cell', 'data-file': file.name, 'aria-haspopup': 'dialog', 'aria-expanded': 'false', 'aria-label': `${ label }, change weight and style of ${ file.name }` },
+			h( 'span', { class: 'etk-fonts__weight-cell-label', textContent: label } ),
+			h( 'span', { class: 'etk-fonts__weight-cell-icon', html: icon( 'chevron-down', 10 ) } )
+		);
+		trigger.addEventListener( 'click', () => {
+			if ( openMenu?.trigger === trigger ) return closeMenu();
+			closeMenu();
+			const edited = clone( variant );
+			const title = h( 'span', { class: 'etk-fonts__file-title' } );
+			const body = h( 'div', { class: 'etk-fonts__popover-body' } );
+			const fill = () => {
+				title.textContent = variantLabel( edited );
+				body.replaceChildren( weightFields( edited, fill ) );
+			};
+			fill();
+			const popup = h(
+				'div',
+				{
+					class: 'etk-fonts__popover',
+					role: 'dialog',
+					'aria-label': `Weight and style of ${ file.name }`,
+					onkeydown: ( e ) => {
+						if ( e.key === 'Escape' ) {
+							// Not the panel's Escape, which would close the fonts manager.
+							e.preventDefault();
+							e.stopPropagation();
+							closeMenu( { focus: true } );
+						} else if ( e.key === 'Tab' ) {
+							// Tabbing past either end goes back to the button.
+							const stops = [ ...popup.querySelectorAll( 'input:checked, select' ) ];
+							if ( document.activeElement === ( e.shiftKey ? stops[ 0 ] : stops.at( -1 ) ) ) {
+								e.preventDefault();
+								closeMenu( { focus: true } );
+							}
+						}
+					},
+				},
+				h( 'div', { class: 'etk-fonts__popover-head' }, title, h( 'span', { class: 'etk-fonts__file-name', textContent: file.name } ) ),
+				body
+			);
+			openPopup( trigger, popup, {
+				align: 'start',
+				onclose: async () => {
+					if ( JSON.stringify( edited ) === JSON.stringify( variant ) ) return;
+					const refocus = document.activeElement === trigger;
+					await saveVariant( family.name, edited );
+					if ( refocus ) main.querySelector( `.etk-fonts__weight-cell[data-file="${ CSS.escape( file.name ) }"]` )?.focus();
+				},
+			} );
+			popup.querySelector( 'input:checked' )?.focus();
+		} );
+		return h( 'td', {}, trigger );
+	};
+
 	const fileRow = ( file ) => {
 		const done = uploadLog.find( ( e ) => e.done && e.file === file.name );
 		const unused = ! file.family;
@@ -1093,6 +1181,7 @@
 			h( 'td', { class: 'etk-fonts__files-pick' }, own ? pickBox( file ) : null ),
 			iconCell( done ? 'check' : null ),
 			h( 'td', {}, h( 'span', { class: 'etk-fonts__files-name', textContent: file.name } ) ),
+			own ? weightCell( file ) : h( 'td', { class: 'etk-fonts__files-none', textContent: '—' } ),
 			h( 'td', {}, done ? h( 'span', { class: 'etk-fonts__muted', textContent: done.text } ) : unused ? badge( 'Unused', 'warning' ) : h( 'span', { class: 'etk-fonts__files-quiet', textContent: 'In use' } ) ),
 			h( 'td', { class: 'etk-fonts__num etk-fonts__muted', textContent: size( file.size ) } ),
 			h( 'td', { class: unused ? 'etk-fonts__files-none' : null, textContent: file.family || 'No family' } ),
@@ -1104,7 +1193,7 @@
 	const fileRows = () => {
 		const pending = fileFilter === 'all' ? uploadLog.filter( ( e ) => ! e.done || ! state.files.some( ( f ) => f.name === e.file ) ) : [];
 		const rows = [ ...pending.map( logRow ), ...shownFiles().map( fileRow ) ];
-		return rows.length ? rows : [ h( 'tr', {}, h( 'td', { colspan: '7', class: 'etk-fonts__files-empty etk-fonts__muted', textContent: FILES_EMPTY[ fileFilter ] } ) ) ];
+		return rows.length ? rows : [ h( 'tr', {}, h( 'td', { colspan: '8', class: 'etk-fonts__files-empty etk-fonts__muted', textContent: FILES_EMPTY[ fileFilter ] } ) ) ];
 	};
 
 	const renderFiles = () => {
@@ -1180,7 +1269,7 @@
 										},
 									} )
 								),
-								h( 'td', { class: 'etk-fonts__files-icon', 'aria-hidden': 'true' } ), th( 'File' ), th( 'Status' ), th( 'Size', 'etk-fonts__num' ), th( 'Family' ),
+								h( 'td', { class: 'etk-fonts__files-icon', 'aria-hidden': 'true' } ), th( 'File' ), th( 'Weight · Style' ), th( 'Status' ), th( 'Size', 'etk-fonts__num' ), th( 'Family' ),
 								h( 'th', { scope: 'col' }, h( 'span', { class: 'screen-reader-text', textContent: 'Actions' } ) )
 							)
 						),
@@ -1542,7 +1631,7 @@
 
 		const fileRow = ( variant, i ) => {
 			const file = state.files.find( ( f ) => f.name === variant.file );
-			const title = `${ weightLabel( variant.weight ) }${ variant.style === 'italic' ? ' Italic' : '' }`;
+			const title = variantLabel( variant );
 			const open = editingFile === variant.file;
 			return h(
 				'li',
