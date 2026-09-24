@@ -1201,7 +1201,7 @@
 			h( 'td', {}, done ? h( 'span', { class: 'etk-fonts__muted', textContent: done.text } ) : file.unsafe ? h( 'span', { class: 'etk-fonts__files-status etk-fonts__files-status--warning', textContent: 'Needs rename', title: 'Added outside Etch Toolkit with characters it can\'t use, like brackets.' } ) : h( 'span', { class: `etk-fonts__files-status etk-fonts__files-status--${ unused ? 'warning' : 'success' }`, textContent: unused ? 'Unused' : 'In use' } ) ),
 			h( 'td', { textContent: size( file.size ) } ),
 			h( 'td', { class: unused ? 'etk-fonts__files-none' : null, textContent: file.family || 'No family' } ),
-			h( 'td', {}, own ? fileMenu( file ) : file.unsafe ? h( 'button', { type: 'button', class: btnClass(), 'aria-label': `Rename ${ file.name }`, onclick: () => renameFile( file ), textContent: 'Rename' } ) : null )
+			h( 'td', {}, own ? fileMenu( file ) : file.unsafe ? menu( iconButton( `Actions for ${ file.name }`, 'more', null ), () => [ { label: 'Rename file', onselect: () => renameFile( file ) } ] ) : null )
 		);
 	};
 
