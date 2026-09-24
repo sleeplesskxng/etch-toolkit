@@ -141,11 +141,14 @@
 
 	// Layout and preview size, remembered per viewer in the browser.
 	const PREFS_KEY = 'etk-fonts-view';
-	const prefs = { google: 'grid', size: null };
+	// size is the Google results' preview size, detailSize a single font's.
+	const prefs = { google: 'grid', size: null, detailSize: null };
 	try {
 		Object.assign( prefs, JSON.parse( window.localStorage.getItem( PREFS_KEY ) || '{}' ) );
-		// On the size slider's steps: 16 to 80 by 8.
-		if ( prefs.size ) prefs.size = Math.min( 80, Math.max( 16, Math.round( ( prefs.size - 16 ) / 8 ) * 8 + 16 ) );
+		// On the size sliders' steps: 16 to 80 by 8.
+		for ( const key of [ 'size', 'detailSize' ] ) {
+			if ( prefs[ key ] ) prefs[ key ] = Math.min( 80, Math.max( 16, Math.round( ( prefs[ key ] - 16 ) / 8 ) * 8 + 16 ) );
+		}
 	} catch {}
 	const savePrefs = () => {
 		try {
@@ -1310,28 +1313,25 @@
 		return { local, size: round( scale * 100 ), ascent: round( ascent / scale ), descent: round( descent / scale ), gap: round( Math.max( 0, height - ascent - descent ) / scale ) };
 	};
 
-	// The waterfall's rows: size, the weight and style each asks for, and its text.
-	const WATERFALL = [
-		{ size: 96, weight: 300, text: 'Honest type' },
-		{ size: 56, weight: 400, text: 'Honest type for honest work' },
-		{ size: 32, weight: 500, italic: true, text: 'Honest type for honest work, set with care' },
-		{ size: 20, weight: 400, text: 'Set the headline, then let the body text do the quiet work. Good type disappears into the reading.' },
-		{ size: 14, weight: 400, text: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789 & ! ? “ ” ( ) → €' },
-	];
-
-	// The closest style the family has to a weight and style, so no row is faked by the browser.
-	const nearestVariant = ( variants, weight, italic ) => {
-		const styled = variants.filter( ( v ) => ( v.style === 'italic' ) === italic );
-		const pool = styled.length ? styled : variants;
-		let best = null;
-		for ( const v of pool ) {
-			const [ min, max = min ] = v.weight.split( ' ' ).map( Number );
-			const w = Math.min( Math.max( weight, min ), max );
-			const distance = Math.abs( w - weight );
-			if ( ! best || distance < best.distance ) best = { weight: w, style: v.style, distance };
-		}
-		return best || { weight, style: italic ? 'italic' : 'normal' };
+	// Every hundred a family's files cover, and whether one covers a weight in a style.
+	const weightSpan = ( weight ) => {
+		const [ min, max = min ] = weight.split( ' ' ).map( Number );
+		return [ min, max ];
 	};
+	const familyWeights = ( variants ) => {
+		const weights = new Set();
+		for ( const v of variants ) {
+			const [ min, max ] = weightSpan( v.weight );
+			weights.add( min ).add( max );
+			for ( let w = Math.ceil( min / 100 ) * 100; w <= max; w += 100 ) weights.add( w );
+		}
+		return [ ...weights ].filter( Boolean ).sort( ( a, b ) => a - b );
+	};
+	const covers = ( variants, weight, style ) =>
+		variants.some( ( v ) => {
+			const [ min, max ] = weightSpan( v.weight );
+			return v.style === style && weight >= min && weight <= max;
+		} );
 
 	// Its weight as a number for font-weight: a variable range shows at 400, or its nearest end.
 	const variantWeight = ( weight ) => {
@@ -1359,21 +1359,12 @@
 		const face = `"${ draft.original }", ${ family.fallback || 'sans-serif' }`;
 		const script = scriptOf( family.google?.script, family.google?.subsets );
 
-		// Latin families show the set texts, or the preview text in the display sizes. Others show their script's sample.
-		const waterfall = h(
-			'div',
-			{ class: 'etk-fonts__waterfall', 'aria-hidden': 'true' },
-			WATERFALL.map( ( row ) => {
-				const pick = nearestVariant( family.variants, row.weight, !! row.italic );
-				const own = script || ( sampleText !== SAMPLE && row.size >= 32 );
-				return h(
-					'div',
-					{ class: 'etk-fonts__waterfall-row', style: `--size: ${ row.size }px` },
-					h( 'span', { class: 'etk-fonts__waterfall-size', textContent: row.size } ),
-					specimen( 'etk-fonts__waterfall-text', script, `font-family: ${ face }; font-weight: ${ pick.weight }; font-style: ${ pick.style }`, own ? {} : { 'data-script': null, textContent: row.text } )
-				);
-			} )
-		);
+		const specimens = weightSpecimen( {
+			stack: face,
+			script,
+			weights: familyWeights( family.variants ),
+			has: ( weight, style ) => covers( family.variants, weight, style ),
+		} );
 
 		const roleBadges = ( saved?.roles || [] ).map( ( role ) => badge( ROLES[ role ], 'accent' ) );
 		if ( saved && ! saved.enabled ) roleBadges.push( badge( 'Disabled' ) );
@@ -1529,7 +1520,7 @@
 					'div',
 					{ class: 'etk-fonts__pane' },
 					pageHeader( { title: draft.original, hidden: false, bar: true, back: { label: 'Back to the library', onclick: () => leaveFamily( 'library' ) }, meta: roleBadges.length ? h( 'span', { class: 'etk-fonts__family-badges' }, roleBadges ) : null } ),
-					waterfall
+					h( 'div', { class: 'etk-fonts__gdetail' }, detailToolbar(), family.variants.length ? specimens : h( 'p', { class: 'etk-fonts__help', textContent: 'Add files to see its weights.' } ) )
 				),
 				h(
 					'aside',
@@ -1828,6 +1819,71 @@
 				main.style.setProperty( '--etk-fonts-size', `${ value }px` );
 			},
 		} );
+
+	// A single font's size, remembered once you pick one.
+	const detailSizeSlider = () =>
+		valueSlider( {
+			name: 'Size',
+			label: 'Preview size',
+			min: 16,
+			step: 8,
+			value: prefs.detailSize ?? 32,
+			text: String,
+			spoken: ( value ) => `${ value } pixels`,
+			onchange: ( value ) => {
+				prefs.detailSize = value;
+				savePrefs();
+				main.style.setProperty( '--etk-fonts-detail-size', `${ value }px` );
+			},
+		} );
+
+	// Preview text with a reset, then the size, over a single font's weights.
+	const detailToolbar = ( onchange ) => {
+		const preview = previewInput( onchange );
+		const box = inputBox(
+			'Preview',
+			preview,
+			button(
+				'Reset',
+				() => {
+					preview.value = '';
+					preview.dispatchEvent( new Event( 'input' ) );
+					preview.focus();
+				},
+				{ variant: 'ghost', attrs: { class: 'etk-fonts__reset', 'aria-label': 'Reset preview text' } }
+			)
+		);
+		box.classList.add( 'etk-fonts__inputbox--lg' );
+		return h( 'div', { class: 'etk-fonts__gtoolbar' }, box, detailSizeSlider() );
+	};
+
+	/**
+	 * A font's weights, lightest first: roman, and italic beside it if it has
+	 * any. has( weight, style ) says whether a file covers that one.
+	 */
+	const weightSpecimen = ( { stack, script, weights, has } ) => {
+		const italic = weights.some( ( w ) => has( w, 'italic' ) );
+		const cell = ( weight, style ) => ( has( weight, style ) ? specimen( 'etk-fonts__gspec-cell', script, `font-family: ${ stack }; font-weight: ${ weight }; font-style: ${ style }` ) : h( 'span', { class: 'etk-fonts__gspec-cell' } ) );
+		return h(
+			'div',
+			{ class: 'etk-fonts__gspec' },
+			h( 'div', { class: 'etk-fonts__gspec-row etk-fonts__gspec-head', 'aria-hidden': 'true' }, h( 'span', { textContent: 'Weight' } ), h( 'span', { textContent: 'Roman' } ), italic ? h( 'span', { textContent: 'Italic' } ) : null ),
+			h(
+				'ul',
+				{ class: 'etk-fonts__gspec-list', role: 'list', 'aria-label': 'Weights' },
+				weights.map( ( weight ) => {
+					const styles = [ has( weight, 'normal' ) ? 'roman' : null, has( weight, 'italic' ) ? 'italic' : null ].filter( Boolean ).join( ' and ' );
+					return h(
+						'li',
+						{ class: 'etk-fonts__gspec-row' },
+						h( 'span', { class: 'etk-fonts__gspec-weight' }, weightLabel( String( weight ) ), h( 'span', { class: 'screen-reader-text', textContent: `, ${ styles }` } ) ),
+						cell( weight, 'normal' ),
+						italic ? cell( weight, 'italic' ) : null
+					);
+				} )
+			)
+		);
+	};
 
 	const openGoogleFont = ( font ) => {
 		google.font = font;
@@ -2153,30 +2209,10 @@
 		const { choice } = pick;
 		const stack = `"${ font.family }", ${ font.category === 'serif' ? 'serif' : 'sans-serif' }`;
 		const script = scriptOf( font.script, font.subsets );
-		const italic = hasItalics( font );
 		const update = ( change ) => ( value ) => {
 			change( value );
 			render();
 		};
-
-		const preview = previewInput( reloadGooglePreviews );
-		const previewBox = inputBox(
-			'Preview',
-			preview,
-			button(
-				'Reset',
-				() => {
-					preview.value = '';
-					preview.dispatchEvent( new Event( 'input' ) );
-					preview.focus();
-				},
-				{ variant: 'ghost', attrs: { class: 'etk-fonts__reset', 'aria-label': 'Reset preview text' } }
-			)
-		);
-		previewBox.classList.add( 'etk-fonts__inputbox--lg' );
-
-		const cell = ( weight, style ) =>
-			font.cuts.includes( `${ weight }${ style === 'italic' ? 'i' : '' }` ) ? specimen( 'etk-fonts__gspec-cell', script, `font-family: ${ stack }; font-weight: ${ weight }; font-style: ${ style }` ) : h( 'span', { class: 'etk-fonts__gspec-cell' } );
 
 		const files = ( pick.offered.length ? choice.subsets.size : 1 ) * ( choice.variable ? ( choice.italic && pick.hasItalic ? 2 : 1 ) : choice.cuts.size );
 		// Roman and italic side by side, lightest first.
@@ -2210,26 +2246,8 @@
 					h(
 						'div',
 						{ class: 'etk-fonts__gdetail' },
-						previewBox,
-						h(
-							'div',
-							{ class: 'etk-fonts__gspec' },
-							h( 'div', { class: 'etk-fonts__gspec-row etk-fonts__gspec-head', 'aria-hidden': 'true' }, h( 'span', { textContent: 'Weight' } ), h( 'span', { textContent: 'Roman' } ), italic ? h( 'span', { textContent: 'Italic' } ) : null ),
-							h(
-								'ul',
-								{ class: 'etk-fonts__gspec-list', role: 'list', 'aria-label': 'Styles' },
-								weightsOf( font ).map( ( weight ) => {
-									const styles = [ font.cuts.includes( String( weight ) ) ? 'roman' : null, font.cuts.includes( `${ weight }i` ) ? 'italic' : null ].filter( Boolean ).join( ' and ' );
-									return h(
-										'li',
-										{ class: 'etk-fonts__gspec-row' },
-										h( 'span', { class: 'etk-fonts__gspec-weight' }, weightLabel( String( weight ) ), h( 'span', { class: 'screen-reader-text', textContent: `, ${ styles }` } ) ),
-										cell( weight, 'normal' ),
-										italic ? cell( weight, 'italic' ) : null
-									);
-								} )
-							)
-						)
+						detailToolbar( reloadGooglePreviews ),
+						weightSpecimen( { stack, script, weights: weightsOf( font ), has: ( weight, style ) => font.cuts.includes( `${ weight }${ style === 'italic' ? 'i' : '' }` ) } )
 					)
 				),
 				h(
@@ -2574,6 +2592,7 @@
 		const inPlace = main.dataset.view === view;
 		main.dataset.view = view;
 		prefs.size ? main.style.setProperty( '--etk-fonts-size', `${ prefs.size }px` ) : main.style.removeProperty( '--etk-fonts-size' );
+		prefs.detailSize ? main.style.setProperty( '--etk-fonts-detail-size', `${ prefs.detailSize }px` ) : main.style.removeProperty( '--etk-fonts-detail-size' );
 		const update = () => {
 			main.replaceChildren( ...views[ view ]() );
 			renderGoogleResults();

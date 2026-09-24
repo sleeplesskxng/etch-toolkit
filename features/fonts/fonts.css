@@ -1465,78 +1465,6 @@
 
 /* === View: Family === */
 
-/* The waterfall: each size in its gutter, then a line set at it. */
-.etk-fonts__waterfall {
-	display: flex;
-	flex-direction: column;
-	padding: 28px 32px;
-	overflow: hidden;
-}
-
-.etk-fonts__waterfall-row {
-	display: flex;
-	align-items: baseline;
-	gap: 20px;
-	padding-block: 18px;
-
-	&:first-child {
-		padding-block-start: 6px;
-	}
-
-	& + & {
-		border-block-start: 1px solid var(--etk-fonts-line);
-	}
-}
-
-.etk-fonts__waterfall-size {
-	flex: none;
-	inline-size: 36px;
-	color: var(--etk-fonts-text-40);
-	font-family: var(--e-font-code);
-	font-size: 10px;
-	font-weight: 400;
-	line-height: 12px;
-}
-
-.etk-fonts .etk-fonts__waterfall-text {
-	min-inline-size: 0;
-	color: var(--etk-fonts-text);
-	font-size: var(--size);
-	white-space: nowrap;
-}
-
-.etk-fonts__waterfall-row:nth-child(1) .etk-fonts__waterfall-text {
-	line-height: 100px;
-	letter-spacing: -0.035em;
-}
-
-.etk-fonts__waterfall-row:nth-child(2) .etk-fonts__waterfall-text {
-	line-height: 60px;
-	letter-spacing: -0.025em;
-}
-
-.etk-fonts__waterfall-row:nth-child(3) .etk-fonts__waterfall-text {
-	line-height: 40px;
-	letter-spacing: -0.01em;
-}
-
-/* The two text sizes wrap at a reading width. */
-.etk-fonts .etk-fonts__waterfall-row:nth-child(n + 4) .etk-fonts__waterfall-text {
-	white-space: normal;
-}
-
-.etk-fonts__waterfall-row:nth-child(4) .etk-fonts__waterfall-text {
-	max-inline-size: 560px;
-	color: var(--etk-fonts-text-85);
-	line-height: 30px;
-}
-
-.etk-fonts__waterfall-row:nth-child(5) .etk-fonts__waterfall-text {
-	max-inline-size: 480px;
-	color: var(--etk-fonts-text-70);
-	line-height: 22px;
-}
-
 /* Inspector sections. */
 .etk-fonts__family-view {
 	.etk-fonts__field--row > label {
@@ -2405,7 +2333,7 @@
 	color: var(--etk-fonts-accent);
 }
 
-/* Google font detail: preview and specimen table, then the add panel. */
+/* A single font, from the library or Google: preview and size, then its weights. */
 .etk-fonts__gdetail {
 	display: flex;
 	flex-direction: column;
@@ -2481,8 +2409,9 @@
 .etk-fonts__gspec-cell {
 	overflow: hidden;
 	color: var(--etk-fonts-text);
-	font-size: 28px;
-	line-height: 34px;
+	font-size: var(--etk-fonts-detail-size, 32px);
+	line-height: 1.2;
+	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
