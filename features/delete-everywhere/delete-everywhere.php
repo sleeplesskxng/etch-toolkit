@@ -62,13 +62,11 @@ function etch_toolkit_delete_everywhere( string $style_id, bool $apply ) {
 		return new WP_Error( 'etch_toolkit_not_deletable', 'Only editable class styles can be deleted everywhere.', array( 'status' => 400 ) );
 	}
 
-	$posts     = array();
-	$elements  = 0;
+	$changed   = array();
 	$contents  = array();
 	$originals = array();
 
-	foreach ( etch_toolkit_content_post_ids() as $post_id ) {
-		$content = (string) get_post_field( 'post_content', $post_id, 'raw' );
+	foreach ( etch_toolkit_contents() as $post_id => $content ) {
 		if ( ! str_contains( $content, $style_id ) && ! str_contains( etch_toolkit_plain_content( $content ), $class ) ) {
 			continue;
 		}
@@ -81,8 +79,7 @@ function etch_toolkit_delete_everywhere( string $style_id, bool $apply ) {
 
 		$contents[ $post_id ]  = $stripped;
 		$originals[ $post_id ] = $content;
-		$posts[]               = etch_toolkit_post_summary( $post_id, $removed );
-		$elements             += $removed;
+		$changed[ $post_id ]   = $removed;
 	}
 
 	if ( $apply ) {
@@ -98,8 +95,8 @@ function etch_toolkit_delete_everywhere( string $style_id, bool $apply ) {
 	return rest_ensure_response(
 		array(
 			'selector' => $style['selector'],
-			'elements' => $elements,
-			'posts'    => $posts,
+			'elements' => array_sum( $changed ),
+			'posts'    => etch_toolkit_post_summaries( $changed ),
 		)
 	);
 }

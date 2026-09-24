@@ -148,9 +148,8 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 	// Load content once, trashed posts too, so restoring one doesn't bring an old name back.
 	$contents = array();
 	if ( $map ) {
-		foreach ( etch_toolkit_content_post_ids( true ) as $post_id ) {
-			$content = (string) get_post_field( 'post_content', $post_id, 'raw' );
-			$plain   = etch_toolkit_plain_content( $content );
+		foreach ( etch_toolkit_contents( true ) as $post_id => $content ) {
+			$plain = etch_toolkit_plain_content( $content );
 			foreach ( array_keys( $map ) as $old ) {
 				if ( str_contains( $plain, (string) $old ) ) {
 					$contents[ $post_id ] = $content;
@@ -275,8 +274,7 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 	}
 
 	// 4. Element class names across all content.
-	$posts       = array();
-	$elements    = 0;
+	$changed     = array();
 	$new_content = array();
 	foreach ( $contents as $post_id => $content ) {
 		$count   = 0;
@@ -288,10 +286,10 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 
 		if ( $count ) {
 			$new_content[ $post_id ] = $content;
-			$posts[]                 = etch_toolkit_post_summary( $post_id, $count );
-			$elements               += $count;
+			$changed[ $post_id ]     = $count;
 		}
 	}
+	$posts = etch_toolkit_post_summaries( $changed );
 
 	return array(
 		'classMap'       => (object) $map,
@@ -300,7 +298,7 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 		'styles'         => array_values( $changes ),
 		'stylesheets'    => $changed_sheets,
 		'posts'          => $posts,
-		'elements'       => $elements,
+		'elements'       => array_sum( $changed ),
 		'errors'         => array_values( array_unique( $errors ) ),
 		'rowErrors'      => (object) $row_errors,
 		// Used by apply, stripped from the preview response.

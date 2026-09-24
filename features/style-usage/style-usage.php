@@ -66,8 +66,7 @@ function etch_toolkit_style_usage_counts(): array {
 		}
 	}
 
-	foreach ( etch_toolkit_content_post_ids() as $post_id ) {
-		$content = (string) get_post_field( 'post_content', $post_id, 'raw' );
+	foreach ( etch_toolkit_contents() as $content ) {
 		if ( ! preg_match( '/"(?:styles|attributes|className)"/', $content ) ) {
 			continue;
 		}
@@ -82,10 +81,17 @@ function etch_toolkit_style_usage_counts(): array {
 		);
 	}
 
-	foreach ( etch_toolkit_content_post_ids() as $post_id ) {
-		if ( 'wp_block' !== get_post_type( $post_id ) ) {
-			continue;
-		}
+	$components = get_posts(
+		array(
+			'post_type'     => 'wp_block',
+			'post_status'   => array( 'publish', 'draft', 'pending', 'private', 'future' ),
+			'numberposts'   => -1,
+			'fields'        => 'ids',
+			'no_found_rows' => true,
+		)
+	);
+	update_meta_cache( 'post', $components );
+	foreach ( $components as $post_id ) {
 		$defaults = etch_toolkit_component_defaults( get_post_meta( $post_id, 'etch_component_properties', true ) );
 		foreach ( array_unique( etch_toolkit_style_ids_in( $defaults, $selectors ) ) as $style_id ) {
 			$counts[ $selectors[ $style_id ] ] = ( $counts[ $selectors[ $style_id ] ] ?? 0 ) + 1;

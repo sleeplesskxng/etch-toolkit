@@ -124,6 +124,26 @@ function etch_toolkit_content_post_ids( bool $trash = false ): array {
 }
 
 /**
+ * The raw content of every post etch_toolkit_content_post_ids() returns, read
+ * a batch at a time: a few queries for a big site instead of one per post,
+ * without holding every post in memory.
+ *
+ * @param bool $trash Include trashed posts.
+ * @return Generator<int, string> Post ID => content.
+ */
+function etch_toolkit_contents( bool $trash = false ): Generator {
+	global $wpdb;
+	foreach ( array_chunk( etch_toolkit_content_post_ids( $trash ), 100 ) as $ids ) {
+		$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT ID, post_content FROM {$wpdb->posts} WHERE ID IN ($placeholders)", $ids ) );
+		foreach ( $rows as $row ) {
+			yield (int) $row->ID => (string) $row->post_content;
+		}
+	}
+}
+
+/**
  * Run a callback on every block comment's attributes in some post content,
  * rewriting only the blocks it changes.
  *
@@ -351,6 +371,21 @@ function etch_toolkit_update_contents( array $contents, array $originals ) {
  */
 function etch_toolkit_post_title( int $post_id ): string {
 	return html_entity_decode( wp_strip_all_tags( get_the_title( $post_id ) ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+}
+
+/**
+ * Summaries of the posts a change touches, loading them in one query.
+ *
+ * @param array<int, int> $elements Post ID => elements changed.
+ * @return array<int, array{id: int, title: string, type: string, elements: int}>
+ */
+function etch_toolkit_post_summaries( array $elements ): array {
+	_prime_post_caches( array_keys( $elements ), false, false );
+	$summaries = array();
+	foreach ( $elements as $post_id => $count ) {
+		$summaries[] = etch_toolkit_post_summary( $post_id, $count );
+	}
+	return $summaries;
 }
 
 /**
