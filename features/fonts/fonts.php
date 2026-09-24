@@ -166,6 +166,13 @@ add_action(
 					return is_wp_error( $result ) ? $result : etch_toolkit_fonts_state();
 				},
 			),
+			'/fonts/files/rename'   => array(
+				'POST',
+				function ( WP_REST_Request $r ) {
+					$result = etch_toolkit_fonts_rename_unsafe( (string) $r['name'] );
+					return is_wp_error( $result ) ? $result : etch_toolkit_fonts_state();
+				},
+			),
 			'/fonts/export'         => array( 'GET', fn( WP_REST_Request $r ) => etch_toolkit_fonts_export( (array) $r['families'] ) ),
 			'/fonts/import'         => array(
 				'POST',
@@ -763,11 +770,13 @@ function etch_toolkit_fonts_files( array $families ): array {
 	$files = array();
 	foreach ( new DirectoryIterator( $dir ) as $file ) {
 		$name = $file->getFilename();
-		if ( ! $file->isFile() || '' === etch_toolkit_fonts_path( $name ) ) {
+		if ( ! $file->isFile() || ! isset( ETCH_TOOLKIT_FONTS_FORMATS[ strtolower( $file->getExtension() ) ] ) ) {
 			continue;
 		}
 		$files[] = array(
 			'name'   => $name,
+			// Added outside the plugin, like over SFTP, with a name it can't use until renamed.
+			'unsafe' => '' === etch_toolkit_fonts_path( $name ),
 			'ext'    => strtolower( $file->getExtension() ),
 			'size'   => $file->getSize(),
 			'family' => $used[ $name ] ?? '',
@@ -797,6 +806,42 @@ function etch_toolkit_fonts_is_font( string $bytes, string $ext ): bool {
 }
 
 /**
+ * A safe name for a font file, like "Inter[wght].woff2" => "Interwght.woff2".
+ */
+function etch_toolkit_fonts_clean_name( string $name ): string {
+	$ext   = strtolower( pathinfo( $name, PATHINFO_EXTENSION ) );
+	$clean = sanitize_file_name( $name );
+	// ".woff2" sanitizes to "woff2", which has no extension left.
+	return strtolower( pathinfo( $clean, PATHINFO_EXTENSION ) ) === $ext ? $clean : "font.{$ext}";
+}
+
+/**
+ * Rename a file added outside the plugin, like over SFTP, whose name isn't
+ * safe to use. A taken name gets a suffix.
+ *
+ * @return string|WP_Error The new name.
+ */
+function etch_toolkit_fonts_rename_unsafe( string $name ) {
+	$dir = etch_toolkit_fonts_dir()['path'];
+	$ext = strtolower( pathinfo( $name, PATHINFO_EXTENSION ) );
+	if ( basename( $name ) !== $name || ! isset( ETCH_TOOLKIT_FONTS_FORMATS[ $ext ] ) || ! is_file( $dir . $name ) || isset( etch_toolkit_fonts_core_files()[ $name ] ) ) {
+		return new WP_Error( 'etch_toolkit_font_rename', sprintf( '%s is not a font file in the fonts folder.', $name ), array( 'status' => 400 ) );
+	}
+
+	$clean = etch_toolkit_fonts_clean_name( $name );
+	if ( $clean === $name ) {
+		return $name;
+	}
+	if ( file_exists( $dir . $clean ) ) {
+		$clean = pathinfo( $clean, PATHINFO_FILENAME ) . '-' . substr( (string) md5_file( $dir . $name ), 0, 8 ) . '.' . $ext;
+	}
+	if ( ! rename( $dir . $name, $dir . $clean ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+		return new WP_Error( 'etch_toolkit_font_rename', sprintf( 'Could not rename %s.', $name ), array( 'status' => 500 ) );
+	}
+	return $clean;
+}
+
+/**
  * Write font bytes into the fonts folder. An identical file already there is
  * reused, a different one under the same name gets a suffix.
  *
@@ -804,11 +849,7 @@ function etch_toolkit_fonts_is_font( string $bytes, string $ext ): bool {
  */
 function etch_toolkit_fonts_write( string $name, string $bytes ) {
 	$ext  = strtolower( pathinfo( $name, PATHINFO_EXTENSION ) );
-	$name = sanitize_file_name( $name );
-	// ".woff2" sanitizes to "woff2", which has no extension left.
-	if ( strtolower( pathinfo( $name, PATHINFO_EXTENSION ) ) !== $ext ) {
-		$name = "font.{$ext}";
-	}
+	$name = etch_toolkit_fonts_clean_name( $name );
 
 	if ( ! isset( ETCH_TOOLKIT_FONTS_FORMATS[ $ext ] ) ) {
 		return new WP_Error( 'etch_toolkit_font_type', 'Only WOFF2, WOFF, TTF and OTF files are allowed.', array( 'status' => 400 ) );

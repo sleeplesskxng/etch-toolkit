@@ -964,7 +964,7 @@
 	let pickAnchor = null;
 	let bulkBar = null;
 
-	const editable = ( file ) => ! file.family || state.families.some( ( f ) => f.name === file.family );
+	const editable = ( file ) => ! file.unsafe && ( ! file.family || state.families.some( ( f ) => f.name === file.family ) );
 	const shownFiles = () => state.files.filter( ( f ) => fileFilter === 'all' || ( fileFilter === 'unused' ? ! f.family : !! f.family ) );
 	const pickable = () => shownFiles().filter( editable );
 	const pickedFiles = () => state.files.filter( ( f ) => picked.has( f.name ) );
@@ -1179,6 +1179,14 @@
 		return h( 'td', {}, trigger );
 	};
 
+	const renameFile = async ( file ) => {
+		try {
+			await apply( await api( 'fonts/files/rename', 'POST', { name: file.name } ), `Renamed ${ file.name }.` );
+		} catch ( error ) {
+			warn( errorText( error ) );
+		}
+	};
+
 	const fileRow = ( file ) => {
 		const done = uploadLog.find( ( e ) => e.done && e.file === file.name );
 		const unused = ! file.family;
@@ -1190,10 +1198,10 @@
 			iconCell( done ? 'check' : null ),
 			h( 'td', {}, h( 'span', { class: 'etk-fonts__files-name', textContent: file.name } ) ),
 			own ? weightCell( file ) : h( 'td', { class: 'etk-fonts__files-none', textContent: '—' } ),
-			h( 'td', {}, done ? h( 'span', { class: 'etk-fonts__muted', textContent: done.text } ) : h( 'span', { class: `etk-fonts__files-status etk-fonts__files-status--${ unused ? 'warning' : 'success' }`, textContent: unused ? 'Unused' : 'In use' } ) ),
+			h( 'td', {}, done ? h( 'span', { class: 'etk-fonts__muted', textContent: done.text } ) : file.unsafe ? h( 'span', { class: 'etk-fonts__files-status etk-fonts__files-status--warning', textContent: 'Needs rename', title: 'Added outside Etch Toolkit with characters it can\'t use, like brackets.' } ) : h( 'span', { class: `etk-fonts__files-status etk-fonts__files-status--${ unused ? 'warning' : 'success' }`, textContent: unused ? 'Unused' : 'In use' } ) ),
 			h( 'td', { textContent: size( file.size ) } ),
 			h( 'td', { class: unused ? 'etk-fonts__files-none' : null, textContent: file.family || 'No family' } ),
-			h( 'td', {}, own ? fileMenu( file ) : null )
+			h( 'td', {}, own ? fileMenu( file ) : file.unsafe ? h( 'button', { type: 'button', class: btnClass(), 'aria-label': `Rename ${ file.name }`, onclick: () => renameFile( file ), textContent: 'Rename' } ) : null )
 		);
 	};
 
@@ -1566,7 +1574,7 @@
 			Object.assign( family, changes );
 			renderSavebar();
 		};
-		const unused = state.files.filter( ( f ) => ! f.family && ! family.variants.some( ( v ) => v.file === f.name ) );
+		const unused = state.files.filter( ( f ) => ! f.family && ! f.unsafe && ! family.variants.some( ( v ) => v.file === f.name ) );
 		const takenBy = ( role ) => state.families.find( ( f ) => f.name !== draft.original && f.roles.includes( role ) );
 		const face = `"${ draft.original }", ${ family.fallback || 'sans-serif' }`;
 		const script = scriptOf( family.google?.script, family.google?.subsets );
