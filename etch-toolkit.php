@@ -22,6 +22,7 @@ require ETCH_TOOLKIT_DIR . 'features/style-usage/style-usage.php';
 require ETCH_TOOLKIT_DIR . 'features/delete-everywhere/delete-everywhere.php';
 require ETCH_TOOLKIT_DIR . 'features/bulk-select/bulk-select.php';
 require ETCH_TOOLKIT_DIR . 'features/fonts/fonts.php';
+require ETCH_TOOLKIT_DIR . 'features/recipes/recipes.php';
 
 // Updates come from GitHub releases. Skipped in a git checkout so it never overwrites a dev copy.
 if ( ! is_dir( ETCH_TOOLKIT_DIR . '.git' ) ) {

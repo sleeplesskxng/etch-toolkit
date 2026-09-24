@@ -1,0 +1,384 @@
+/*
+ * Recipes tab in the Style Manager. Sizes are measured from Etch's Selectors tab
+ * (Etch 1.6), whose scoped styles can't be reused: a 30/70 split with 16px
+ * between, a 29px search, 26.4px rows 2.4px apart, and 8px padding and gaps.
+ */
+
+/* While it's on, Etch's tab content hides and its active tab looks like the rest.
+   Doubled up to outrank Etch's scoped styles, which load after these. */
+.etk-recipes-on.etk-recipes-on {
+	> :not(.etch-advanced-switch, .etk-recipes) {
+		display: none;
+	}
+
+	.etch-advanced-switch__button--active:not(.etk-recipes-tab) {
+		background-color: transparent;
+		color: color-mix(in srgb, var(--e-foreground-color) 65%, transparent);
+	}
+}
+
+.etk-recipes {
+	display: flex;
+	gap: 16px;
+	flex: 1 1 0;
+	min-block-size: 0;
+	color: var(--e-foreground-color);
+	font-size: var(--e-font-size-m, 12px);
+	font-weight: 500;
+	line-height: 19.1px;
+
+	:focus-visible {
+		outline: none;
+		box-shadow: var(--etch-focus-box-shadow);
+	}
+
+	code {
+		font-family: var(--e-font-code);
+	}
+}
+
+/* ---- List side ---- */
+
+.etk-recipes__side {
+	display: flex;
+	flex-direction: column;
+	/* 30% of the room left after the gap, padding included, like Etch's resizable panes. */
+	flex: none;
+	inline-size: calc((100% - 16px) * 0.3);
+	box-sizing: border-box;
+	gap: 8px;
+	min-inline-size: 0;
+	min-block-size: 0;
+	padding-inline-end: 15px;
+}
+
+/* Search, then the import and export menu. */
+.etk-recipes__search-row {
+	position: relative;
+	display: flex;
+	gap: 8px;
+}
+
+.etk-recipes__search {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: 8px;
+	min-inline-size: 0;
+	block-size: 29px;
+	padding: 6px 8px;
+	border-radius: 6px;
+	box-sizing: border-box;
+
+	/* Etch shows no focus on its search. This keeps one for the keyboard. */
+	&:has(:focus-visible) {
+		box-shadow: var(--etch-focus-box-shadow);
+	}
+}
+
+.etk-recipes__search-icon {
+	flex: none;
+	margin-inline-start: 6px;
+	color: var(--e-light);
+}
+
+.etk-recipes .etk-recipes__search-input {
+	flex: 1;
+	min-inline-size: 0;
+	block-size: 17px;
+	padding: 1px 2px;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	line-height: 19.1px;
+
+	&::placeholder {
+		color: #757575;
+	}
+
+	&:focus-visible {
+		box-shadow: none;
+	}
+}
+
+.etk-recipes .etk-recipes__more {
+	flex: none;
+	justify-content: center;
+	inline-size: 29px;
+	block-size: 29px;
+	padding: 0;
+
+	&[aria-expanded="true"] {
+		border-color: var(--etch-primary);
+	}
+}
+
+.etk-recipes__menu {
+	position: absolute;
+	inset-block-start: calc(100% + 4px);
+	inset-inline-end: 0;
+	z-index: 10;
+	display: flex;
+	flex-direction: column;
+	min-inline-size: 175px;
+	padding: 4px;
+	border: 1px solid var(--etch-border-color);
+	border-radius: 8px;
+	background-color: var(--etch-neutral);
+	box-shadow:
+		0 4px 12px rgb(0 0 0 / 0.25),
+		0 1px 3px rgb(0 0 0 / 0.2);
+
+	&[hidden] {
+		display: none;
+	}
+}
+
+.etk-recipes .etk-recipes__menu-item {
+	padding: 6px 10px;
+	border: 0;
+	border-radius: 4px;
+	background: none;
+	color: var(--e-foreground-color);
+	font: inherit;
+	line-height: 14.4px;
+	text-align: start;
+	cursor: pointer;
+
+	&:is(:hover, :focus) {
+		background-color: var(--etch-neutral-dark);
+		box-shadow: none;
+	}
+
+	&[aria-disabled="true"] {
+		opacity: var(--etch-opacity-medium, 0.55);
+		cursor: default;
+	}
+}
+
+.etk-recipes__list {
+	flex: 1;
+	min-block-size: 0;
+	overflow: auto;
+	padding: 8px;
+	border: 1px solid var(--etch-border-color);
+	border-radius: 10px;
+
+	ul {
+		display: flex;
+		flex-direction: column;
+		gap: 2.4px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+}
+
+.etk-recipes__group + .etk-recipes__group {
+	margin-block-start: 8px;
+}
+
+/* Lined up with the names below it. */
+.etk-recipes__group-title {
+	margin: 0;
+	padding: 6px 10px;
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 600;
+	line-height: 14.4px;
+	color: color-mix(in srgb, var(--e-foreground-color) 65%, transparent);
+}
+
+.etk-recipes__item {
+	display: block;
+	inline-size: 100%;
+	padding: 6px 10px;
+	border: 0;
+	border-radius: 6px;
+	background: none;
+	color: inherit;
+	font-family: var(--e-font-code);
+	font-size: inherit;
+	font-weight: 500;
+	line-height: 14.4px;
+	text-align: start;
+	overflow-wrap: anywhere;
+	cursor: pointer;
+
+	&:hover,
+	&[aria-current="true"] {
+		background-color: var(--etch-neutral-dark);
+	}
+}
+
+.etk-recipes__q {
+	color: color-mix(in srgb, var(--e-foreground-color) 50%, transparent);
+}
+
+.etk-recipes__note,
+.etk-recipes__meta {
+	margin: 0;
+	color: color-mix(in srgb, var(--e-foreground-color) 65%, transparent);
+	font-weight: 400;
+}
+
+.etk-recipes__note {
+	padding: 6px 10px;
+}
+
+.etk-recipes .etk-recipes__add {
+	inline-size: 100%;
+	justify-content: center;
+}
+
+.etk-recipes__sr {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+/* ---- Detail side ---- */
+
+.etk-recipes__detail {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	gap: 8px;
+	min-inline-size: 0;
+	min-block-size: 0;
+	padding: 8px;
+	border: 1px solid var(--etch-border-color);
+	border-radius: 10px;
+}
+
+.etk-recipes__form {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	gap: 8px;
+	min-block-size: 0;
+}
+
+/* The name and its buttons, like the selector and Confirm Rename. */
+.etk-recipes__bar {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	block-size: 32px;
+}
+
+.etk-recipes__title,
+.etk-recipes__name {
+	flex: 1;
+	min-inline-size: 0;
+	margin: 0;
+	padding: 6px 8px;
+	border-radius: 6px;
+	font-size: inherit;
+	font-weight: 500;
+	line-height: 17px;
+}
+
+/* The "?" sits before the name, outside the text you type. */
+.etk-recipes__name {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+
+	&:has(:focus-visible) {
+		box-shadow: var(--etch-focus-box-shadow);
+	}
+}
+
+.etk-recipes .etk-recipes__name-input {
+	flex: 1;
+	min-inline-size: 0;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+
+	&::placeholder {
+		color: #757575;
+	}
+
+	&:focus-visible {
+		box-shadow: none;
+	}
+}
+
+/* Like Etch's CSS editor, without the gutter. */
+.etk-recipes__code,
+.etk-recipes .etk-recipes__textarea {
+	flex: 1;
+	min-block-size: 0;
+	margin: 0;
+	padding: 4px 8px;
+	border: 0;
+	border-radius: 6px;
+	background-color: var(--etch-neutral-dark);
+	color: var(--e-foreground-color);
+	font-family: var(--e-font-code);
+	font-size: var(--e-font-size-m, 12px);
+	font-weight: 500;
+	line-height: 16.8px;
+	tab-size: 4;
+}
+
+.etk-recipes__code {
+	overflow: auto;
+	white-space: pre-wrap;
+}
+
+.etk-recipes .etk-recipes__textarea {
+	resize: none;
+}
+
+.etk-recipes__error,
+.etk-recipes__status {
+	margin: 0;
+	font-weight: 400;
+}
+
+.etk-recipes__error {
+	color: var(--etch-danger);
+}
+
+.etk-recipes__status {
+	/* Always shown, even empty. A status region that appears with its message can go unread. */
+	color: color-mix(in srgb, var(--e-foreground-color) 65%, transparent);
+
+	&.is-error {
+		color: var(--etch-danger);
+	}
+}
+
+.etk-recipes .etk-recipes__btn {
+	flex: none;
+	white-space: nowrap;
+
+	&[aria-disabled="true"] {
+		opacity: var(--etch-opacity-medium, 0.55);
+		cursor: not-allowed;
+	}
+}
+
+.etk-recipes .etk-recipes__btn--danger {
+	color: var(--etch-danger);
+}
+
+.etk-recipes__empty {
+	margin: auto;
+	max-inline-size: 40ch;
+	color: color-mix(in srgb, var(--e-foreground-color) 65%, transparent);
+	font-weight: 400;
+	text-align: center;
+
+	p {
+		margin: 0;
+	}
+}
