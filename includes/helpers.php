@@ -170,8 +170,11 @@ function etch_toolkit_edit_block_attrs( string $content, callable $edit, int &$c
  * Class names are compared unescaped, as they appear in class attributes.
  */
 
-// A class selector's name, escapes included. Mirrors CLASS_IN_CSS in assets/etch-toolkit.js.
-const ETCH_TOOLKIT_CLASS_PATTERN = '/\.((?:-?(?:[_a-zA-Z]|[^\x00-\x7F]|\\\\(?:[0-9a-fA-F]{1,6}\s?|[^\n\r\f0-9a-fA-F]))|--)(?:[\w-]|[^\x00-\x7F]|\\\\(?:[0-9a-fA-F]{1,6}\s?|[^\n\r\f0-9a-fA-F]))*)/u';
+// A CSS identifier, escapes included. Mirrors CLASS_IN_CSS in assets/etch-toolkit.js.
+const ETCH_TOOLKIT_CSS_IDENT = '(?:-?(?:[_a-zA-Z]|[^\x00-\x7F]|\\\\(?:[0-9a-fA-F]{1,6}\s?|[^\n\r\f0-9a-fA-F]))|--)(?:[\w-]|[^\x00-\x7F]|\\\\(?:[0-9a-fA-F]{1,6}\s?|[^\n\r\f0-9a-fA-F]))*';
+
+// A class selector's name.
+const ETCH_TOOLKIT_CLASS_PATTERN = '/\.(' . ETCH_TOOLKIT_CSS_IDENT . ')/u';
 
 /**
  * A code point as UTF-8, or '' for NUL, a surrogate or anything past Unicode.

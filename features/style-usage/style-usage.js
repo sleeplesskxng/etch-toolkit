@@ -56,7 +56,8 @@
 			return map;
 		}
 		for ( const style of styles ) {
-			if ( isCounted( style ) && style.selector.trim() in counts ) map.set( style.selector, counts[ style.selector.trim() ] );
+			const selector = style.selector.trim();
+			if ( isCounted( style ) && Object.hasOwn( counts, selector ) ) map.set( selector, counts[ selector ] );
 		}
 		return map;
 	};
