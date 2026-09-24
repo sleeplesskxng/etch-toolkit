@@ -121,7 +121,8 @@
 	padding-block-end: 32px;
 
 	/* The card grid uses the full width. */
-	&[data-view="google"] {
+	&[data-view="google"],
+	&[data-view="google-font"] {
 		max-inline-size: none;
 	}
 }
@@ -636,10 +637,6 @@ select.etk-fonts__input {
 .etk-fonts__card-meta {
 	display: flex;
 	flex-direction: column;
-
-	.etk-fonts__muted {
-		text-transform: capitalize;
-	}
 }
 
 /* Install dialog, inside the shared confirm dialog. */
@@ -679,4 +676,76 @@ select.etk-fonts__input {
 	color: var(--e-danger, #f26060);
 	font-size: var(--e-font-size-s, 11px);
 	text-align: end;
+}
+
+/* Google Fonts: weight slider, variable filter, detail screen */
+
+.etk-fonts__toolbar .etk-fonts__check {
+	align-items: center;
+	white-space: nowrap;
+
+	input {
+		margin: 0;
+	}
+}
+
+.etk-fonts__slider {
+	display: flex;
+	flex: 1 1 260px;
+	align-items: center;
+	gap: var(--e-space-s, 8px);
+
+	input {
+		flex: 1;
+		min-inline-size: 80px;
+		accent-color: var(--e-primary);
+	}
+
+	output {
+		min-inline-size: 11ch;
+	}
+}
+
+.etk-fonts__card-specimen {
+	cursor: pointer;
+}
+
+.etk-fonts__card-link {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-align: start;
+	cursor: pointer;
+
+	&:hover {
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+}
+
+.etk-fonts__styles {
+	display: flex;
+	flex-direction: column;
+	margin: 0;
+	padding: 0;
+	border: 1px solid var(--etk-fonts-line);
+	border-radius: 8px;
+	list-style: none;
+}
+
+.etk-fonts__style {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: var(--e-space-l, 16px);
+
+	& + & {
+		border-block-start: 1px solid var(--etk-fonts-line);
+	}
+
+	.etk-fonts__specimen {
+		font-size: 40px;
+	}
 }

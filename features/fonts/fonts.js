@@ -85,7 +85,7 @@
 	let controlButton = null;
 	let sampleText = SAMPLE;
 
-	const google = { search: '', category: '', subset: '', sort: 'popularity', results: [], total: 0, categories: [], subsets: [], loading: false, loaded: false, error: '' };
+	const google = { search: '', category: '', subset: '', sort: 'popularity', results: [], total: 0, categories: [], subsets: [], loading: false, loaded: false, error: '', variable: false, weight: 400, font: null, scroll: 0 };
 
 	const slugOf = ( name ) =>
 		name
@@ -803,7 +803,7 @@
 		if ( ! more ) google.results = [];
 		renderGoogleResults();
 		try {
-			const params = new URLSearchParams( { search: google.search, category: google.category, subset: google.subset, sort: google.sort, offset: more ? google.results.length : 0 } );
+			const params = new URLSearchParams( { search: google.search, category: google.category, subset: google.subset, sort: google.sort, variable: google.variable ? 1 : '', offset: more ? google.results.length : 0 } );
 			const data = await api( `fonts/google?${ params }` );
 			Object.assign( google, { results: [ ...google.results, ...data.results ], total: data.total, categories: data.categories, subsets: data.subsets } );
 			loadGooglePreviews( data.results );
@@ -820,25 +820,92 @@
 	};
 
 	/**
-	 * Specimens load from Google's CSS API, in the builder only. Each asks for
-	 * just the letters in the preview text, so a new text reloads them.
+	 * Specimens load from Google's CSS API, in the builder only, and ask for
+	 * just the letters in the preview text. A variable family loads its whole
+	 * weight range once. A static one loads the weight nearest the slider,
+	 * since asking for a weight it doesn't have is an error.
 	 */
+	const googleCss = ( family, spec ) => `https://fonts.googleapis.com/css2?family=${ encodeURIComponent( family ) }${ spec }&text=${ encodeURIComponent( [ ...new Set( sampleText ) ].join( '' ) ) }&display=swap`;
+
+	const nearestWeight = ( font, weight ) => {
+		const weights = font.cuts.filter( ( c ) => ! c.endsWith( 'i' ) ).map( Number );
+		return weights.length ? weights.reduce( ( a, b ) => ( Math.abs( b - weight ) < Math.abs( a - weight ) ? b : a ) ) : null;
+	};
+
+	const useStylesheet = ( id, href ) => {
+		const link = document.getElementById( id );
+		if ( ! link ) document.head.append( h( 'link', { id, rel: 'stylesheet', href } ) );
+		else if ( link.href !== href ) link.href = href;
+	};
+
 	const loadGooglePreviews = ( fonts ) => {
-		const text = encodeURIComponent( [ ...new Set( sampleText ) ].join( '' ) );
 		for ( const font of fonts ) {
-			const id = `etk-gf-${ slugOf( font.family ) }`;
-			const href = `https://fonts.googleapis.com/css2?family=${ encodeURIComponent( font.family ) }&text=${ text }&display=swap`;
-			const link = document.getElementById( id );
-			if ( ! link ) document.head.append( h( 'link', { id, rel: 'stylesheet', href } ) );
-			else if ( link.href !== href ) link.href = href;
+			const weight = nearestWeight( font, google.weight );
+			const spec = font.wght?.min ? `:wght@${ font.wght.min }..${ font.wght.max }` : weight ? `:wght@${ weight }` : '';
+			useStylesheet( `etk-gf-${ slugOf( font.family ) }`, googleCss( font.family, spec ) );
 		}
 	};
 
 	let previewTimer = 0;
 	const reloadGooglePreviews = () => {
 		window.clearTimeout( previewTimer );
-		previewTimer = window.setTimeout( () => loadGooglePreviews( google.results ), 400 );
+		previewTimer = window.setTimeout( () => ( view === 'google-font' ? loadGoogleFont() : loadGooglePreviews( google.results ) ), 400 );
 	};
+
+	// Every style of the open family, for its detail screen.
+	const loadGoogleFont = () => {
+		const font = google.font;
+		const italic = font.cuts.some( ( c ) => c.endsWith( 'i' ) );
+		const range = font.wght?.min ? `${ font.wght.min }..${ font.wght.max }` : null;
+		const tuples = font.cuts.map( ( c ) => [ c.endsWith( 'i' ) ? 1 : 0, parseInt( c, 10 ) ] ).sort( ( a, b ) => a[ 0 ] - b[ 0 ] || a[ 1 ] - b[ 1 ] );
+		const spec = range ? ( italic ? `:ital,wght@0,${ range };1,${ range }` : `:wght@${ range }` ) : `:ital,wght@${ tuples.map( ( t ) => t.join( ',' ) ).join( ';' ) }`;
+		useStylesheet( 'etk-gf-detail', googleCss( font.family, spec ) );
+	};
+
+	const weightSlider = () => {
+		const output = h( 'output', { class: 'etk-fonts__muted', textContent: weightLabel( String( google.weight ) ) } );
+		const input = h( 'input', {
+			type: 'range',
+			min: '100',
+			max: '900',
+			step: '100',
+			value: String( google.weight ),
+			'aria-valuetext': weightLabel( String( google.weight ) ),
+			oninput: ( e ) => {
+				google.weight = Number( e.target.value );
+				output.textContent = weightLabel( e.target.value );
+				e.target.setAttribute( 'aria-valuetext', output.textContent );
+				main.querySelectorAll( '.etk-fonts__card-specimen' ).forEach( ( node ) => ( node.style.fontWeight = google.weight ) );
+				reloadGooglePreviews();
+			},
+		} );
+		return h( 'label', { class: 'etk-fonts__slider' }, h( 'span', { textContent: 'Weight' } ), input, output );
+	};
+
+	const openGoogleFont = ( font ) => {
+		google.font = font;
+		google.scroll = panel.querySelector( '.etk-fonts__content' ).scrollTop;
+		loadGoogleFont();
+		go( 'google-font' );
+	};
+
+	// Back to the results where you left them, focus on the family you opened.
+	const closeGoogleFont = () => {
+		const family = google.font.family;
+		view = 'google';
+		render();
+		panel.querySelector( '.etk-fonts__content' ).scrollTop = google.scroll;
+		[ ...panel.querySelectorAll( '.etk-fonts__card-link' ) ].find( ( b ) => b.dataset.family === family )?.focus( { preventScroll: true } );
+	};
+
+	const addButton = ( font ) => {
+		const have = installed( font.family );
+		return have
+			? button( 'Installed', () => edit( state.families.indexOf( have ) ), { variant: 'ghost', attrs: { 'aria-label': `${ font.family } is installed. Edit it` } } )
+			: button( 'Add', () => installDialog( font.family, font ), { attrs: { 'aria-label': `Add ${ font.family }` } } );
+	};
+
+	const fontSummary = ( font ) => [ font.category.replace( /\b\w/g, ( c ) => c.toUpperCase() ), plural( font.cuts.length, 'style', 'styles' ), font.wght?.min ? 'variable' : null ].filter( Boolean ).join( ' · ' );
 
 	const installed = ( name ) => state.families.find( ( f ) => f.name.toLowerCase() === name.toLowerCase() );
 
@@ -850,13 +917,18 @@
 
 		list.replaceChildren(
 			...google.results.map( ( font ) => {
-				const have = installed( font.family );
 				return h(
 					'li',
 					{ class: 'etk-fonts__card' },
-					h( 'p', { class: 'etk-fonts__card-specimen', style: `font-family: "${ font.family }", ${ font.category === 'serif' ? 'serif' : 'sans-serif' }`, 'aria-hidden': 'true', textContent: sampleText } ),
-					h( 'div', { class: 'etk-fonts__card-meta' }, h( 'h3', { class: 'etk-fonts__family-name', textContent: font.family } ), h( 'span', { class: 'etk-fonts__muted', textContent: [ font.category, plural( font.cuts.length, 'style', 'styles' ), font.wght?.min ? 'variable' : null ].filter( Boolean ).join( ' · ' ) } ) ),
-					have ? button( 'Installed', () => edit( state.families.indexOf( have ) ), { variant: 'ghost', attrs: { 'aria-label': `${ font.family } is installed. Edit it` } } ) : button( 'Add', () => installDialog( font.family, font ), { attrs: { 'aria-label': `Add ${ font.family }` } } )
+					// The name is the keyboard target. The specimen is a larger click target for the same thing.
+					h( 'p', { class: 'etk-fonts__card-specimen', style: `font-family: "${ font.family }", ${ font.category === 'serif' ? 'serif' : 'sans-serif' }; font-weight: ${ google.weight }`, 'aria-hidden': 'true', textContent: sampleText, onclick: () => openGoogleFont( font ) } ),
+					h(
+						'div',
+						{ class: 'etk-fonts__card-meta' },
+						h( 'h3', { class: 'etk-fonts__family-name' }, h( 'button', { type: 'button', class: 'etk-fonts__card-link', 'data-family': font.family, textContent: font.family, onclick: () => openGoogleFont( font ) } ) ),
+						h( 'span', { class: 'etk-fonts__muted', textContent: fontSummary( font ) } )
+					),
+					addButton( font )
 				);
 			} )
 		);
@@ -999,12 +1071,43 @@
 					google.sort,
 					( value ) => ( ( google.sort = value ), searchGoogle() ),
 					{ 'aria-label': 'Sort' }
-				)
+				),
+				check( 'Variable only', google.variable, ( value ) => ( ( google.variable = value ), searchGoogle() ) )
 			),
-			h( 'div', { class: 'etk-fonts__toolbar' }, previewInput( reloadGooglePreviews ) ),
+			h( 'div', { class: 'etk-fonts__toolbar' }, previewInput( reloadGooglePreviews ), weightSlider() ),
 			h( 'p', { class: 'etk-fonts__muted etk-fonts__google-summary', role: 'status' } ),
 			h( 'ul', { class: 'etk-fonts__cards etk-fonts__google-results', role: 'list' } ),
 			h( 'div', { class: 'etk-fonts__actions etk-fonts__actions--center' }, button( 'Load more', () => searchGoogle( true ), { attrs: { class: 'etk-fonts__btn etk-fonts__btn--secondary etk-fonts__more', hidden: true } } ) ),
+		];
+	};
+
+	const renderGoogleFont = () => {
+		const font = google.font;
+		const styles = [ ...font.cuts ].sort( ( a, b ) => a.endsWith( 'i' ) - b.endsWith( 'i' ) || parseInt( a, 10 ) - parseInt( b, 10 ) );
+		const stack = `"${ font.family }", ${ font.category === 'serif' ? 'serif' : 'sans-serif' }`;
+
+		return [
+			h( 'div', { class: 'etk-fonts__crumb' }, button( 'Google Fonts', closeGoogleFont, { variant: 'ghost', iconName: 'back' } ) ),
+			pageHeader(
+				font.family,
+				[ fontSummary( font ), font.wght?.min ? `weights ${ font.wght.min }–${ font.wght.max }` : null, plural( font.subsets.length, 'language set', 'language sets' ) ].filter( Boolean ).join( ' · ' ),
+				addButton( font )
+			),
+			h( 'div', { class: 'etk-fonts__toolbar' }, previewInput( reloadGooglePreviews ) ),
+			h(
+				'ul',
+				{ class: 'etk-fonts__styles', role: 'list' },
+				styles.map( ( cut ) => {
+					const weight = String( parseInt( cut, 10 ) );
+					const italic = cut.endsWith( 'i' );
+					return h(
+						'li',
+						{ class: 'etk-fonts__style' },
+						h( 'span', { class: 'etk-fonts__muted', textContent: `${ weightLabel( weight ) }${ italic ? ' Italic' : '' }` } ),
+						h( 'p', { class: 'etk-fonts__specimen', style: `font-family: ${ stack }; font-weight: ${ weight }; font-style: ${ italic ? 'italic' : 'normal' }`, 'aria-hidden': 'true', textContent: sampleText } )
+					);
+				} )
+			),
 		];
 	};
 
@@ -1134,11 +1237,12 @@
 
 	const render = () => {
 		if ( ! panel || panel.hidden || ! state ) return;
-		const views = { library: renderLibrary, family: renderFamily, upload: renderUpload, google: renderGoogle, settings: renderSettings };
+		const views = { library: renderLibrary, family: renderFamily, upload: renderUpload, google: renderGoogle, 'google-font': renderGoogleFont, settings: renderSettings };
+		const parents = { family: 'library', 'google-font': 'google' };
 		if ( view === 'family' && ! draft ) view = 'library';
 
 		panel.querySelectorAll( '.etk-fonts__nav button' ).forEach( ( b ) => {
-			const current = b.dataset.view === view || ( view === 'family' && b.dataset.view === 'library' );
+			const current = b.dataset.view === ( parents[ view ] || view );
 			current ? b.setAttribute( 'aria-current', 'page' ) : b.removeAttribute( 'aria-current' );
 		} );
 		main.dataset.view = view;

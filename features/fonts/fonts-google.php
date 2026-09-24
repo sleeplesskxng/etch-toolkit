@@ -68,7 +68,7 @@ function etch_toolkit_fonts_google_index() {
 }
 
 /**
- * @param array{category?: string, subset?: string, sort?: string, offset?: int} $args Filters.
+ * @param array{category?: string, subset?: string, sort?: string, offset?: int, variable?: bool} $args Filters. `variable` keeps only families with a variable weight axis.
  * @return array|WP_Error
  */
 function etch_toolkit_fonts_google_search( string $search, array $args ) {
@@ -91,12 +91,14 @@ function etch_toolkit_fonts_google_search( string $search, array $args ) {
 	$needle   = strtolower( trim( $search ) );
 	$category = strtolower( (string) ( $args['category'] ?? '' ) );
 	$subset   = sanitize_key( (string) ( $args['subset'] ?? '' ) );
+	$variable = ! empty( $args['variable'] );
 	$fonts    = array_values(
 		array_filter(
 			$fonts,
 			fn( $font ) => ( '' === $needle || str_contains( strtolower( $font['family'] ), $needle ) )
 				&& ( '' === $category || $font['category'] === $category )
 				&& ( '' === $subset || in_array( $subset, $font['subsets'], true ) )
+				&& ( ! $variable || $font['wght'] )
 		)
 	);
 

@@ -168,6 +168,7 @@ add_action(
 							'category' => (string) $r['category'],
 							'subset'   => (string) $r['subset'],
 							'sort'     => (string) $r['sort'],
+							'variable' => (bool) $r['variable'],
 							'offset'   => (int) $r['offset'],
 						)
 					);
