@@ -365,18 +365,24 @@
 	/* Library                                                             */
 	/* ------------------------------------------------------------------ */
 
-	const renderLibrary = () => {
-		const families = state.families;
-		const sample = h( 'input', {
-			class: 'etk-fonts__input',
+	// Preview text, shared by the Library and Google Fonts. Empty falls back to the pangram.
+	const previewInput = ( onchange ) =>
+		h( 'input', {
+			class: 'etk-fonts__input etk-fonts__preview',
 			type: 'text',
-			value: sampleText,
+			value: sampleText === SAMPLE ? '' : sampleText,
+			placeholder: SAMPLE,
 			'aria-label': 'Preview text',
 			oninput: ( e ) => {
 				sampleText = e.target.value || SAMPLE;
-				main.querySelectorAll( '.etk-fonts__specimen' ).forEach( ( node ) => ( node.textContent = sampleText ) );
+				main.querySelectorAll( '.etk-fonts__specimen, .etk-fonts__card-specimen' ).forEach( ( node ) => ( node.textContent = sampleText ) );
+				onchange?.();
 			},
 		} );
+
+	const renderLibrary = () => {
+		const families = state.families;
+		const sample = previewInput();
 
 		if ( ! families.length ) {
 			return [
@@ -813,13 +819,25 @@
 		renderGoogleResults();
 	};
 
-	// Specimens load from Google's CSS API in the builder only, limited to the family name's letters.
+	/**
+	 * Specimens load from Google's CSS API, in the builder only. Each asks for
+	 * just the letters in the preview text, so a new text reloads them.
+	 */
 	const loadGooglePreviews = ( fonts ) => {
+		const text = encodeURIComponent( [ ...new Set( sampleText ) ].join( '' ) );
 		for ( const font of fonts ) {
 			const id = `etk-gf-${ slugOf( font.family ) }`;
-			if ( document.getElementById( id ) ) continue;
-			document.head.append( h( 'link', { id, rel: 'stylesheet', href: `https://fonts.googleapis.com/css2?family=${ encodeURIComponent( font.family ) }&text=${ encodeURIComponent( font.family ) }&display=swap` } ) );
+			const href = `https://fonts.googleapis.com/css2?family=${ encodeURIComponent( font.family ) }&text=${ text }&display=swap`;
+			const link = document.getElementById( id );
+			if ( ! link ) document.head.append( h( 'link', { id, rel: 'stylesheet', href } ) );
+			else if ( link.href !== href ) link.href = href;
 		}
+	};
+
+	let previewTimer = 0;
+	const reloadGooglePreviews = () => {
+		window.clearTimeout( previewTimer );
+		previewTimer = window.setTimeout( () => loadGooglePreviews( google.results ), 400 );
 	};
 
 	const installed = ( name ) => state.families.find( ( f ) => f.name.toLowerCase() === name.toLowerCase() );
@@ -836,7 +854,7 @@
 				return h(
 					'li',
 					{ class: 'etk-fonts__card' },
-					h( 'p', { class: 'etk-fonts__card-specimen', style: `font-family: "${ font.family }", ${ font.category === 'serif' ? 'serif' : 'sans-serif' }`, 'aria-hidden': 'true', textContent: font.family } ),
+					h( 'p', { class: 'etk-fonts__card-specimen', style: `font-family: "${ font.family }", ${ font.category === 'serif' ? 'serif' : 'sans-serif' }`, 'aria-hidden': 'true', textContent: sampleText } ),
 					h( 'div', { class: 'etk-fonts__card-meta' }, h( 'h3', { class: 'etk-fonts__family-name', textContent: font.family } ), h( 'span', { class: 'etk-fonts__muted', textContent: [ font.category, plural( font.cuts.length, 'style', 'styles' ), font.wght?.min ? 'variable' : null ].filter( Boolean ).join( ' · ' ) } ) ),
 					have ? button( 'Installed', () => edit( state.families.indexOf( have ) ), { variant: 'ghost', attrs: { 'aria-label': `${ font.family } is installed. Edit it` } } ) : button( 'Add', () => installDialog( font.family, font ), { attrs: { 'aria-label': `Add ${ font.family }` } } )
 				);
@@ -983,6 +1001,7 @@
 					{ 'aria-label': 'Sort' }
 				)
 			),
+			h( 'div', { class: 'etk-fonts__toolbar' }, previewInput( reloadGooglePreviews ) ),
 			h( 'p', { class: 'etk-fonts__muted etk-fonts__google-summary', role: 'status' } ),
 			h( 'ul', { class: 'etk-fonts__cards etk-fonts__google-results', role: 'list' } ),
 			h( 'div', { class: 'etk-fonts__actions etk-fonts__actions--center' }, button( 'Load more', () => searchGoogle( true ), { attrs: { class: 'etk-fonts__btn etk-fonts__btn--secondary etk-fonts__more', hidden: true } } ) ),
@@ -1122,6 +1141,7 @@
 			const current = b.dataset.view === view || ( view === 'family' && b.dataset.view === 'library' );
 			current ? b.setAttribute( 'aria-current', 'page' ) : b.removeAttribute( 'aria-current' );
 		} );
+		main.dataset.view = view;
 		main.replaceChildren( ...views[ view ]() );
 		renderLog();
 		renderGoogleResults();
