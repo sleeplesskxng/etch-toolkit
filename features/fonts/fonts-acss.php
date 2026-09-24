@@ -47,31 +47,29 @@ function etch_toolkit_fonts_acss_sync(): void {
 		return;
 	}
 
-	$synced  = (array) get_option( ETCH_TOOLKIT_FONTS_ACSS_SYNCED, array() );
-	$changes = array();
-
-	foreach ( etch_toolkit_fonts_acss_wanted() as $role => $value ) {
-		$last = (string) ( $synced[ $role ] ?? '' );
-		if ( $value === $last ) {
-			continue;
-		}
-
-		$key = "{$role}-font-family";
-		if ( '' !== $value ) {
-			$changes[ $key ] = $value;
-		} elseif ( (string) \Automatic_CSS\API::get_setting( $key ) === $last ) {
-			$changes[ $key ] = '';
-		}
-		$synced[ $role ] = $value;
-	}
-
-	if ( ! $changes ) {
-		update_option( ETCH_TOOLKIT_FONTS_ACSS_SYNCED, $synced, false );
-		return;
-	}
-
+	// Automatic.css errors stay here. The fonts are saved by now, so the save shouldn't fail.
 	try {
-		\Automatic_CSS\API::update_settings( $changes );
+		$synced  = (array) get_option( ETCH_TOOLKIT_FONTS_ACSS_SYNCED, array() );
+		$changes = array();
+
+		foreach ( etch_toolkit_fonts_acss_wanted() as $role => $value ) {
+			$last = (string) ( $synced[ $role ] ?? '' );
+			if ( $value === $last ) {
+				continue;
+			}
+
+			$key = "{$role}-font-family";
+			if ( '' !== $value ) {
+				$changes[ $key ] = $value;
+			} elseif ( (string) \Automatic_CSS\API::get_setting( $key ) === $last ) {
+				$changes[ $key ] = '';
+			}
+			$synced[ $role ] = $value;
+		}
+
+		if ( $changes ) {
+			\Automatic_CSS\API::update_settings( $changes );
+		}
 		update_option( ETCH_TOOLKIT_FONTS_ACSS_SYNCED, $synced, false );
 	} catch ( \Throwable $e ) {
 		// Leave the record alone so the next save tries again.
