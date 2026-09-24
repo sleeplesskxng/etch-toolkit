@@ -352,6 +352,12 @@ select.etk-fonts__input {
 	}
 }
 
+.etk-fonts__check--all {
+	padding-block-end: var(--e-space-s, 8px);
+	border-block-end: 1px solid var(--e-border-color, #36363a);
+	font-weight: 600;
+}
+
 .etk-fonts__cuts {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -383,6 +389,10 @@ select.etk-fonts__input {
 
 	&:hover svg {
 		color: var(--e-foreground-color);
+	}
+
+	&.is-copied svg {
+		color: var(--e-success, #3bd671);
 	}
 }
 

@@ -34,6 +34,8 @@
 		// Etch's hugeicons:arrow-left-02, the back button on its own managers.
 		exit: '<path d="M8.99996 16.9998L4 11.9997L9 6.99976"/><path d="M4 12H20"/>',
 		copy: '<path d="M9 15C9 12.1716 9 10.7574 9.87868 9.87868C10.7574 9 12.1716 9 15 9H16C18.8284 9 20.2426 9 21.1213 9.87868C22 10.7574 22 12.1716 22 15V16C22 18.8284 22 20.2426 21.1213 21.1213C20.2426 22 18.8284 22 16 22H15C12.1716 22 10.7574 22 9.87868 21.1213C9 20.2426 9 18.8284 9 16V15Z"/><path d="M16.9999 9C16.9975 6.04291 16.9528 4.51121 16.092 3.46243C15.9258 3.25989 15.7401 3.07418 15.5376 2.90796C14.4312 2 12.7875 2 9.5 2C6.21252 2 4.56878 2 3.46243 2.90796C3.25989 3.07417 3.07418 3.25989 2.90796 3.46243C2 4.56878 2 6.21252 2 9.5C2 12.7875 2 14.4312 2.90796 15.5376C3.07417 15.7401 3.25989 15.9258 3.46243 16.092C4.51121 16.9528 6.04291 16.9975 9 16.9999"/>',
+		// Etch's hugeicons:tick-02.
+		tick: '<path d="M4.25 13.5L8.75 18L19.75 6"/>',
 		upload: '<path d="M12 4.5L12 14.5M12 4.5C11.2998 4.5 9.99153 6.4943 9.5 7M12 4.5C12.7002 4.5 14.0085 6.4943 14.5 7"/><path d="M20 16.5C20 18.982 19.482 19.5 17 19.5H7C4.518 19.5 4 18.982 4 16.5"/>',
 	};
 
@@ -317,21 +319,41 @@
 			options.map( ( [ optionValue, label ] ) => h( 'option', { value: optionValue, selected: optionValue === value, textContent: label } ) )
 		);
 
-	const copyVar = ( family ) =>
-		h(
+	// Shows a tick for a moment after copying.
+	const copyVar = ( family ) => {
+		const label = `Copy ${ varOf( family ) }`;
+		const glyph = h( 'span', { html: icon( 'copy' ) } );
+		let timer = 0;
+		const node = h(
 			'button',
 			{
 				type: 'button',
 				class: 'etk-fonts__var',
 				title: 'Copy CSS variable',
+				'aria-label': label,
 				onclick: async () => {
-					await navigator.clipboard.writeText( varOf( family ) );
+					try {
+						await navigator.clipboard.writeText( varOf( family ) );
+					} catch {
+						return warn( 'Couldn’t copy. Select the variable and copy it instead.' );
+					}
+					node.classList.add( 'is-copied' );
+					node.setAttribute( 'aria-label', 'Copied' );
+					glyph.innerHTML = icon( 'tick' );
 					announce( `Copied ${ varOf( family ) }` );
+					window.clearTimeout( timer );
+					timer = window.setTimeout( () => {
+						node.classList.remove( 'is-copied' );
+						node.setAttribute( 'aria-label', label );
+						glyph.innerHTML = icon( 'copy' );
+					}, 1500 );
 				},
 			},
 			h( 'code', { textContent: varOf( family ) } ),
-			h( 'span', { html: icon( 'copy' ) } )
+			glyph
 		);
+		return node;
+	};
 
 	const section = ( title, ...children ) => h( 'section', { class: 'etk-fonts__section' }, h( 'h3', { class: 'etk-fonts__section-title', textContent: title } ), ...children );
 
@@ -971,15 +993,53 @@
 	/* Settings                                                            */
 	/* ------------------------------------------------------------------ */
 
+	// Choose families, then download them with their files as one JSON file.
 	const exportFonts = async () => {
+		const chosen = new Set( state.families.map( ( f ) => f.name ) );
+		const toggleAll = h( 'input', { type: 'checkbox', checked: true } );
+		const boxes = state.families.map( ( family ) =>
+			check( family.name, true, ( value ) => {
+				value ? chosen.add( family.name ) : chosen.delete( family.name );
+				sync();
+			} )
+		);
+		const sync = () => {
+			toggleAll.checked = chosen.size === state.families.length;
+			toggleAll.indeterminate = chosen.size > 0 && ! toggleAll.checked;
+			dialog.setConfirmEnabled( chosen.size > 0 );
+		};
+		toggleAll.addEventListener( 'change', () => {
+			boxes.forEach( ( box, i ) => {
+				box.querySelector( 'input' ).checked = toggleAll.checked;
+				toggleAll.checked ? chosen.add( state.families[ i ].name ) : chosen.delete( state.families[ i ].name );
+			} );
+			sync();
+		} );
+
+		const dialog = confirmDialog( {
+			title: 'Export fonts',
+			message: [
+				h( 'p', { class: 'etk-fonts__help', textContent: 'Each family is exported with its font files.' } ),
+				h( 'fieldset', { class: 'etk-fonts__fieldset' }, h( 'legend', { class: 'screen-reader-text', textContent: 'Families to export' } ), h( 'label', { class: 'etk-fonts__check etk-fonts__check--all' }, toggleAll, h( 'span', { textContent: 'All families' } ) ), h( 'div', { class: 'etk-fonts__cuts' }, boxes ) ),
+			],
+			confirmLabel: 'Export',
+			busyLabel: 'Exporting…',
+			variant: 'primary',
+			form: true,
+		} );
+		if ( ! ( await dialog.result ) ) return;
+
 		try {
-			const data = await api( 'fonts/export' );
+			const params = new URLSearchParams();
+			chosen.forEach( ( name ) => params.append( 'families[]', name ) );
+			const data = await api( `fonts/export?${ params }` );
 			const url = URL.createObjectURL( new Blob( [ JSON.stringify( data ) ], { type: 'application/json' } ) );
 			h( 'a', { href: url, download: `fonts-${ location.hostname }.json` } ).click();
 			URL.revokeObjectURL( url );
+			dialog.close();
 			announce( `Exported ${ plural( data.families.length, 'family', 'families' ) }.` );
 		} catch ( error ) {
-			warn( errorText( error ) );
+			dialog.fail( errorText( error ) );
 		}
 	};
 
@@ -1037,8 +1097,8 @@
 			),
 			section(
 				'Import and export',
-				h( 'p', { class: 'etk-fonts__help', textContent: 'An export holds every family with its font files, ready to import on another site. Importing replaces families with the same name.' } ),
-				h( 'div', { class: 'etk-fonts__actions' }, button( 'Export fonts', exportFonts, { attrs: { disabled: ! state.families.length } } ), h( 'label', { class: 'etk-fonts__btn etk-fonts__btn--secondary etk-fonts__file-btn' }, importInput, 'Import fonts' ) )
+				h( 'p', { class: 'etk-fonts__help', textContent: 'Export the families you choose, with their font files, to import on another site. Importing replaces families with the same name.' } ),
+				h( 'div', { class: 'etk-fonts__actions' }, button( 'Export fonts…', exportFonts, { attrs: { disabled: ! state.families.length } } ), h( 'label', { class: 'etk-fonts__btn etk-fonts__btn--secondary etk-fonts__file-btn' }, importInput, 'Import fonts' ) )
 			),
 		];
 	};

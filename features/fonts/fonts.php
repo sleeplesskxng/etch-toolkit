@@ -151,7 +151,7 @@ add_action(
 					return is_wp_error( $result ) ? $result : etch_toolkit_fonts_state();
 				},
 			),
-			'/fonts/export'         => array( 'GET', fn() => etch_toolkit_fonts_export() ),
+			'/fonts/export'         => array( 'GET', fn( WP_REST_Request $r ) => etch_toolkit_fonts_export( (array) $r['families'] ) ),
 			'/fonts/import'         => array(
 				'POST',
 				function ( WP_REST_Request $r ) {
@@ -766,9 +766,14 @@ function etch_toolkit_fonts_delete_file( string $name ) {
 
 /**
  * Families plus their font files, base64-encoded, as one JSON document.
+ *
+ * @param string[] $names Families to export. Empty exports all.
  */
-function etch_toolkit_fonts_export(): array {
+function etch_toolkit_fonts_export( array $names = array() ): array {
 	$families = etch_toolkit_fonts_families();
+	if ( $names ) {
+		$families = array_values( array_filter( $families, fn( $f ) => in_array( $f['name'], $names, true ) ) );
+	}
 	$files    = array();
 	foreach ( $families as $family ) {
 		foreach ( $family['variants'] as $variant ) {
