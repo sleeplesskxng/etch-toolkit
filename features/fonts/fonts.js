@@ -35,6 +35,11 @@
 		upload: '<path d="M12 4.5L12 14.5M12 4.5C11.2998 4.5 9.99153 6.4943 9.5 7M12 4.5C12.7002 4.5 14.0085 6.4943 14.5 7"/><path d="M20 16.5C20 18.982 19.482 19.5 17 19.5H7C4.518 19.5 4 18.982 4 16.5"/>',
 	};
 
+	// Hugeicons free "text-font" (MIT). Etch bundles its own, different drawing under the same
+	// name, so the Settings Bar button gets these paths swapped in after Etch renders it.
+	const CONTROL_ICON =
+		'<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m14 19l-2.893-8.252C9.763 6.916 9.092 5 8 5s-1.763 1.916-3.107 5.748L2 19m2.5-7h7m10.47 1.94v4.5m0-4.5c.046-.824.048-1.45-.05-1.963c-.234-1.206-1.494-1.933-2.714-2.081c-1.168-.142-2.104.159-3.052 1.54m5.815 2.503h-2.843c-.437 0-.878.021-1.299.138c-2.573.716-2.384 4.323.196 4.768c.287.05.58.07.87.058c.677-.03 1.302-.358 1.84-.773c.627-.486 1.236-1.165 1.236-2.19z"/>';
+
 	const icon = ( name ) => `<svg class="etk-fonts__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ ICONS[ name ] }</svg>`;
 
 	/**
@@ -87,12 +92,18 @@
 			.replace( /^-|-$/g, '' );
 	const varOf = ( family ) => `var(--font-${ slugOf( family.name ) })`;
 
-	const announce = ( message ) => {
+	/**
+	 * Tell screen readers what happened. Confirmations are announced only,
+	 * errors are also shown in the header.
+	 */
+	const announce = ( message, { error = false } = {} ) => {
 		if ( ! status ) return;
 		status.textContent = '';
-		// A fresh node so screen readers read a repeated message again.
+		status.classList.toggle( 'is-error', error );
+		// Cleared first so a repeated message is read again.
 		window.setTimeout( () => ( status.textContent = message ), 50 );
 	};
+	const warn = ( message ) => announce( message, { error: true } );
 
 	// @font-face rules in the builder document, for specimens. The canvas gets the real stylesheet.
 	const loadFaces = () => {
@@ -149,7 +160,7 @@
 			await syncStylesheet();
 			if ( message ) announce( message );
 		} catch ( error ) {
-			announce( `Fonts saved, but the Etch stylesheet didn't update: ${ errorText( error ) }` );
+			warn( `Fonts saved, but the Etch stylesheet didn't update: ${ errorText( error ) }` );
 		}
 	};
 
@@ -394,8 +405,8 @@
 	const saveDraft = async () => {
 		const family = draft.family;
 		family.name = family.name.trim();
-		if ( ! family.name ) return announce( 'Give the family a name.' );
-		if ( state.families.some( ( f ) => f.name !== draft.original && f.name.toLowerCase() === family.name.toLowerCase() ) ) return announce( `There's already a family called ${ family.name }.` );
+		if ( ! family.name ) return warn( 'Give the family a name.' );
+		if ( state.families.some( ( f ) => f.name !== draft.original && f.name.toLowerCase() === family.name.toLowerCase() ) ) return warn( `There's already a family called ${ family.name }.` );
 
 		// A role belongs to one family, so claiming it here takes it from the others.
 		const families = state.families.map( ( f ) => ( f.name === draft.original ? family : { ...f, roles: f.roles.filter( ( r ) => ! family.roles.includes( r ) ) } ) );
@@ -404,7 +415,7 @@
 			draft = { original: family.name, family: clone( state.families.find( ( f ) => f.name === family.name ) ) };
 			render();
 		} catch ( error ) {
-			announce( errorText( error ) );
+			warn( errorText( error ) );
 		}
 	};
 
@@ -595,7 +606,7 @@
 	 */
 	const uploadFiles = async ( files, family = '' ) => {
 		const fonts = files.filter( ( f ) => /\.(woff2?|ttf|otf)$/i.test( f.name ) );
-		if ( ! fonts.length ) return announce( 'Choose WOFF2, WOFF, TTF or OTF files.' );
+		if ( ! fonts.length ) return warn( 'Choose WOFF2, WOFF, TTF or OTF files.' );
 
 		uploadLog = fonts.map( ( f ) => ( { name: f.name, text: 'Waiting' } ) );
 		renderLog();
@@ -625,7 +636,7 @@
 		}
 
 		if ( next ) await apply( next, `Uploaded ${ plural( added, 'file', 'files' ) }.` );
-		else announce( 'Nothing was uploaded.' );
+		else warn( 'Nothing was uploaded.' );
 	};
 
 	// api() sends JSON, so uploads use fetch directly.
@@ -650,7 +661,7 @@
 			families.push( family );
 		}
 		family.variants.push( { file: file.name, weight: file.weight, style: file.style } );
-		await saveFamilies( families, `Added ${ file.name } to ${ familyName }.` ).catch( ( error ) => announce( errorText( error ) ) );
+		await saveFamilies( families, `Added ${ file.name } to ${ familyName }.` ).catch( ( error ) => warn( errorText( error ) ) );
 	};
 
 	const renderUpload = () => {
@@ -821,7 +832,7 @@
 		if ( ! meta ) {
 			const data = await api( `fonts/google?${ new URLSearchParams( { search: name } ) }` ).catch( () => null );
 			meta = data?.results.find( ( f ) => f.family.toLowerCase() === name.toLowerCase() );
-			if ( ! meta ) return announce( `Couldn't find ${ name } on Google Fonts.` );
+			if ( ! meta ) return warn( `Couldn't find ${ name } on Google Fonts.` );
 		}
 
 		const current = installed( meta.family );
@@ -966,7 +977,7 @@
 			URL.revokeObjectURL( url );
 			announce( `Exported ${ plural( data.families.length, 'family', 'families' ) }.` );
 		} catch ( error ) {
-			announce( errorText( error ) );
+			warn( errorText( error ) );
 		}
 	};
 
@@ -991,7 +1002,7 @@
 				dialog.fail( errorText( error ) );
 			}
 		} catch {
-			announce( 'That file isn’t a fonts export.' );
+			warn( 'That file isn’t a fonts export.' );
 		}
 	};
 
@@ -1015,7 +1026,7 @@
 							try {
 								await apply( await api( 'fonts/settings', 'POST', { blockGoogle: value } ), value ? 'Google Fonts from other plugins are now blocked.' : 'Google Fonts are no longer blocked.' );
 							} catch ( error ) {
-								announce( errorText( error ) );
+								warn( errorText( error ) );
 							}
 						},
 						'Removes stylesheets and hints for fonts.googleapis.com on the front end. Stops if Etch Toolkit is removed.'
@@ -1128,13 +1139,18 @@
 			loadFaces();
 			await syncStylesheet();
 		} catch ( error ) {
-			announce( `Couldn't load fonts: ${ errorText( error ) }` );
+			warn( `Couldn't load fonts: ${ errorText( error ) }` );
 		}
 	};
 
 	/* ------------------------------------------------------------------ */
 	/* Boot                                                                */
 	/* ------------------------------------------------------------------ */
+
+	const useFreeIcon = () => {
+		const svg = controlButton?.querySelector( 'svg' );
+		if ( svg && svg.innerHTML !== CONTROL_ICON ) svg.innerHTML = CONTROL_ICON;
+	};
 
 	const register = () => {
 		const bar = window.etchControls?.builder?.settingsBar?.top;
@@ -1153,6 +1169,8 @@
 			controlButton.setAttribute( 'aria-expanded', 'false' );
 			controlButton.setAttribute( 'aria-controls', 'etk-fonts' );
 			controlButton.classList.add( 'etk-fonts-control' );
+			useFreeIcon();
+			new MutationObserver( useFreeIcon ).observe( controlButton, { childList: true, subtree: true } );
 		} );
 		observer.observe( section, { childList: true, subtree: true } );
 

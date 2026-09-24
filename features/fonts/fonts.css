@@ -645,9 +645,19 @@ select.etk-fonts__input {
 	color: var(--e-foreground-color);
 }
 
-.etk-fonts__status {
+/* Confirmations are for screen readers only. Errors show in the header. */
+.etk-fonts__status:not(.is-error) {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.etk-fonts__status.is-error {
 	margin-inline-start: auto;
-	color: var(--etk-fonts-muted);
+	color: var(--e-danger, #f26060);
 	font-size: var(--e-font-size-s, 11px);
 	text-align: end;
 }
