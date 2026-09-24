@@ -60,7 +60,11 @@
 	};
 	// Subsets Google serves in many small slices per style, which aren't downloaded here.
 	const SLICED = { japanese: 'Japanese', korean: 'Korean', 'chinese-simplified': 'Chinese', 'chinese-traditional': 'Chinese', 'chinese-hongkong': 'Chinese', emoji: 'Emoji' };
+	// Every view's name. The sidebar lists NAV. Upload has no item: it's reached from the Library.
 	const VIEWS = { library: 'Library', upload: 'Upload', google: 'Google Fonts', settings: 'Settings' };
+	const NAV = [ 'library', 'google', 'settings' ];
+	// Views that light up another view's nav item.
+	const PARENTS = { family: 'library', upload: 'library', 'google-font': 'google' };
 
 	// Hugeicons strokes, 24px grid, like Etch's own.
 	const ICONS = {
@@ -74,6 +78,17 @@
 		// Etch's hugeicons:tick-02.
 		tick: '<path d="M4.25 13.5L8.75 18L19.75 6"/>',
 		upload: '<path d="M12 4.5L12 14.5M12 4.5C11.2998 4.5 9.99153 6.4943 9.5 7M12 4.5C12.7002 4.5 14.0085 6.4943 14.5 7"/><path d="M20 16.5C20 18.982 19.482 19.5 17 19.5H7C4.518 19.5 4 18.982 4 16.5"/>',
+		// From the Paper designs.
+		plus: '<path d="M12 5v14M5 12h14"/>',
+		'chevron-down': '<path d="M6 9l6 6 6-6"/>',
+		'chevron-right': '<path d="M9 6l6 6-6 6"/>',
+		more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+		search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+		check: '<path d="M5 13l4 4 10-10"/>',
+		alert: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.5"/>',
+		trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
+		grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+		list: '<path d="M4 7h16M4 12h16M4 17h16"/>',
 	};
 
 	// Hugeicons free "text-font" (MIT). Etch bundles its own, different drawing under the same
@@ -81,7 +96,9 @@
 	const CONTROL_ICON =
 		'<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m14 19l-2.893-8.252C9.763 6.916 9.092 5 8 5s-1.763 1.916-3.107 5.748L2 19m2.5-7h7m10.47 1.94v4.5m0-4.5c.046-.824.048-1.45-.05-1.963c-.234-1.206-1.494-1.933-2.714-2.081c-1.168-.142-2.104.159-3.052 1.54m5.815 2.503h-2.843c-.437 0-.878.021-1.299.138c-2.573.716-2.384 4.323.196 4.768c.287.05.58.07.87.058c.677-.03 1.302-.358 1.84-.773c.627-.486 1.236-1.165 1.236-2.19z"/>';
 
-	const icon = ( name ) => `<svg class="etk-fonts__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ ICONS[ name ] }</svg>`;
+	// An icon's markup. Its size comes from where it sits (16px, 14px in buttons), or from size.
+	const icon = ( name, size ) =>
+		`<svg class="etk-fonts__icon" viewBox="0 0 24 24"${ size ? ` style="--etk-icon-size: ${ size }px"` : '' } aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ ICONS[ name ] }</svg>`;
 
 	/**
 	 * h( 'button', { class: 'x', onclick, 'aria-label': 'y' }, child, … )
@@ -362,22 +379,41 @@
 	/* Shared pieces                                                       */
 	/* ------------------------------------------------------------------ */
 
-	const button = ( label, onclick, { variant = 'secondary', iconName, attrs = {} } = {} ) =>
-		h(
-			'button',
-			{ type: 'button', class: `etk-fonts__btn etk-fonts__btn--${ variant }`, onclick, ...attrs },
-			iconName ? h( 'span', { html: iconName === 'delete' ? DELETE_ICON : icon( iconName ) } ) : null,
-			label
-		);
+	let uidCount = 0;
+	const uid = ( prefix = 'etk-fonts' ) => `${ prefix }-${ ++uidCount }`;
 
-	const iconButton = ( label, iconName, onclick ) =>
-		h( 'button', { type: 'button', class: 'etk-fonts__icon-btn', 'aria-label': label, title: label, onclick, html: icon( iconName ) } );
+	/**
+	 * Buttons use Etch's own button component classes, so its global
+	 * .etch-builder-button styles apply. etk-fonts__btn adds sizing only.
+	 * Variants: primary (accent), secondary (outlined), ghost (text), danger, icon.
+	 */
+	const ETCH_VARIANTS = { primary: 'default', secondary: 'outline', ghost: 'transparent', danger: 'outline', icon: 'icon' };
+	const btnClass = ( variant = 'secondary', extra = '' ) =>
+		`etch-builder-button etch-builder-button--icon-placement-before etch-builder-button--variant-${ ETCH_VARIANTS[ variant ] || 'outline' } etk-fonts__btn etk-fonts__btn--${ variant }${ extra ? ` ${ extra }` : '' }`;
 
-	const field = ( label, control, help ) => {
-		const id = control.id || ( control.id = `etk-fonts-${ Math.random().toString( 36 ).slice( 2, 8 ) }` );
+	const btnIcon = ( name ) => h( 'span', { class: 'etk-fonts__btn-icon', html: name === 'delete' ? DELETE_ICON : icon( name ) } );
+
+	// attrs.class adds to the button's classes.
+	const button = ( label, onclick, { variant = 'secondary', iconName, iconAfter, attrs = {} } = {} ) => {
+		const { class: extra, ...rest } = attrs;
+		return h( 'button', { type: 'button', class: btnClass( variant, extra ), onclick, ...rest }, iconName ? btnIcon( iconName ) : null, label, iconAfter ? btnIcon( iconAfter ) : null );
+	};
+
+	/**
+	 * A square icon button, named by label. Variants: icon (bare, the default),
+	 * secondary (outlined, like the back buttons) and danger.
+	 */
+	const iconButton = ( label, iconName, onclick, { variant = 'icon', title = label, attrs = {} } = {} ) => {
+		const { class: extra, ...rest } = attrs;
+		return h( 'button', { type: 'button', class: btnClass( variant, `etk-fonts__icon-btn${ extra ? ` ${ extra }` : '' }` ), 'aria-label': label, title, onclick, html: iconName === 'delete' ? DELETE_ICON : icon( iconName ), ...rest } );
+	};
+
+	// A label over its control, or beside it in a 72px column with row: true.
+	const field = ( label, control, help, { row = false } = {} ) => {
+		const id = control.id || ( control.id = uid() );
 		const helpId = help ? `${ id }-help` : null;
 		if ( helpId ) control.setAttribute( 'aria-describedby', helpId );
-		return h( 'div', { class: 'etk-fonts__field' }, h( 'label', { htmlFor: id, textContent: label } ), control, help ? h( 'p', { class: 'etk-fonts__help', id: helpId, textContent: help } ) : null );
+		return h( 'div', { class: `etk-fonts__field${ row ? ' etk-fonts__field--row' : '' }` }, h( 'label', { htmlFor: id, textContent: label } ), control, help ? h( 'p', { class: 'etk-fonts__help', id: helpId, textContent: help } ) : null );
 	};
 
 	const check = ( label, checked, onchange, help ) => {
@@ -385,26 +421,260 @@
 		return h( 'label', { class: 'etk-fonts__check' }, input, h( 'span', {}, label, help ? h( 'span', { class: 'etk-fonts__help', textContent: help } ) : null ) );
 	};
 
-	const select = ( options, value, onchange, attrs = {} ) =>
-		h(
+	/**
+	 * A switch row: title and help on the left, the switch on the right. Same
+	 * arguments as check(). A checkbox with role="switch", so it reads as on or off.
+	 */
+	const toggle = ( label, checked, onchange, help, attrs = {} ) => {
+		const id = uid();
+		const helpId = help ? `${ id }-help` : null;
+		return h(
+			'div',
+			{ class: 'etk-fonts__toggle' },
+			h( 'div', { class: 'etk-fonts__toggle-text' }, h( 'label', { class: 'etk-fonts__toggle-title', htmlFor: id, textContent: label } ), help ? h( 'p', { class: 'etk-fonts__toggle-help', id: helpId, textContent: help } ) : null ),
+			h( 'input', { type: 'checkbox', role: 'switch', id, class: 'etk-fonts__switch', checked, 'aria-describedby': helpId, onchange: ( e ) => onchange( e.target.checked ), ...attrs } )
+		);
+	};
+
+	// attrs.class adds to the select's classes.
+	const select = ( options, value, onchange, attrs = {} ) => {
+		const { class: extra, ...rest } = attrs;
+		return h(
 			'select',
-			{ class: 'etk-fonts__input', onchange: ( e ) => onchange( e.target.value ), ...attrs },
+			{ class: `etk-fonts__input etk-fonts__select${ extra ? ` ${ extra }` : '' }`, onchange: ( e ) => onchange( e.target.value ), ...rest },
 			options.map( ( [ optionValue, label ] ) => h( 'option', { value: optionValue, selected: optionValue === value, textContent: label } ) )
 		);
+	};
 
-	// Shows a tick for a moment after copying. Takes the saved name, so a family
-	// renamed in the editor shows its variable as it is until it's saved.
-	const copyVar = ( name ) => {
+	/**
+	 * A bordered box with a small label, the control, then anything trailing,
+	 * like the Preview field. The control loses its own box.
+	 */
+	const inputBox = ( label, control, ...trailing ) => {
+		const id = control.id || ( control.id = uid() );
+		control.classList.add( 'etk-fonts__inputbox-control' );
+		return h( 'div', { class: 'etk-fonts__inputbox' }, h( 'label', { class: 'etk-fonts__inputbox-label', htmlFor: id, textContent: label } ), control, ...trailing );
+	};
+
+	// Variants: neutral, accent (roles), warning (unused), tag (categories).
+	const badge = ( text, variant = 'neutral' ) => h( 'span', { class: `etk-fonts__badge etk-fonts__badge--${ variant }`, textContent: text } );
+
+	// An on/off pill, like the language chips.
+	const chip = ( label, pressed, onchange ) => {
+		const node = h( 'button', {
+			type: 'button',
+			class: 'etk-fonts__chip',
+			'aria-pressed': String( !! pressed ),
+			textContent: label,
+			onclick: () => {
+				pressed = ! pressed;
+				node.setAttribute( 'aria-pressed', String( pressed ) );
+				onchange( pressed );
+			},
+		} );
+		return node;
+	};
+
+	/**
+	 * Tabs as a pill group, with counts. items: [ { id, label, count } ].
+	 * Arrow keys, Home and End move and select. Pair each tab with tabPanel( key, id ).
+	 */
+	const tabs = ( { key, label, items, value, onchange } ) => {
+		const buttons = items.map( ( item ) =>
+			h(
+				'button',
+				{
+					type: 'button',
+					role: 'tab',
+					class: 'etk-fonts__tab',
+					id: `etk-fonts-${ key }-tab-${ item.id }`,
+					'aria-controls': `etk-fonts-${ key }-panel-${ item.id }`,
+					'aria-selected': String( item.id === value ),
+					tabindex: item.id === value ? '0' : '-1',
+					onclick: () => pick( item.id ),
+				},
+				h( 'span', { textContent: item.label } ),
+				item.count === undefined ? null : h( 'span', { class: 'etk-fonts__count', textContent: String( item.count ) } )
+			)
+		);
+		// Focus moves first, so a re-render in onchange keeps it on the tab.
+		const pick = ( id, focus = false ) => {
+			buttons.forEach( ( b, i ) => {
+				const on = items[ i ].id === id;
+				b.setAttribute( 'aria-selected', String( on ) );
+				b.tabIndex = on ? 0 : -1;
+				if ( on && focus ) b.focus();
+			} );
+			if ( id === value ) return;
+			value = id;
+			onchange( id );
+		};
+		return h(
+			'div',
+			{
+				class: 'etk-fonts__tabs',
+				role: 'tablist',
+				'aria-label': label,
+				onkeydown: ( e ) => {
+					const i = buttons.indexOf( document.activeElement );
+					const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: buttons.length - 1 }[ e.key ];
+					if ( i < 0 || next === undefined ) return;
+					e.preventDefault();
+					pick( items[ ( next + buttons.length ) % buttons.length ].id, true );
+				},
+			},
+			buttons
+		);
+	};
+
+	const tabPanel = ( key, id, ...children ) => h( 'div', { class: 'etk-fonts__tabpanel', role: 'tabpanel', id: `etk-fonts-${ key }-panel-${ id }`, 'aria-labelledby': `etk-fonts-${ key }-tab-${ id }` }, ...children );
+
+	/**
+	 * One choice from a few, as radios styled as a segmented control.
+	 * options: [ { value, label, count, icon } ]. With an icon the label is for
+	 * screen readers only. fill stretches the segments, boxed borders the track.
+	 */
+	const segmented = ( { name, legend, options, value, onchange, fill = false, boxed = false } ) =>
+		h(
+			'fieldset',
+			{ class: `etk-fonts__seg${ fill ? ' etk-fonts__seg--fill' : '' }${ boxed ? ' etk-fonts__seg--boxed' : '' }` },
+			h( 'legend', { class: 'screen-reader-text', textContent: legend } ),
+			options.map( ( option ) =>
+				h(
+					'label',
+					{ title: option.icon ? option.label : null },
+					h( 'input', { type: 'radio', name: `etk-fonts-${ name }`, value: option.value, checked: option.value === value, onchange: () => onchange( option.value ) } ),
+					option.icon ? h( 'span', { class: 'etk-fonts__seg-icon', html: icon( option.icon, 14 ) } ) : null,
+					h( 'span', { class: option.icon ? 'screen-reader-text' : null, textContent: option.label } ),
+					option.count === undefined ? null : h( 'span', { class: 'etk-fonts__count', textContent: String( option.count ) } )
+				)
+			)
+		);
+
+	/**
+	 * A menu on a button, styled like Etch's context menu. items: [ { label,
+	 * onselect, icon, danger, disabled } ], '-' for a separator, or a function
+	 * returning them, read on open. Arrow keys, Home and End move, Enter picks,
+	 * Escape closes, Tab closes and moves on. Focus returns to the button.
+	 */
+	let openMenu = null;
+	const onMenuOutside = ( e ) => {
+		if ( e.type === 'pointerdown' && ( openMenu?.popup.contains( e.target ) || openMenu?.trigger.contains( e.target ) ) ) return;
+		if ( e.type === 'scroll' && openMenu?.popup.contains( e.target ) ) return;
+		closeMenu();
+	};
+	const closeMenu = ( { focus = false } = {} ) => {
+		if ( ! openMenu ) return;
+		const { trigger, popup } = openMenu;
+		openMenu = null;
+		popup.remove();
+		trigger.setAttribute( 'aria-expanded', 'false' );
+		trigger.removeAttribute( 'selected' );
+		document.removeEventListener( 'pointerdown', onMenuOutside, true );
+		document.removeEventListener( 'scroll', onMenuOutside, true );
+		window.removeEventListener( 'resize', onMenuOutside );
+		if ( focus && trigger.isConnected ) trigger.focus();
+	};
+
+	const menu = ( trigger, items, { label, align = 'end' } = {} ) => {
+		trigger.setAttribute( 'aria-haspopup', 'menu' );
+		trigger.setAttribute( 'aria-expanded', 'false' );
+
+		const show = ( first ) => {
+			closeMenu();
+			const entries = ( typeof items === 'function' ? items() : items ).filter( Boolean );
+			const choices = [];
+			const popup = h(
+				'div',
+				{
+					class: 'right-click-menu__content etk-fonts__menu',
+					role: 'menu',
+					'aria-label': label || trigger.getAttribute( 'aria-label' ) || trigger.textContent.trim(),
+					onkeydown: ( e ) => {
+						const i = choices.indexOf( document.activeElement );
+						const next = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: choices.length - 1 }[ e.key ];
+						if ( next !== undefined ) {
+							e.preventDefault();
+							choices[ ( next + choices.length ) % choices.length ]?.focus();
+						} else if ( e.key === 'Escape' ) {
+							// Not the panel's Escape, which would close the fonts manager.
+							e.preventDefault();
+							e.stopPropagation();
+							closeMenu( { focus: true } );
+						} else if ( e.key === 'Tab' ) {
+							// Back on the button first, so Tab moves on from there.
+							closeMenu( { focus: true } );
+						}
+					},
+				},
+				entries.map( ( item ) => {
+					if ( item === '-' ) return h( 'div', { class: 'right-click-menu__separator etk-fonts__menu-separator', role: 'separator' } );
+					const node = h(
+						'button',
+						{
+							type: 'button',
+							role: 'menuitem',
+							tabindex: '-1',
+							class: `right-click-menu__item etk-fonts__menu-item${ item.danger ? ' danger' : '' }`,
+							'aria-disabled': item.disabled ? 'true' : null,
+							'data-disabled': item.disabled ? '' : null,
+							onclick: () => {
+								if ( item.disabled ) return;
+								closeMenu( { focus: true } );
+								item.onselect();
+							},
+						},
+						h( 'span', { class: 'right-click-menu__item-label etk-fonts__menu-label' }, item.icon ? h( 'span', { class: 'etk-fonts__menu-icon', html: item.icon === 'delete' ? DELETE_ICON : icon( item.icon, 14 ) } ) : null, item.label )
+					);
+					choices.push( node );
+					return node;
+				} )
+			);
+			// In the panel, for its tokens and its keyboard fence. Fixed, so no scroller clips it.
+			panel.append( popup );
+			const box = trigger.getBoundingClientRect();
+			const size = popup.getBoundingClientRect();
+			const left = Math.max( 8, Math.min( align === 'end' ? box.right - size.width : box.left, window.innerWidth - size.width - 8 ) );
+			const top = box.bottom + 4 + size.height > window.innerHeight - 8 ? Math.max( 8, box.top - 4 - size.height ) : box.bottom + 4;
+			popup.style.left = `${ left }px`;
+			popup.style.top = `${ top }px`;
+
+			openMenu = { trigger, popup };
+			trigger.setAttribute( 'aria-expanded', 'true' );
+			trigger.setAttribute( 'selected', 'true' );
+			document.addEventListener( 'pointerdown', onMenuOutside, true );
+			document.addEventListener( 'scroll', onMenuOutside, true );
+			window.addEventListener( 'resize', onMenuOutside );
+			choices.at( first )?.focus();
+		};
+
+		trigger.addEventListener( 'click', () => ( openMenu?.trigger === trigger ? closeMenu() : show( 0 ) ) );
+		trigger.addEventListener( 'keydown', ( e ) => {
+			if ( e.key !== 'ArrowDown' && e.key !== 'ArrowUp' ) return;
+			e.preventDefault();
+			show( e.key === 'ArrowUp' ? -1 : 0 );
+		} );
+		return trigger;
+	};
+
+	/**
+	 * A family's CSS variable, with a copy button that shows a tick for a moment.
+	 * Takes the saved name, so a family renamed in the editor shows its variable
+	 * as it is until it's saved. Variants: chip (inline), field (a full-width
+	 * field, as in the inspector) and icon (the copy button alone).
+	 */
+	const copyVar = ( name, { variant = 'chip' } = {} ) => {
 		const value = varOf( name );
 		if ( ! value ) return null;
 		const label = `Copy ${ value }`;
-		const glyph = h( 'span', { html: icon( 'copy' ) } );
+		const iconOnly = variant === 'icon';
+		const glyph = h( 'span', { class: 'etk-fonts__var-icon', html: icon( 'copy' ) } );
 		let timer = 0;
 		const node = h(
 			'button',
 			{
 				type: 'button',
-				class: 'etk-fonts__var',
+				class: iconOnly ? btnClass( 'icon', 'etk-fonts__icon-btn etk-fonts__copy' ) : `etk-fonts__var etk-fonts__var--${ variant }`,
 				title: 'Copy CSS variable',
 				'aria-label': label,
 				onclick: async () => {
@@ -425,17 +695,58 @@
 					}, 1500 );
 				},
 			},
-			h( 'code', { textContent: value } ),
+			iconOnly ? null : h( 'code', { textContent: value } ),
 			glyph
 		);
 		return node;
 	};
 
-	const section = ( title, ...children ) => h( 'section', { class: 'etk-fonts__section' }, h( 'h3', { class: 'etk-fonts__section-title', textContent: title } ), ...children );
+	/**
+	 * A labelled group. section( title, ...children ), or { title, variant,
+	 * action } in place of title. Variants: card (the default: children in a
+	 * padded card under the label), rows (an unpadded card, for
+	 * .etk-fonts__card-row children) and panel (an inspector section, with a
+	 * divider under it). action sits at the end of the label row.
+	 */
+	const section = ( title, ...children ) => {
+		const { title: text, variant = 'card', action } = title && typeof title === 'object' ? title : { title };
+		const head = h( 'div', { class: 'etk-fonts__section-head' }, h( 'h3', { class: 'etk-fonts__label', textContent: text } ), action || null );
+		return h(
+			'section',
+			{ class: `etk-fonts__section etk-fonts__section--${ variant }` },
+			head,
+			variant === 'panel' ? children : h( 'div', { class: `etk-fonts__card${ variant === 'card' ? ' etk-fonts__card--padded' : '' }` }, ...children )
+		);
+	};
 
-	// Tabs already name their view, so their titles are for screen readers only.
-	const pageHeader = ( title, description, ...actions ) =>
-		h( 'div', { class: 'etk-fonts__page-header' }, h( 'div', {}, h( 'h2', { class: `etk-fonts__page-title${ title === VIEWS[ view ] ? ' screen-reader-text' : '' }`, tabindex: '-1', textContent: title } ), description ? h( 'p', { class: 'etk-fonts__help', textContent: description } ) : null ), actions.length ? h( 'div', { class: 'etk-fonts__actions' }, ...actions ) : null );
+	/**
+	 * A view's header: an optional back button, the title (focused when the
+	 * view opens), meta, tabs, then actions at the end.
+	 * pageHeader( title, description, ...actions ), or pageHeader( { title,
+	 * hidden, description, back: { label, onclick }, meta, tabs, actions, bar } ).
+	 * A title that repeats its nav item is for screen readers only, unless
+	 * hidden is false. bar makes it the 52px bar over a split view.
+	 */
+	const pageHeader = ( title, description, ...actions ) => {
+		const o = title && typeof title === 'object' ? title : { title, description, actions };
+		const hidden = o.hidden ?? o.title === VIEWS[ view ];
+		const list = ( o.actions || [] ).filter( Boolean );
+		const bare = hidden && ! o.back && ! o.meta && ! o.tabs && ! list.length && ! o.description;
+		return h(
+			'div',
+			{ class: `etk-fonts__page-header${ o.bar ? ' etk-fonts__page-header--bar' : '' }${ bare ? ' etk-fonts__page-header--bare' : '' }` },
+			h(
+				'div',
+				{ class: 'etk-fonts__page-lead' },
+				o.back ? iconButton( o.back.label, 'back', o.back.onclick, { variant: 'secondary' } ) : null,
+				h( 'h2', { class: `etk-fonts__page-title${ hidden ? ' screen-reader-text' : '' }`, tabindex: '-1', textContent: o.title } ),
+				typeof o.meta === 'string' ? h( 'span', { class: 'etk-fonts__page-meta', textContent: o.meta } ) : o.meta || null,
+				o.tabs || null
+			),
+			list.length ? h( 'div', { class: 'etk-fonts__actions' }, ...list ) : null,
+			o.description ? h( 'p', { class: 'etk-fonts__help etk-fonts__page-description', textContent: o.description } ) : null
+		);
+	};
 
 	/* ------------------------------------------------------------------ */
 	/* Library                                                             */
@@ -456,33 +767,32 @@
 			},
 		} );
 
-	// Rows or grid for Google Fonts, as radios styled as a segmented control.
+	// Rows or grid for Google Fonts.
 	const layoutToggle = ( key ) =>
-		h(
-			'fieldset',
-			{ class: 'etk-fonts__seg' },
-			h( 'legend', { class: 'screen-reader-text', textContent: 'Layout' } ),
+		segmented( {
+			name: `layout-${ key }`,
+			legend: 'Layout',
+			value: prefs[ key ],
+			options: [
+				{ value: 'rows', label: 'Rows' },
+				{ value: 'grid', label: 'Grid' },
+			],
+			onchange: ( value ) => {
+				prefs[ key ] = value;
+				savePrefs();
+				main.querySelector( '[data-layout]' ).dataset.layout = value;
+			},
+		} );
+
+	// Upload now lives under the Library, until its Files tab replaces the view.
+	const addFontMenu = () =>
+		menu(
+			button( 'Add font', null, { variant: 'primary', iconName: 'plus', iconAfter: 'chevron-down' } ),
 			[
-				[ 'rows', 'Rows' ],
-				[ 'grid', 'Grid' ],
-			].map( ( [ value, label ] ) =>
-				h(
-					'label',
-					{},
-					h( 'input', {
-						type: 'radio',
-						name: `etk-fonts-layout-${ key }`,
-						value,
-						checked: prefs[ key ] === value,
-						onchange: () => {
-							prefs[ key ] = value;
-							savePrefs();
-							main.querySelector( '[data-layout]' ).dataset.layout = value;
-						},
-					} ),
-					label
-				)
-			)
+				{ label: 'Upload files', icon: 'upload', onselect: () => go( 'upload' ) },
+				{ label: 'Browse Google Fonts', icon: 'search', onselect: () => go( 'google' ) },
+			],
+			{ label: 'Add font' }
 		);
 
 	const renderLibrary = () => {
@@ -497,7 +807,7 @@
 		}
 
 		return [
-			pageHeader( 'Library', `${ plural( families.length, 'family', 'families' ) }. Use a family anywhere with its CSS variable.` ),
+			pageHeader( 'Library', `${ plural( families.length, 'family', 'families' ) }. Use a family anywhere with its CSS variable.`, addFontMenu() ),
 			h( 'div', { class: 'etk-fonts__toolbar' }, sample, sizeSlider() ),
 			h(
 				'ul',
@@ -653,17 +963,7 @@
 						h(
 							'td',
 							{},
-							h( 'button', {
-								type: 'button',
-								class: 'etk-fonts__icon-btn',
-								'aria-label': `Remove ${ variant.file } from ${ family.name }`,
-								title: 'Remove from family (keeps the file)',
-								html: icon( 'close' ),
-								onclick: () => {
-									family.variants.splice( i, 1 );
-									render();
-								},
-							} )
+							iconButton( `Remove ${ variant.file } from ${ family.name }`, 'close', () => ( family.variants.splice( i, 1 ), render() ), { title: 'Remove from family (keeps the file)' } )
 						)
 					);
 				} )
@@ -743,7 +1043,7 @@
 				h(
 					'div',
 					{ class: 'etk-fonts__actions' },
-					h( 'label', { class: 'etk-fonts__btn etk-fonts__btn--secondary etk-fonts__file-btn' }, fileInput, h( 'span', { html: icon( 'upload' ) } ), 'Upload files' ),
+					h( 'label', { class: btnClass( 'secondary', 'etk-fonts__file-btn' ) }, fileInput, btnIcon( 'upload' ), 'Upload files' ),
 					unused.length
 						? select(
 								[ [ '', 'Add an existing file…' ], ...unused.map( ( f ) => [ f.name, f.name ] ) ],
@@ -874,7 +1174,7 @@
 		const familyNames = state.families.map( ( f ) => f.name );
 
 		return [
-			pageHeader( 'Upload', null ),
+			pageHeader( { title: 'Upload', hidden: false, back: { label: 'Back to the library', onclick: () => go( 'library' ) } } ),
 			drop,
 			h( 'ul', { class: 'etk-fonts__log', role: 'list', 'aria-live': 'polite' } ),
 			section(
@@ -913,16 +1213,7 @@
 										h(
 											'td',
 											{},
-											file.family
-												? null
-												: h( 'button', {
-														type: 'button',
-														class: 'etk-fonts__icon-btn etk-fonts__icon-btn--danger',
-														'aria-label': `Delete ${ file.name }`,
-														title: 'Delete file',
-														html: DELETE_ICON,
-														onclick: () => deleteFile( file ),
-												  } )
+											file.family ? null : iconButton( `Delete ${ file.name }`, 'delete', () => deleteFile( file ), { variant: 'danger', title: 'Delete file' } )
 										)
 									)
 								)
@@ -1139,7 +1430,7 @@
 						'div',
 						{ class: 'etk-fonts__actions' },
 						addButton( font ),
-						button( 'View', () => openGoogleFont( font ), { attrs: { class: 'etk-fonts__btn etk-fonts__btn--ghost etk-fonts__card-view', 'data-family': font.family, 'aria-label': `View ${ font.family }` } } )
+						button( 'View', () => openGoogleFont( font ), { variant: 'ghost', attrs: { class: 'etk-fonts__card-view', 'data-family': font.family, 'aria-label': `View ${ font.family }` } } )
 					)
 				);
 			} )
@@ -1308,7 +1599,7 @@
 			h( 'div', { class: 'etk-fonts__toolbar' }, previewInput( reloadGooglePreviews ), weightSlider(), sizeSlider(), layoutToggle( 'google' ) ),
 			h( 'p', { class: 'etk-fonts__muted etk-fonts__google-summary', role: 'status' } ),
 			h( 'ul', { class: 'etk-fonts__cards etk-fonts__google-results', role: 'list', 'data-layout': prefs.google } ),
-			h( 'div', { class: 'etk-fonts__actions etk-fonts__actions--center' }, button( 'Load more', () => google.loading || searchGoogle( true ), { attrs: { class: 'etk-fonts__btn etk-fonts__btn--secondary etk-fonts__more', hidden: true } } ) ),
+			h( 'div', { class: 'etk-fonts__actions etk-fonts__actions--center' }, button( 'Load more', () => google.loading || searchGoogle( true ), { attrs: { class: 'etk-fonts__more', hidden: true } } ) ),
 		];
 	};
 
@@ -1324,10 +1615,10 @@
 				[ fontSummary( font ), font.wght?.min ? `weights ${ font.wght.min }–${ font.wght.max }` : null, plural( font.subsets.length, 'language set', 'language sets' ) ].filter( Boolean ).join( ' · ' ),
 				h(
 					'a',
-					{ class: 'etk-fonts__btn etk-fonts__btn--ghost', href: `https://fonts.google.com/specimen/${ font.family.replace( / /g, '+' ) }`, target: '_blank', rel: 'noopener' },
+					{ class: btnClass( 'ghost' ), href: `https://fonts.google.com/specimen/${ font.family.replace( / /g, '+' ) }`, target: '_blank', rel: 'noopener' },
 					'View on Google Fonts',
 					h( 'span', { class: 'screen-reader-text', textContent: ' (opens in a new tab)' } ),
-					h( 'span', { html: icon( 'external' ) } )
+					btnIcon( 'external' )
 				),
 				addButton( font )
 			),
@@ -1499,7 +1790,7 @@
 			section(
 				'Import and export',
 				h( 'p', { class: 'etk-fonts__help', textContent: 'Export the families you choose, with their font files, to import on another site. Importing replaces families with the same name.' } ),
-				h( 'div', { class: 'etk-fonts__actions' }, button( 'Export fonts…', exportFonts, { attrs: { disabled: ! state.families.length } } ), h( 'label', { class: 'etk-fonts__btn etk-fonts__btn--secondary etk-fonts__file-btn' }, importInput, 'Import fonts' ) )
+				h( 'div', { class: 'etk-fonts__actions' }, button( 'Export fonts…', exportFonts, { attrs: { disabled: ! state.families.length } } ), h( 'label', { class: btnClass( 'secondary', 'etk-fonts__file-btn' ) }, importInput, 'Import fonts' ) )
 			),
 		];
 	};
@@ -1550,11 +1841,12 @@
 	const render = () => {
 		if ( ! panel || panel.hidden || ! state ) return;
 		const views = { library: renderLibrary, family: renderFamily, upload: renderUpload, google: renderGoogle, 'google-font': renderGoogleFont, settings: renderSettings };
-		const parents = { family: 'library', 'google-font': 'google' };
 		if ( view === 'family' && ! draft ) view = 'library';
+		// Its button may be about to go.
+		closeMenu();
 
 		panel.querySelectorAll( '.etk-fonts__nav button' ).forEach( ( b ) => {
-			const current = b.dataset.view === ( parents[ view ] || view );
+			const current = b.dataset.view === ( PARENTS[ view ] || view );
 			current ? b.setAttribute( 'aria-current', 'page' ) : b.removeAttribute( 'aria-current' );
 		} );
 		// The same view rebuilt keeps focus. A new one gives it to its title, in go().
@@ -1604,15 +1896,18 @@
 				},
 				onkeyup: ( e ) => e.stopPropagation(),
 			},
-			// Etch's manager header: a back button to the builder, then the title.
-			h( 'header', { class: 'etk-fonts__header' }, iconButton( 'Back to the builder', 'exit', () => close() ), h( 'h1', { id: 'etk-fonts-title', class: 'etk-fonts__title', textContent: 'Fonts' } ), status ),
+			// Laid out like Etch's Content Hub: a sidebar with the back button, title and views, then the view.
 			h(
-				'nav',
-				{ class: 'etk-fonts__nav', 'aria-label': 'Fonts' },
-				Object.entries( VIEWS ).map( ( [ key, label ] ) => h( 'button', { type: 'button', 'data-view': key, textContent: label, onclick: () => ( view === 'family' ? leaveFamily( key ) : go( key ) ) } ) )
+				'div',
+				{ class: 'etk-fonts__sidebar' },
+				h( 'header', { class: 'etk-fonts__header' }, iconButton( 'Back to the builder', 'exit', () => close(), { variant: 'secondary' } ), h( 'h1', { id: 'etk-fonts-title', class: 'etk-fonts__title', textContent: 'Fonts' } ) ),
+				h(
+					'nav',
+					{ class: 'etk-fonts__nav', 'aria-label': 'Fonts' },
+					NAV.map( ( key ) => h( 'button', { type: 'button', class: 'etk-fonts__nav-item', 'data-view': key, textContent: VIEWS[ key ], onclick: () => ( view === 'family' ? leaveFamily( key ) : go( key ) ) } ) )
+				)
 			),
-			h( 'div', { class: 'etk-fonts__content' }, main ),
-			savebar
+			h( 'div', { class: 'etk-fonts__body' }, status, h( 'div', { class: 'etk-fonts__content' }, main ), savebar )
 		);
 		document.body.append( panel );
 	};
@@ -1637,6 +1932,7 @@
 
 	const close = async () => {
 		if ( ! panel || panel.hidden ) return;
+		closeMenu();
 		if ( view === 'family' && ! ( await leaveFamily( 'library' ) ) ) return;
 		panel.hidden = true;
 		document.body.classList.remove( 'etk-fonts-open' );
@@ -1645,7 +1941,7 @@
 		controlButton?.focus();
 	};
 
-	const toggle = () => ( panel && ! panel.hidden ? close() : open() );
+	const togglePanel = () => ( panel && ! panel.hidden ? close() : open() );
 
 	const load = async () => {
 		try {
@@ -1677,7 +1973,7 @@
 		if ( ! bar || ! section?.querySelector( 'button' ) ) return false;
 
 		const before = new Set( section.querySelectorAll( 'button' ) );
-		bar.addAfter( { id: CONTROL_ID, icon: 'hugeicons:text-font', tooltip: 'Fonts', callback: toggle } );
+		bar.addAfter( { id: CONTROL_ID, icon: 'hugeicons:text-font', tooltip: 'Fonts', callback: togglePanel } );
 
 		// Etch renders the button on its next update. Label it for toggling state.
 		const observer = new MutationObserver( () => {

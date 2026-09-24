@@ -1,27 +1,68 @@
 /*
- * Fonts manager. Laid out like Etch's own managers (Style Manager): beside the
- * settings bar, above the action bar, 32px padding, a back button and title,
- * then bordered tabs. Colors and type come from Etch's tokens.
+ * Fonts manager. Laid out like Etch's Content Hub: beside the settings bar,
+ * above the action bar, a 256px sidebar with the back button, title and views,
+ * then the view. Colors and type come from Etch's tokens. A hex value only
+ * appears as a fallback, except where Etch has no token for it.
  */
 .etk-fonts {
+	/* Surfaces, darkest first. The view sits a step above the sidebar and its cards. */
+	--etk-fonts-field: var(--e-base-dark, #1d1d20);
+	--etk-fonts-canvas: color-mix(in srgb, var(--e-base-dark, #1d1d20), var(--e-base, #27272b) 60%);
+	--etk-fonts-surface: var(--e-base, #27272b);
+	--etk-fonts-view: color-mix(in srgb, var(--e-base, #27272b), var(--e-base-light, #36363a) 47%);
+	--etk-fonts-raised: var(--e-base-light, #36363a);
+	--etk-fonts-selected: var(--e-base-semi-light, #3e3e41);
+
+	/* Lines, faintest first. */
+	--etk-fonts-line-soft: color-mix(in srgb, var(--e-base-ultra-light, #4a4a4f) 50%, transparent);
 	--etk-fonts-line: var(--e-border-color, #36363a);
-	--etk-fonts-muted: var(--e-foreground-color-muted, rgb(225 225 229 / 0.65));
+	--etk-fonts-line-strong: var(--e-base-semi-light, #3e3e41);
+	--etk-fonts-line-heavy: var(--e-base-ultra-light, #4a4a4f);
+
+	/* Text: the foreground at the opacities the designs use. */
+	--etk-fonts-text: var(--e-foreground-color, #e1e1e5);
+	--etk-fonts-text-85: color-mix(in srgb, var(--etk-fonts-text) 85%, transparent);
+	--etk-fonts-text-75: color-mix(in srgb, var(--etk-fonts-text) 75%, transparent);
+	--etk-fonts-text-70: color-mix(in srgb, var(--etk-fonts-text) 70%, transparent);
+	--etk-fonts-text-60: color-mix(in srgb, var(--etk-fonts-text) 60%, transparent);
+	--etk-fonts-text-55: color-mix(in srgb, var(--etk-fonts-text) 55%, transparent);
+	--etk-fonts-text-50: color-mix(in srgb, var(--etk-fonts-text) 50%, transparent);
+	--etk-fonts-text-45: color-mix(in srgb, var(--etk-fonts-text) 45%, transparent);
+	--etk-fonts-text-40: color-mix(in srgb, var(--etk-fonts-text) 40%, transparent);
+	--etk-fonts-text-25: color-mix(in srgb, var(--etk-fonts-text) 25%, transparent);
+	--etk-fonts-muted: var(--etk-fonts-text-60);
+
+	/* Accent and status. */
+	--etk-fonts-accent: var(--e-primary, #57e9db);
+	--etk-fonts-accent-soft: color-mix(in srgb, var(--etk-fonts-accent) 12%, transparent);
+	--etk-fonts-on-accent: var(--e-base-dark, #1d1d20);
+	--etk-fonts-code: var(--etch-css-css-variable, #85b7e0);
+	--etk-fonts-success: var(--e-success, #67d992);
+	--etk-fonts-danger: var(--e-danger, #f26060);
+	--etk-fonts-danger-line: var(--e-danger-dark, #633636);
+	--etk-fonts-warning: var(--e-condition, #d1b771);
+	--etk-fonts-warning-soft: color-mix(in srgb, var(--etk-fonts-warning) 45%, black);
+	/* No Etch token: the switch knob when off. */
+	--etk-fonts-knob-off: #8a8a8f;
+
+	/* Shape. */
+	--etk-fonts-radius-sm: var(--etch-radius-md, 4px);
 	--etk-fonts-radius: var(--e-border-radius, 6px);
+	--etk-fonts-radius-lg: 8px;
 
 	position: fixed;
 	inset: 0 0 var(--etch-action-bar-height, 48px) var(--e-settings-bar-width, 46.5px);
 	/* Above the builder panels, below Etch's tooltips and dialogs. */
 	z-index: 60;
-	display: flex;
-	flex-direction: column;
-	gap: var(--e-space-l, 16px);
-	padding: 32px;
-	background: var(--e-base, #27272b);
-	color: var(--e-foreground-color, #e1e1e5);
+	display: grid;
+	grid-template-columns: 256px minmax(0, 1fr);
+	background: var(--etk-fonts-surface);
+	color: var(--etk-fonts-text);
 	font-family: var(--e-font-interface);
 	font-size: var(--e-font-size-m, 12px);
 	font-weight: 500;
-	line-height: 1.5;
+	line-height: 1.34;
+	-webkit-font-smoothing: antialiased;
 
 	&[hidden] {
 		display: none;
@@ -36,6 +77,11 @@
 	:focus-visible {
 		outline: none;
 		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+	}
+
+	/* Etch's buttons keep their own focus outline. */
+	.etch-builder-button:focus-visible {
+		box-shadow: none;
 	}
 
 	/* Headings get focus on navigation, for screen readers, without a ring. */
@@ -61,49 +107,80 @@
 }
 
 .etk-fonts__icon {
-	inline-size: var(--e-icon-size-l, 16px);
-	block-size: var(--e-icon-size-l, 16px);
+	inline-size: var(--etk-icon-size, 16px);
+	block-size: var(--etk-icon-size, 16px);
 	flex: none;
 }
 
-/* Header and tabs */
+/* ------------------------------------------------------------------ */
+/* Shell                                                               */
+/* ------------------------------------------------------------------ */
+
+.etk-fonts__sidebar {
+	display: flex;
+	flex-direction: column;
+	min-block-size: 0;
+	background: var(--etk-fonts-surface);
+}
 
 .etk-fonts__header {
 	display: flex;
 	align-items: center;
-	gap: var(--e-space-m, 12px);
+	gap: 10px;
+	padding: 12px;
+	border-block-end: 1px solid var(--etk-fonts-line);
 }
 
 .etk-fonts__title {
 	font-size: var(--e-hub-title-font-size, 16px);
 	font-weight: 400;
+	line-height: 20px;
+}
+
+.etk-fonts .etk-fonts__header .etk-fonts__icon-btn.etch-builder-button {
+	--etk-icon-size: 16px;
+	inline-size: 40px;
 }
 
 .etk-fonts__nav {
 	display: flex;
-	flex-wrap: wrap;
-	gap: var(--e-space-xs, 6px);
+	flex-direction: column;
+	gap: 4px;
+	padding: 16px;
+	overflow-y: auto;
+}
 
-	button {
-		min-inline-size: 116px;
-		padding: 6px 12px;
-		border: 1px solid var(--etk-fonts-line);
-		border-radius: var(--etk-fonts-radius);
-		background: none;
-		color: var(--etk-fonts-muted);
-		font: inherit;
-		cursor: pointer;
-		transition: background-color var(--e-transition, 0.15s ease-in-out);
+.etk-fonts__nav-item {
+	padding: 9px 14px;
+	border: 0;
+	border-radius: var(--etk-fonts-radius);
+	background: none;
+	color: var(--etk-fonts-text-60);
+	font: inherit;
+	line-height: 16px;
+	text-align: start;
+	cursor: pointer;
+	transition:
+		background-color var(--e-transition, 0.15s ease-in-out),
+		color var(--e-transition, 0.15s ease-in-out);
 
-		&:hover {
-			color: var(--e-foreground-color);
-		}
-
-		&[aria-current="page"] {
-			background: var(--e-base-light, #36363a);
-			color: var(--e-foreground-color);
-		}
+	&:hover {
+		color: var(--etk-fonts-text);
 	}
+
+	&[aria-current="page"] {
+		background: var(--etk-fonts-raised);
+		color: var(--etk-fonts-text);
+	}
+}
+
+/* The view: status, the scrolling content, then the save bar. */
+.etk-fonts__body {
+	display: flex;
+	flex-direction: column;
+	min-block-size: 0;
+	min-inline-size: 0;
+	background: var(--etk-fonts-view);
 }
 
 .etk-fonts__content {
@@ -111,58 +188,411 @@
 	min-block-size: 0;
 	overflow-y: auto;
 	scrollbar-gutter: stable;
+
+	/* A split view scrolls its panes instead. */
+	&:has(> .etk-fonts__main > .etk-fonts__split) {
+		overflow: hidden;
+		scrollbar-gutter: auto;
+	}
 }
 
 .etk-fonts__main {
 	display: flex;
 	flex-direction: column;
-	gap: var(--e-space-l, 16px);
-	max-inline-size: 1100px;
-	padding-block-end: 32px;
+	gap: 20px;
+	min-block-size: 100%;
+	padding: 24px 32px;
 
-	/* The card grid uses the full width. */
-	&[data-view="google"],
-	&[data-view="google-font"] {
-		max-inline-size: none;
+	&:has(> .etk-fonts__split) {
+		block-size: 100%;
+		padding: 0;
 	}
 }
 
+/* Canvas and inspector, or filters and results: panes that scroll on their own. */
+.etk-fonts__split {
+	display: flex;
+	block-size: 100%;
+	min-block-size: 0;
+}
+
+.etk-fonts__pane {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-inline-size: 0;
+	overflow-y: auto;
+}
+
+.etk-fonts__inspector {
+	display: flex;
+	flex: none;
+	flex-direction: column;
+	inline-size: 320px;
+	overflow-y: auto;
+	border-inline-start: 1px solid var(--etk-fonts-line);
+	background: var(--etk-fonts-surface);
+}
+
+.etk-fonts__inspector-footer {
+	position: sticky;
+	inset-block-end: 0;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	margin-block-start: auto;
+	padding: 12px 16px;
+	border-block-start: 1px solid var(--etk-fonts-line);
+	background: var(--etk-fonts-surface);
+}
+
+/* Page header: back, title, meta and tabs, then actions. */
 .etk-fonts__page-header {
 	display: flex;
+	flex: none;
 	flex-wrap: wrap;
 	align-items: center;
 	justify-content: space-between;
-	gap: var(--e-space-m, 12px);
+	gap: 8px 12px;
+	padding-block-end: 16px;
+	border-block-end: 1px solid var(--etk-fonts-line);
+}
+
+/* Only a title for screen readers: nothing to lay out. */
+.etk-fonts__page-header--bare,
+.etk-fonts__page-header--bare > * {
+	display: contents;
+}
+
+.etk-fonts__page-lead {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 14px;
+	min-inline-size: 0;
 }
 
 .etk-fonts__page-title {
-	font-size: var(--e-font-size-l, 14px);
+	font-size: 15px;
 	font-weight: 600;
+	line-height: 18px;
 }
 
-.etk-fonts__muted,
-.etk-fonts__help {
+.etk-fonts__page-meta {
+	color: var(--etk-fonts-text-50);
+	font-weight: 400;
+}
+
+.etk-fonts__page-header > .etk-fonts__page-description {
+	flex-basis: 100%;
+	max-inline-size: none;
+}
+
+/* The 52px bar over a split view. */
+.etk-fonts__page-header--bar {
+	flex-wrap: nowrap;
+	block-size: 52px;
+	padding: 0 24px;
+
+	.etk-fonts__page-lead {
+		flex-wrap: nowrap;
+		gap: 8px;
+	}
+
+	.etk-fonts__page-title {
+		font-size: var(--e-font-size-l, 13px);
+		line-height: 16px;
+	}
+}
+
+/* Errors show above the view. Confirmations are for screen readers only. */
+.etk-fonts__status:not(.is-error) {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.etk-fonts__status.is-error {
+	padding: 8px 32px;
+	border-block-end: 1px solid var(--etk-fonts-line);
+	color: var(--etk-fonts-danger);
+	font-size: var(--e-font-size-s, 11px);
+}
+
+.etk-fonts__savebar {
+	display: flex;
+	align-items: center;
+	gap: var(--e-space-s, 8px);
+	padding: 12px 32px;
+	border-block-start: 1px solid var(--etk-fonts-line);
+	background: var(--etk-fonts-surface);
+
+	&[hidden] {
+		display: none;
+	}
+
+	.etk-fonts__muted {
+		margin-inline-end: auto;
+	}
+}
+
+/* ------------------------------------------------------------------ */
+/* Text                                                                */
+/* ------------------------------------------------------------------ */
+
+/* Section and field labels. */
+.etk-fonts__label {
+	color: var(--etk-fonts-text-50);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 600;
+	line-height: 14px;
+}
+
+.etk-fonts__muted {
 	color: var(--etk-fonts-muted);
 	font-weight: 400;
 }
 
 .etk-fonts__help {
 	max-inline-size: 70ch;
+	color: var(--etk-fonts-text-50);
 	font-size: var(--e-font-size-s, 11px);
+	font-weight: 400;
+	line-height: 16px;
 }
 
+.etk-fonts__mono,
+.etk-fonts__code {
+	font-family: var(--e-font-code);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 400;
+	line-height: 14px;
+}
+
+.etk-fonts__code {
+	color: var(--etk-fonts-code);
+}
+
+/* ------------------------------------------------------------------ */
+/* Layout                                                              */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A labelled group: the label, then a card (card, rows) or the children
+ * themselves (panel, for the inspector).
+ */
 .etk-fonts__section {
 	display: flex;
 	flex-direction: column;
-	gap: var(--e-space-m, 12px);
-	padding: var(--e-space-l, 16px);
-	border: 1px solid var(--etk-fonts-line);
-	border-radius: 8px;
+	gap: 8px;
 }
 
-.etk-fonts__section-title {
-	font-size: var(--e-font-size-m, 12px);
+.etk-fonts__section-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding-inline-start: 2px;
+}
+
+.etk-fonts__section--panel {
+	gap: 10px;
+	padding: 16px;
+	border-block-end: 1px solid var(--etk-fonts-line);
+
+	.etk-fonts__section-head {
+		padding-inline-start: 0;
+	}
+}
+
+.etk-fonts__card {
+	display: flex;
+	flex-direction: column;
+	overflow: clip;
+	border: 1px solid var(--etk-fonts-line);
+	border-radius: var(--etk-fonts-radius-lg);
+	background: var(--etk-fonts-surface);
+}
+
+.etk-fonts__card--padded {
+	gap: 12px;
+	padding: 16px;
+}
+
+/* An empty slot, like "Add a family". */
+.etk-fonts__card--dashed {
+	border-style: dashed;
+	border-color: var(--etk-fonts-line-strong);
+	background: none;
+}
+
+.etk-fonts__card-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px 16px;
+
+	& + & {
+		border-block-start: 1px solid var(--etk-fonts-line);
+	}
+}
+
+/* Specimen tiles: a preview canvas over a meta row. Use with .etk-fonts__card. */
+.etk-fonts__tiles {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+	gap: 16px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.etk-fonts__tile-canvas {
+	display: flex;
+	flex: none;
+	flex-direction: column;
+	justify-content: space-between;
+	block-size: 188px;
+	padding: 18px;
+	overflow: hidden;
+	background: var(--etk-fonts-canvas);
+}
+
+.etk-fonts__tile-top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	min-block-size: 22px;
+
+	/* Without a badge, the note sits on the right. */
+	> :only-child {
+		margin-inline-start: auto;
+	}
+}
+
+.etk-fonts__tile-note {
+	color: var(--etk-fonts-text-45);
+	font-size: var(--e-font-size-s, 11px);
+	line-height: 14px;
+}
+
+.etk-fonts__tile-specimen {
+	overflow: hidden;
+	color: var(--etk-fonts-text);
+	font-weight: 400;
+	line-height: 1.1;
+	white-space: nowrap;
+}
+
+.etk-fonts__tile.is-disabled .etk-fonts__tile-specimen {
+	opacity: var(--etch-opacity-low, 0.35);
+}
+
+.etk-fonts__tile-meta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 14px 16px;
+	border-block-start: 1px solid var(--etk-fonts-line);
+}
+
+.etk-fonts__tile-title {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-inline-size: 0;
+}
+
+.etk-fonts__tile-name {
+	font-size: var(--e-font-size-l, 13px);
 	font-weight: 600;
+	line-height: 16px;
+}
+
+.etk-fonts__tile-sub {
+	overflow: hidden;
+	color: var(--etk-fonts-text-55);
+	font-family: var(--e-font-code);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 400;
+	line-height: 14px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.etk-fonts__tile-actions {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: 4px;
+}
+
+/* A dashed drop target. is-over while files are dragged over it. */
+.etk-fonts__dropzone {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	padding: 16px;
+	border: 1px dashed var(--etk-fonts-line-heavy);
+	border-radius: var(--etk-fonts-radius-lg);
+	transition:
+		background-color var(--e-transition, 0.15s ease-in-out),
+		border-color var(--e-transition, 0.15s ease-in-out);
+
+	&.is-over {
+		border-color: var(--etk-fonts-accent);
+		background: var(--etk-fonts-accent-soft);
+	}
+}
+
+/* Tables: a header strip, then 46px rows with soft dividers. */
+.etk-fonts__table {
+	inline-size: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+
+	th {
+		block-size: 32px;
+		padding: 0 8px;
+		background: var(--etk-fonts-surface);
+		font-weight: 500;
+		line-height: 16px;
+		text-align: start;
+		white-space: nowrap;
+	}
+
+	th:first-child {
+		border-start-start-radius: var(--etk-fonts-radius);
+	}
+
+	th:last-child {
+		border-start-end-radius: var(--etk-fonts-radius);
+	}
+
+	td {
+		block-size: 46px;
+		padding: 0 8px;
+		border-block-end: 1px solid var(--etk-fonts-line-soft);
+		font-weight: 400;
+		vertical-align: middle;
+	}
+
+	td:last-child,
+	th:last-child {
+		inline-size: 1%;
+		text-align: end;
+	}
+
+	.etk-fonts__num {
+		text-align: end;
+		font-variant-numeric: tabular-nums;
+	}
 }
 
 .etk-fonts__actions {
@@ -191,70 +621,106 @@
 	}
 }
 
-/* Controls */
+.etk-fonts__grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: var(--e-space-m, 12px);
+}
 
-.etk-fonts__btn {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
+/* ------------------------------------------------------------------ */
+/* Buttons: Etch's .etch-builder-button, sized for this panel           */
+/* ------------------------------------------------------------------ */
+
+.etk-fonts .etk-fonts__btn {
+	--button-font-size: var(--e-font-size-m, 12px);
+	--etk-icon-size: 14px;
+	flex: none;
+	gap: 6px;
 	block-size: 28px;
-	padding: 0 12px;
-	border: 1px solid var(--etk-fonts-line);
-	border-radius: var(--etk-fonts-radius);
-	background: none;
-	color: var(--e-foreground-color);
-	font: inherit;
+	padding-block: 0;
+	padding-inline: 10px;
+	font-family: inherit;
+	font-weight: 500;
+	line-height: 16px;
+	text-decoration: none;
 	white-space: nowrap;
-	cursor: pointer;
-	transition: background-color var(--e-transition, 0.15s ease-in-out);
-
-	&:hover:not(:disabled, [aria-disabled='true']) {
-		background: var(--e-base-light, #36363a);
-	}
 
 	/* aria-disabled keeps a busy button focusable, like Load more. */
-	&:disabled,
-	&[aria-disabled='true'] {
-		opacity: var(--etch-opacity-medium, 0.5);
+	&[aria-disabled="true"] {
+		opacity: var(--etch-opacity-medium, 0.55);
 		cursor: not-allowed;
 	}
 
-	/* display above would otherwise win over hidden, and Load more would never go. */
+	/* Etch's display would otherwise win over hidden. */
 	&[hidden] {
 		display: none;
 	}
+}
 
-	svg {
-		inline-size: 14px;
-		block-size: 14px;
+.etk-fonts__btn-icon {
+	display: inline-flex;
+}
+
+.etk-fonts .etk-fonts__btn--primary {
+	block-size: 32px;
+	padding-inline: 12px;
+	font-weight: 600;
+}
+
+/* Full width, like a panel's main action. */
+.etk-fonts .etk-fonts__btn--block {
+	inline-size: 100%;
+	block-size: 34px;
+}
+
+/* Etch's outline button dims its text. The designs don't. */
+.etk-fonts .etk-fonts__btn--secondary.etch-builder-button {
+	color: var(--etk-fonts-text);
+}
+
+.etk-fonts .etk-fonts__btn--ghost.etch-builder-button {
+	opacity: 1;
+	color: var(--etk-fonts-text-75);
+
+	&:is(:hover, :focus-visible) {
+		color: var(--etk-fonts-text);
 	}
 }
 
-.etk-fonts__btn--primary {
-	border-color: transparent;
-	background: var(--etch-primary-btn, var(--e-primary));
-	color: var(--etch-primary-btn-text, var(--e-base));
+.etk-fonts .etk-fonts__btn--danger.etch-builder-button {
+	border-color: var(--etk-fonts-danger-line);
+	color: var(--etk-fonts-danger);
 
-	&:hover:not(:disabled) {
-		background: var(--etch-primary-btn-hover, var(--e-primary));
+	&:is(:hover, :focus-visible) {
+		border-color: var(--etk-fonts-danger-line);
+		background: var(--etch-danger-trans, color-mix(in srgb, var(--etk-fonts-danger) 10%, transparent));
+		color: var(--etk-fonts-danger);
 	}
 }
 
-.etk-fonts__btn--ghost {
-	border-color: transparent;
-	text-decoration: none;
-	color: var(--etk-fonts-muted);
-	padding-inline: 6px;
+/* Icon buttons: 28px square, a 14px icon. */
+.etk-fonts .etk-fonts__icon-btn.etch-builder-button {
+	--etk-icon-size: 14px;
+	inline-size: 28px;
+	block-size: 28px;
+	padding: 0;
+}
 
-	/* Text buttons brighten on hover rather than filling. */
-	&:hover:not(:disabled) {
-		background: none;
-		color: var(--e-foreground-color);
+.etk-fonts .etk-fonts__btn--icon.etch-builder-button {
+	color: var(--etk-fonts-text-60);
+
+	&:is(:hover, :focus-visible, [selected="true"]) {
+		color: var(--etk-fonts-text);
+	}
+
+	&.is-copied {
+		color: var(--etk-fonts-success);
 	}
 }
 
-.etk-fonts__btn--danger {
-	color: var(--e-danger, #f26060);
+.etk-fonts .etk-fonts__icon-btn.etk-fonts__btn--danger.etch-builder-button {
+	inline-size: 30px;
+	block-size: 30px;
 }
 
 /* A visually hidden file input inside a label styled as a button. */
@@ -266,62 +732,286 @@
 	}
 }
 
-.etk-fonts__icon-btn {
-	display: inline-grid;
-	place-items: center;
-	inline-size: 28px;
-	block-size: 28px;
-	flex: none;
-	padding: 0;
-	border: 1px solid var(--etk-fonts-line);
-	border-radius: var(--etk-fonts-radius);
+/* ------------------------------------------------------------------ */
+/* Menus                                                               */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Etch's context menu, value for value. Its .right-click-menu__* classes are
+ * on the markup too, but their styles only load once Etch shows a menu.
+ */
+.etk-fonts__menu {
+	position: fixed;
+	z-index: 10;
+	display: flex;
+	flex-direction: column;
+	min-inline-size: 175px;
+	padding: var(--etch-space-sm, 6px);
+	border: var(--e-border, 1px solid #36363a);
+	border-radius: var(--etch-border-radius, 6px);
+	background: var(--etch-panel-bg, #27272b);
+	box-shadow:
+		0 4px 12px rgb(0 0 0 / 0.25),
+		0 1px 3px rgb(0 0 0 / 0.2);
+}
+
+.etk-fonts .etk-fonts__menu-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--etch-space-md, 8px);
+	inline-size: 100%;
+	padding: var(--etch-space-sm, 6px) var(--etch-space-lg, 10px);
+	border: 0;
+	border-radius: var(--etch-radius-sm, 3px);
 	background: none;
-	color: var(--etk-fonts-muted);
+	color: var(--etch-text-color, #f7f7f8);
+	font: inherit;
+	font-size: var(--e-font-size-m, 12px);
+	line-height: 16px;
+	text-align: start;
 	cursor: pointer;
 
+	&:is(:hover, :focus) {
+		background: var(--etch-menu-item-bg, #36363a);
+		box-shadow: none;
+	}
+
+	&.danger {
+		color: var(--etch-danger, #f84b4b);
+
+		&:is(:hover, :focus) {
+			background: var(--etch-danger-trans, color-mix(in srgb, var(--etk-fonts-danger) 10%, transparent));
+		}
+	}
+
+	&[aria-disabled="true"] {
+		opacity: var(--e-inactive-opacity, 0.65);
+		cursor: default;
+	}
+}
+
+.etk-fonts__menu-label {
+	display: flex;
+	align-items: center;
+	gap: var(--e-content-gap, 12px);
+}
+
+.etk-fonts__menu-icon {
+	display: inline-flex;
+	opacity: 0.65;
+}
+
+.etk-fonts__menu-separator {
+	block-size: 1px;
+	margin-block: var(--etch-space-sm, 6px);
+	background: var(--etch-border-color, #36363a);
+}
+
+/* ------------------------------------------------------------------ */
+/* Tabs and segmented controls                                         */
+/* ------------------------------------------------------------------ */
+
+/* Page tabs: a bordered track. */
+.etk-fonts__tabs {
+	display: inline-flex;
+	flex: none;
+	gap: 2px;
+	padding: 3px;
+	border: 1px solid var(--etk-fonts-line);
+	border-radius: var(--etk-fonts-radius);
+	background: var(--etk-fonts-surface);
+}
+
+/* Filters and options: a filled track. */
+.etk-fonts__seg {
+	display: inline-flex;
+	flex: none;
+	gap: 2px;
+	min-inline-size: 0;
+	margin: 0;
+	padding: 3px;
+	border: 0;
+	border-radius: var(--etk-fonts-radius);
+	background: var(--etk-fonts-field);
+
+	input {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+}
+
+.etk-fonts__seg--fill {
+	display: flex;
+
+	label {
+		flex: 1 1 0;
+	}
+}
+
+.etk-fonts__seg--boxed {
+	border: 1px solid var(--etk-fonts-line);
+	background: var(--etk-fonts-surface);
+}
+
+.etk-fonts__tab,
+.etk-fonts__seg label {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 5px 12px;
+	border: 0;
+	border-radius: var(--etk-fonts-radius-sm);
+	background: none;
+	color: var(--etk-fonts-text-60);
+	font: inherit;
+	font-weight: 500;
+	line-height: 16px;
+	white-space: nowrap;
+	cursor: pointer;
+	transition:
+		background-color var(--e-transition, 0.15s ease-in-out),
+		color var(--e-transition, 0.15s ease-in-out);
+
 	&:hover {
-		background: var(--e-base-light, #36363a);
-		color: var(--e-foreground-color);
-	}
-
-	svg {
-		inline-size: 14px;
-		block-size: 14px;
+		color: var(--etk-fonts-text);
 	}
 }
 
-.etk-fonts__header .etk-fonts__icon-btn {
-	inline-size: 40px;
+.etk-fonts__seg label {
+	padding: 4px 10px;
+	color: var(--etk-fonts-text-55);
+
+	&:has(.etk-fonts__seg-icon) {
+		padding: 5px 6px;
+	}
+
+	&:has(input:focus-visible) {
+		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+	}
 }
 
-.etk-fonts__icon-btn--danger:hover {
-	color: var(--e-danger, #f26060);
+.etk-fonts__tab[aria-selected="true"],
+.etk-fonts__seg label:has(input:checked) {
+	background: var(--etk-fonts-selected);
+	color: var(--etk-fonts-text);
 }
 
+.etk-fonts__seg-icon {
+	display: inline-flex;
+}
+
+.etk-fonts__count {
+	color: var(--etk-fonts-text-40);
+	font-size: var(--e-font-size-s, 11px);
+	line-height: 14px;
+}
+
+.etk-fonts__tab[aria-selected="true"] .etk-fonts__count,
+.etk-fonts__seg label:has(input:checked) .etk-fonts__count {
+	color: var(--etk-fonts-text-50);
+}
+
+/* ------------------------------------------------------------------ */
+/* Fields                                                              */
+/* ------------------------------------------------------------------ */
+
+/* Filled by default. --outline for a bordered box on the view, --md and --lg for taller. */
 .etk-fonts__input {
 	block-size: 28px;
 	min-inline-size: 0;
 	padding: 0 8px;
-	border: 1px solid var(--etk-fonts-line);
+	border: 1px solid transparent;
 	border-radius: var(--etk-fonts-radius);
-	background: var(--etch-input-bg, transparent);
-	color: var(--e-foreground-color);
+	background-color: var(--etk-fonts-field);
+	color: var(--etk-fonts-text);
 	font: inherit;
+	font-weight: 400;
+	line-height: 16px;
+	appearance: none;
 
 	&::placeholder {
-		color: var(--etch-placeholder-text, var(--etk-fonts-muted));
+		color: var(--etk-fonts-text-50);
 	}
 }
 
-select.etk-fonts__input {
-	padding-inline-end: 4px;
+.etk-fonts__input--md {
+	block-size: 32px;
+	padding-inline: 10px;
+}
+
+.etk-fonts__input--lg {
+	block-size: 36px;
+	padding-inline: 12px;
+}
+
+.etk-fonts__input--outline {
+	border-color: var(--etk-fonts-line);
+	background-color: var(--etk-fonts-surface);
+}
+
+.etk-fonts__input--mono {
+	font-family: var(--e-font-code);
+	font-size: var(--e-font-size-s, 11px);
+}
+
+/* A data URI can't read tokens: the chevron is the foreground at 60%. */
+.etk-fonts__select {
+	padding-inline-end: 26px;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e1e1e5' stroke-opacity='.6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+	background-position: right 8px center;
+	background-repeat: no-repeat;
+	background-size: 12px;
 	cursor: pointer;
 }
 
-.etk-fonts__grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-	gap: var(--e-space-m, 12px);
+/* A bordered box: a small label, the control, then anything trailing. */
+.etk-fonts__inputbox {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	block-size: 32px;
+	min-inline-size: 0;
+	padding-inline: 10px;
+	border: 1px solid var(--etk-fonts-line);
+	border-radius: var(--etk-fonts-radius);
+	background: var(--etk-fonts-surface);
+
+	&:focus-within {
+		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+	}
+}
+
+.etk-fonts__inputbox-label {
+	flex: none;
+	color: var(--etk-fonts-text-45);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 600;
+	line-height: 14px;
+}
+
+.etk-fonts .etk-fonts__inputbox-control {
+	flex: 1;
+	block-size: 100%;
+	padding-inline: 0;
+	border: 0;
+	background-color: transparent;
+	font-weight: 500;
+	caret-color: var(--etk-fonts-accent);
+
+	&:focus-visible {
+		box-shadow: none;
+	}
+}
+
+.etk-fonts .etk-fonts__select.etk-fonts__inputbox-control {
+	padding-inline-end: 18px;
+	background-position: right 0 center;
 }
 
 .etk-fonts__field {
@@ -334,6 +1024,83 @@ select.etk-fonts__input {
 	}
 }
 
+/* Label in a 72px column, the control beside it, as in the inspector. */
+.etk-fonts__field--row {
+	flex-flow: row wrap;
+	align-items: center;
+	gap: 4px 8px;
+
+	> label {
+		flex: none;
+		inline-size: 72px;
+		color: var(--etk-fonts-text-70);
+		font-weight: 400;
+	}
+
+	> :not(label, .etk-fonts__help) {
+		flex: 1;
+		min-inline-size: 0;
+	}
+
+	> .etk-fonts__help {
+		flex-basis: 100%;
+		padding-inline-start: 80px;
+	}
+}
+
+/* A CSS variable with its copy button. */
+.etk-fonts__var {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	block-size: 24px;
+	min-inline-size: 0;
+	padding: 0 8px;
+	border: 1px solid var(--etk-fonts-line);
+	border-radius: var(--etk-fonts-radius);
+	background: none;
+	color: var(--etk-fonts-code);
+	font: inherit;
+	cursor: copy;
+
+	code {
+		overflow: hidden;
+		font-family: var(--e-font-code);
+		font-size: var(--e-font-size-s, 11px);
+		font-weight: 400;
+		line-height: 14px;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	&:hover .etk-fonts__var-icon {
+		color: var(--etk-fonts-text);
+	}
+
+	&.is-copied .etk-fonts__var-icon {
+		color: var(--etk-fonts-success);
+	}
+}
+
+.etk-fonts__var-icon {
+	--etk-icon-size: 12px;
+	display: inline-flex;
+	color: var(--etk-fonts-text-60);
+}
+
+.etk-fonts__var--field {
+	display: flex;
+	justify-content: space-between;
+	inline-size: 100%;
+	block-size: 28px;
+	border-color: transparent;
+	background: var(--etk-fonts-field);
+}
+
+/*
+ * Checkboxes. Also in the shared confirm dialog, outside the panel, so these
+ * use Etch's tokens directly.
+ */
 .etk-fonts__checks {
 	display: flex;
 	flex-direction: column;
@@ -346,15 +1113,60 @@ select.etk-fonts__input {
 	gap: var(--e-space-s, 8px);
 	cursor: pointer;
 
-	input {
-		margin: 2px 0 0;
-		accent-color: var(--e-primary);
+	input[type="checkbox"] {
+		display: grid;
+		flex: none;
+		place-items: center;
+		inline-size: 14px;
+		block-size: 14px;
+		margin: 1px 0 0;
+		border: 1px solid var(--e-base-ultra-light, #4a4a4f);
+		border-radius: 3px;
+		background: none;
+		cursor: pointer;
+		appearance: none;
+
+		&::before {
+			content: "";
+			inline-size: 10px;
+			block-size: 10px;
+			background: var(--e-base-dark, #1d1d20);
+			mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 13l4 4 10-10'/%3E%3C/svg%3E") center / contain no-repeat;
+			scale: 0;
+		}
+
+		&:is(:checked, :indeterminate) {
+			border-color: transparent;
+			background: var(--e-primary, #57e9db);
+
+			&::before {
+				scale: 1;
+			}
+		}
+
+		&:indeterminate::before {
+			block-size: 2px;
+			inline-size: 8px;
+			border-radius: 1px;
+			mask: none;
+		}
+
+		&:focus-visible {
+			outline: none;
+			box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+		}
 	}
 
 	> span {
 		display: flex;
 		flex-direction: column;
 	}
+}
+
+.etk-fonts__check--all {
+	padding-block-end: var(--e-space-s, 8px);
+	border-block-end: 1px solid var(--e-border-color, #36363a);
+	font-weight: 600;
 }
 
 .etk-fonts__fieldset {
@@ -372,56 +1184,156 @@ select.etk-fonts__input {
 	}
 }
 
-.etk-fonts__check--all {
-	padding-block-end: var(--e-space-s, 8px);
-	border-block-end: 1px solid var(--e-border-color, #36363a);
-	font-weight: 600;
-}
-
 .etk-fonts__cuts {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
 	gap: 6px var(--e-space-m, 12px);
 }
 
-.etk-fonts__var {
-	display: inline-flex;
+/* Switch rows: title and help, the switch on the right. */
+.etk-fonts__toggle {
+	display: flex;
 	align-items: center;
-	gap: 6px;
-	block-size: 24px;
-	padding: 0 8px;
-	border: 1px solid var(--etk-fonts-line);
-	border-radius: var(--etk-fonts-radius);
-	background: var(--e-code-background-color, transparent);
-	color: var(--etch-css-css-variable, var(--e-foreground-color));
-	cursor: copy;
+	justify-content: space-between;
+	gap: 12px;
+}
 
-	code {
-		font-family: var(--e-font-code);
-		font-size: var(--e-font-size-s, 11px);
-	}
+.etk-fonts__toggle-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-inline-size: 0;
+}
 
-	svg {
+.etk-fonts__toggle-title {
+	line-height: 16px;
+	cursor: pointer;
+}
+
+.etk-fonts__toggle-help {
+	color: var(--etk-fonts-text-50);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 400;
+	line-height: 14px;
+}
+
+.etk-fonts__switch {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	inline-size: 28px;
+	block-size: 16px;
+	margin: 0;
+	padding: 2px;
+	border: 0;
+	border-radius: 8px;
+	background: var(--etk-fonts-selected);
+	cursor: pointer;
+	appearance: none;
+	transition: background-color var(--e-transition, 0.15s ease-in-out);
+
+	&::before {
+		content: "";
 		inline-size: 12px;
 		block-size: 12px;
-		color: var(--etk-fonts-muted);
+		border-radius: 50%;
+		background: var(--etk-fonts-knob-off);
+		transition:
+			translate var(--e-transition, 0.15s ease-in-out),
+			background-color var(--e-transition, 0.15s ease-in-out);
 	}
 
-	&:hover svg {
-		color: var(--e-foreground-color);
+	&:checked {
+		background: var(--etk-fonts-accent);
+
+		&::before {
+			translate: 12px 0;
+			background: var(--etk-fonts-on-accent);
+		}
 	}
 
-	&.is-copied svg {
-		color: var(--e-success, #3bd671);
+	&:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		&,
+		&::before {
+			transition: none;
+		}
 	}
 }
+
+/* ------------------------------------------------------------------ */
+/* Badges and chips                                                    */
+/* ------------------------------------------------------------------ */
 
 .etk-fonts__badge {
-	padding: 1px 6px;
-	border-radius: 4px;
-	background: var(--e-base-light, #36363a);
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	padding: 3px 7px;
+	border-radius: var(--etk-fonts-radius-sm);
+	background: var(--etk-fonts-raised);
+	color: var(--etk-fonts-text-60);
 	font-size: var(--e-font-size-s, 11px);
+	font-weight: 500;
+	line-height: 14px;
+	white-space: nowrap;
 }
+
+.etk-fonts__badge--accent {
+	background: var(--etk-fonts-accent-soft);
+	color: var(--etk-fonts-accent);
+}
+
+.etk-fonts__badge--tag {
+	color: var(--etk-fonts-text-75);
+}
+
+.etk-fonts__badge--warning {
+	background: var(--etk-fonts-warning-soft);
+	color: var(--etk-fonts-warning);
+}
+
+.etk-fonts__dot {
+	inline-size: 6px;
+	block-size: 6px;
+	flex: none;
+	border-radius: 50%;
+	background: var(--etk-fonts-success);
+}
+
+.etk-fonts__chip {
+	display: inline-flex;
+	align-items: center;
+	block-size: 26px;
+	padding: 0 10px;
+	border: 1px solid var(--etk-fonts-line-strong);
+	border-radius: 13px;
+	background: none;
+	color: var(--etk-fonts-text-70);
+	font: inherit;
+	font-weight: 500;
+	line-height: 16px;
+	cursor: pointer;
+
+	&:hover {
+		color: var(--etk-fonts-text);
+	}
+
+	&[aria-pressed="true"] {
+		border-color: transparent;
+		background: var(--etk-fonts-text);
+		color: var(--etk-fonts-field);
+		font-weight: 600;
+	}
+}
+
+/* ------------------------------------------------------------------ */
+/* Views, until they're rebuilt on the pieces above                    */
+/* ------------------------------------------------------------------ */
 
 /* Library */
 
@@ -431,7 +1343,8 @@ select.etk-fonts__input {
 	margin: 0;
 	padding: 0;
 	border: 1px solid var(--etk-fonts-line);
-	border-radius: 8px;
+	border-radius: var(--etk-fonts-radius-lg);
+	background: var(--etk-fonts-surface);
 	list-style: none;
 }
 
@@ -469,7 +1382,7 @@ select.etk-fonts__input {
 	align-items: center;
 	gap: var(--e-space-s, 8px);
 
-	.etk-fonts__btn {
+	.etk-fonts__btn:last-child {
 		margin-inline-start: auto;
 	}
 }
@@ -485,8 +1398,8 @@ select.etk-fonts__input {
 	align-items: center;
 	gap: var(--e-space-m, 12px);
 	padding: 48px 16px;
-	border: 1px dashed var(--etk-fonts-line);
-	border-radius: 8px;
+	border: 1px dashed var(--etk-fonts-line-strong);
+	border-radius: var(--etk-fonts-radius-lg);
 	color: var(--etk-fonts-muted);
 	text-align: center;
 }
@@ -494,33 +1407,7 @@ select.etk-fonts__input {
 /* Family editor */
 
 .etk-fonts__crumb {
-	margin-block-end: calc(var(--e-space-s, 8px) * -1);
-}
-
-.etk-fonts__table {
-	inline-size: 100%;
-	border-collapse: collapse;
-
-	th {
-		padding: 0 8px 6px 0;
-		color: var(--etk-fonts-muted);
-		font-size: var(--e-font-size-s, 11px);
-		font-weight: 500;
-		text-align: start;
-	}
-
-	td {
-		padding: 6px 8px 6px 0;
-		border-block-start: 1px solid var(--etk-fonts-line);
-		vertical-align: middle;
-	}
-
-	td:last-child,
-	th:last-child {
-		inline-size: 1%;
-		padding-inline-end: 0;
-		text-align: end;
-	}
+	margin-block-end: -12px;
 }
 
 .etk-fonts__file {
@@ -534,22 +1421,6 @@ select.etk-fonts__input {
 	justify-content: flex-end;
 }
 
-.etk-fonts__savebar {
-	display: flex;
-	align-items: center;
-	gap: var(--e-space-s, 8px);
-	padding-block-start: var(--e-space-m, 12px);
-	border-block-start: 1px solid var(--etk-fonts-line);
-
-	&[hidden] {
-		display: none;
-	}
-
-	.etk-fonts__muted {
-		margin-inline-end: auto;
-	}
-}
-
 /* Upload */
 
 .etk-fonts__drop {
@@ -558,8 +1429,8 @@ select.etk-fonts__input {
 	align-items: center;
 	gap: 6px;
 	padding: 40px 16px;
-	border: 1px dashed var(--etk-fonts-line);
-	border-radius: 8px;
+	border: 1px dashed var(--etk-fonts-line-heavy);
+	border-radius: var(--etk-fonts-radius-lg);
 	text-align: center;
 	cursor: pointer;
 	transition: background-color var(--e-transition, 0.15s ease-in-out);
@@ -574,9 +1445,13 @@ select.etk-fonts__input {
 		max-inline-size: 60ch;
 	}
 
-	&:hover,
+	&:hover {
+		background: var(--etk-fonts-surface);
+	}
+
 	&.is-over {
-		background: var(--e-base-light, #36363a);
+		border-color: var(--etk-fonts-accent);
+		background: var(--etk-fonts-accent-soft);
 	}
 
 	&:focus-within {
@@ -603,11 +1478,11 @@ select.etk-fonts__input {
 	}
 
 	.is-ok .etk-fonts__muted {
-		color: var(--e-success, #3bd671);
+		color: var(--etk-fonts-success);
 	}
 
 	.is-error .etk-fonts__muted {
-		color: var(--e-danger, #f26060);
+		color: var(--etk-fonts-danger);
 	}
 }
 
@@ -620,15 +1495,11 @@ select.etk-fonts__input {
 	margin: 0;
 	padding: 0;
 	list-style: none;
-}
 
-.etk-fonts__card {
-	display: flex;
-	flex-direction: column;
-	gap: var(--e-space-s, 8px);
-	padding: var(--e-space-l, 16px);
-	border: 1px solid var(--etk-fonts-line);
-	border-radius: 8px;
+	> .etk-fonts__card {
+		gap: var(--e-space-s, 8px);
+		padding: var(--e-space-l, 16px);
+	}
 }
 
 .etk-fonts__card-specimen {
@@ -642,6 +1513,7 @@ select.etk-fonts__input {
 	font-weight: 400;
 	line-height: 1.3;
 	overflow-wrap: anywhere;
+	cursor: pointer;
 }
 
 .etk-fonts__card-meta {
@@ -649,46 +1521,59 @@ select.etk-fonts__input {
 	flex-direction: column;
 }
 
-/* Install dialog, inside the shared confirm dialog. */
-.etk-confirm .etk-fonts__fieldset,
-.etk-confirm .etk-fonts__check {
-	text-align: start;
+.etk-fonts__cards[data-layout="rows"] {
+	grid-template-columns: 1fr;
+	gap: 0;
+	border: 1px solid var(--etk-fonts-line);
+	border-radius: var(--etk-fonts-radius-lg);
+	overflow: clip;
+
+	> .etk-fonts__card {
+		flex-direction: row;
+		flex-wrap: wrap;
+		align-items: center;
+		border: 0;
+		border-radius: 0;
+	}
+
+	> .etk-fonts__card + .etk-fonts__card {
+		border-block-start: 1px solid var(--etk-fonts-line);
+	}
+
+	.etk-fonts__card-specimen {
+		flex: 1 0 100%;
+		-webkit-line-clamp: 1;
+	}
+
+	.etk-fonts__card-meta {
+		margin-inline-end: auto;
+	}
 }
 
-.etk-confirm .etk-fonts__check input {
-	margin: 2px 0 0;
-	accent-color: var(--etch-primary, var(--e-primary));
+.etk-fonts__styles {
+	display: flex;
+	flex-direction: column;
+	margin: 0;
+	padding: 0;
+	border: 1px solid var(--etk-fonts-line);
+	border-radius: var(--etk-fonts-radius-lg);
+	list-style: none;
 }
 
-.etk-confirm .etk-fonts__help {
-	color: var(--etk-fonts-muted, var(--e-foreground-color-muted));
-	font-size: var(--e-font-size-s, 11px);
-}
+.etk-fonts__style {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: var(--e-space-l, 16px);
 
-.etk-fonts__dialog-specimen {
-	font-size: 32px;
-	font-weight: 400;
-	color: var(--e-foreground-color);
-}
+	& + & {
+		border-block-start: 1px solid var(--etk-fonts-line);
+	}
 
-/* Confirmations are for screen readers only. Errors show in the header. */
-.etk-fonts__status:not(.is-error) {
-	position: absolute;
-	inline-size: 1px;
-	block-size: 1px;
-	overflow: hidden;
-	clip-path: inset(50%);
-	white-space: nowrap;
+	.etk-fonts__specimen {
+		font-size: var(--etk-fonts-size, 40px);
+	}
 }
-
-.etk-fonts__status.is-error {
-	margin-inline-start: auto;
-	color: var(--e-danger, #f26060);
-	font-size: var(--e-font-size-s, 11px);
-	text-align: end;
-}
-
-/* Google Fonts: weight slider, variable filter, detail screen */
 
 .etk-fonts__toolbar .etk-fonts__check {
 	align-items: center;
@@ -716,12 +1601,14 @@ select.etk-fonts__input {
  * and nine notches underneath. --v is the current step (1-9), --t each
  * notch's step. The thumb travels one thumb-width less than the track, so
  * the fill and the notches are inset by half a thumb to line up with it.
+ * --ring is the background it sits on.
  */
 .etk-range {
 	--thumb: 14px;
 	--track: 4px;
-	--fill: var(--e-primary, #deff38);
-	--rail: var(--e-base-light, #36363a);
+	--fill: var(--e-primary, #57e9db);
+	--rail: var(--etk-fonts-selected, var(--e-base-light, #36363a));
+	--ring: var(--etk-fonts-view, var(--e-base, #27272b));
 	--etk-range-notch: var(--e-foreground-color-muted, #8b8b93);
 	--pos: calc(var(--thumb) / 2 + (100% - var(--thumb)) * (var(--v) - 1) / 8);
 
@@ -766,7 +1653,7 @@ select.etk-fonts__input {
 		border-radius: 50%;
 		background: var(--e-foreground-color, #e1e1e5);
 		box-shadow:
-			0 0 0 3px var(--e-base, #27272b),
+			0 0 0 3px var(--ring),
 			0 1px 3px 3px rgb(0 0 0 / 0.25);
 		appearance: none;
 		transition: box-shadow var(--e-transition, 0.15s ease-in-out);
@@ -779,7 +1666,7 @@ select.etk-fonts__input {
 		border-radius: 50%;
 		background: var(--e-foreground-color, #e1e1e5);
 		box-shadow:
-			0 0 0 3px var(--e-base, #27272b),
+			0 0 0 3px var(--ring),
 			0 1px 3px 3px rgb(0 0 0 / 0.25);
 		transition: box-shadow var(--e-transition, 0.15s ease-in-out);
 	}
@@ -788,14 +1675,14 @@ select.etk-fonts__input {
 	input:hover::-webkit-slider-thumb,
 	input:active::-webkit-slider-thumb {
 		box-shadow:
-			0 0 0 3px var(--e-base, #27272b),
+			0 0 0 3px var(--ring),
 			0 0 0 7px color-mix(in srgb, var(--fill) 30%, transparent);
 	}
 
 	input:hover::-moz-range-thumb,
 	input:active::-moz-range-thumb {
 		box-shadow:
-			0 0 0 3px var(--e-base, #27272b),
+			0 0 0 3px var(--ring),
 			0 0 0 7px color-mix(in srgb, var(--fill) 30%, transparent);
 	}
 
@@ -805,13 +1692,13 @@ select.etk-fonts__input {
 
 	input:focus-visible::-webkit-slider-thumb {
 		box-shadow:
-			0 0 0 3px var(--e-base, #27272b),
+			0 0 0 3px var(--ring),
 			0 0 0 5px var(--etch-focus-color, #469fea);
 	}
 
 	input:focus-visible::-moz-range-thumb {
 		box-shadow:
-			0 0 0 3px var(--e-base, #27272b),
+			0 0 0 3px var(--ring),
 			0 0 0 5px var(--etch-focus-color, #469fea);
 	}
 }
@@ -843,109 +1730,23 @@ select.etk-fonts__input {
 	}
 }
 
-.etk-fonts__card-specimen {
-	cursor: pointer;
+/* Dialogs: the shared confirm dialog sits outside the panel. */
+
+.etk-confirm .etk-fonts__fieldset,
+.etk-confirm .etk-fonts__check {
+	text-align: start;
 }
 
-.etk-fonts__styles {
-	display: flex;
-	flex-direction: column;
-	margin: 0;
-	padding: 0;
-	border: 1px solid var(--etk-fonts-line);
-	border-radius: 8px;
-	list-style: none;
+.etk-confirm .etk-fonts__help {
+	color: var(--e-foreground-color-muted);
+	font-size: var(--e-font-size-s, 11px);
 }
 
-.etk-fonts__style {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	padding: var(--e-space-l, 16px);
-
-	& + & {
-		border-block-start: 1px solid var(--etk-fonts-line);
-	}
-
-	.etk-fonts__specimen {
-		font-size: var(--etk-fonts-size, 40px);
-	}
+.etk-fonts__dialog-specimen {
+	font-size: 32px;
+	font-weight: 400;
+	color: var(--e-foreground-color);
 }
-
-/* Rows or grid, for Google Fonts */
-
-.etk-fonts__seg {
-	display: flex;
-	flex: none;
-	gap: 2px;
-	margin: 0;
-	padding: 3px;
-	border: 0;
-	border-radius: 8px;
-	background-color: var(--etch-neutral-ultra-dark, #1e1e21);
-
-	label {
-		padding: 4px 10px;
-		border-radius: 6px;
-		font-size: var(--e-font-size-s, 11px);
-		font-weight: 500;
-		color: var(--e-foreground-color);
-		opacity: 0.6;
-		cursor: pointer;
-
-		&:hover {
-			opacity: 1;
-		}
-
-		&:has(input:checked) {
-			background-color: var(--etch-neutral-semi-dark, #36363a);
-			opacity: 1;
-		}
-
-		&:has(input:focus-visible) {
-			outline: 2px solid var(--etch-focus-color, #469fea);
-		}
-	}
-
-	input {
-		position: absolute;
-		inline-size: 1px;
-		block-size: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
-	}
-}
-
-.etk-fonts__cards[data-layout="rows"] {
-	grid-template-columns: 1fr;
-	gap: 0;
-	border: 1px solid var(--etk-fonts-line);
-	border-radius: 8px;
-
-	.etk-fonts__card {
-		flex-direction: row;
-		flex-wrap: wrap;
-		align-items: center;
-		border: 0;
-		border-radius: 0;
-	}
-
-	.etk-fonts__card + .etk-fonts__card {
-		border-block-start: 1px solid var(--etk-fonts-line);
-	}
-
-	.etk-fonts__card-specimen {
-		flex: 1 0 100%;
-		-webkit-line-clamp: 1;
-	}
-
-	.etk-fonts__card-meta {
-		margin-inline-end: auto;
-	}
-}
-
-/* Import preview, inside the shared confirm dialog. */
 
 .etk-fonts__import-group {
 	display: flex;
