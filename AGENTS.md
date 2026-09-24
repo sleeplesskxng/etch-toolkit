@@ -25,6 +25,6 @@ Sites update through [plugin-update-checker](https://github.com/YahnisElsts/plug
 1. Bump `Version` in the plugin header and `ETCH_TOOLKIT_VERSION` together.
 2. Commit and push, then publish a release whose tag matches: `gh release create v<version> --generate-notes`. The release notes show in the update details.
 
-`lib/plugin-update-checker` is vendored. Don't edit it. Upgrade by replacing the folder with a newer release.
+`lib/plugin-update-checker` is vendored. Don't edit it. Upgrade by replacing the folder with a newer release. Same for `lib/woff2`, the WOFF2 converter the fonts feature runs in the browser.
 
 Everything in `.gitattributes` marked `export-ignore` stays out of the installed plugin.
