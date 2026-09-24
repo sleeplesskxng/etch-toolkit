@@ -362,29 +362,17 @@
 	background: var(--etch-secondary-btn);
 }
 
+/* "3 selected", as one line of text. */
 .etk-bulk-bar__count {
-	display: flex;
-	align-items: center;
-	gap: var(--etch-space-xs);
-}
-
-.etk-bulk-bar__count-badge {
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	padding: var(--e-space-xs) var(--e-space-sm);
-	border-radius: 100vmax;
-	background-color: var(--etch-neutral-semi-dark);
-	line-height: 1;
-	font-variant-numeric: tabular-nums;
-}
-
-.etk-bulk-bar__count-label {
 	font-size: var(--etch-font-size-m);
 	font-weight: 500;
 	color: var(--etch-neutral-semi-light);
 	white-space: nowrap;
 	opacity: var(--etch-opacity-high);
+}
+
+.etk-bulk-bar__count-number {
+	font-variant-numeric: tabular-nums;
 }
 
 .etk-bulk-bar__select-all {

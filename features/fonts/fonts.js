@@ -1001,7 +1001,7 @@
 		bulkBar.hidden = ! show;
 		bulkBar.previousElementSibling.hidden = ! show;
 		if ( ! show ) return;
-		bulkBar.querySelector( '.etk-bulk-bar__count-badge' ).textContent = String( picked.size );
+		bulkBar.querySelector( '.etk-bulk-bar__count-number' ).textContent = String( picked.size );
 		bulkBar.querySelector( '.etk-bulk-bar__select-all' ).hidden = picked.size >= shown.length;
 		bulkBar.querySelector( '.etk-fonts__bulk-remove' ).disabled = ! pickedFiles().some( ( f ) => f.family );
 	};
@@ -1047,7 +1047,7 @@
 				'div',
 				{ class: 'etk-bulk-bar__left' },
 				clearButton,
-				h( 'div', { class: 'etk-bulk-bar__count', role: 'status' }, h( 'span', { class: 'etk-bulk-bar__count-badge' } ), ' ', h( 'span', { class: 'etk-bulk-bar__count-label', textContent: 'Selected' } ) ),
+				h( 'div', { class: 'etk-bulk-bar__count', role: 'status' }, h( 'span', { class: 'etk-bulk-bar__count-number' } ), ' ', h( 'span', { class: 'etk-bulk-bar__count-label', textContent: 'selected' } ) ),
 				selectAll
 			),
 			h( 'div', { class: 'etk-bulk-bar__divider' } ),

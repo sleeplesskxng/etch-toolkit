@@ -522,9 +522,9 @@
 		clearButton.title = 'Clear selection';
 
 		const count = el( 'div', { className: 'etk-bulk-bar__count' }, [
-			el( 'span', { className: 'etk-bulk-bar__count-badge' } ),
+			el( 'span', { className: 'etk-bulk-bar__count-number' } ),
 			' ',
-			el( 'span', { className: 'etk-bulk-bar__count-label', textContent: 'Selected' } ),
+			el( 'span', { className: 'etk-bulk-bar__count-label', textContent: 'selected' } ),
 		] );
 		count.setAttribute( 'role', 'status' );
 
@@ -582,9 +582,9 @@
 		setHidden( bar.previousElementSibling, ! show );
 		if ( ! show ) return;
 
-		const badge = bar.querySelector( '.etk-bulk-bar__count-badge' );
+		const number = bar.querySelector( '.etk-bulk-bar__count-number' );
 		const text = String( selected.size );
-		if ( badge.textContent !== text ) badge.textContent = text;
+		if ( number.textContent !== text ) number.textContent = text;
 
 		setHidden( bar.querySelector( '.etk-bulk-bar__select-all' ), visibleOrder( root ).every( ( id ) => selected.has( id ) ) );
 
