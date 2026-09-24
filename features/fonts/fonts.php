@@ -135,14 +135,19 @@ add_filter(
 add_action(
 	'rest_api_init',
 	function () {
+		// Route => method, callback and, for some, arguments.
 		$routes = array(
 			'/fonts'                => array( 'GET', fn() => etch_toolkit_fonts_state() ),
 			'/fonts/families'       => array(
 				'POST',
-				function ( WP_REST_Request $r ) {
-					etch_toolkit_fonts_save( (array) $r['families'] );
-					return etch_toolkit_fonts_state();
-				},
+				'etch_toolkit_fonts_rest_save',
+				array(
+					'families' => array(
+						'type'     => 'array',
+						'required' => true,
+						'items'    => array( 'type' => 'object' ),
+					),
+				),
 			),
 			'/fonts/settings'       => array(
 				'POST',
@@ -191,7 +196,8 @@ add_action(
 			),
 		);
 
-		foreach ( $routes as $route => [ $method, $callback ] ) {
+		foreach ( $routes as $route => $spec ) {
+			[ $method, $callback, $args ] = array_pad( $spec, 3, array() );
 			register_rest_route(
 				ETCH_TOOLKIT_REST_NAMESPACE,
 				$route,
@@ -201,6 +207,7 @@ add_action(
 						$result = etch_toolkit_rest_try( fn() => $callback( $r ) );
 						return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
 					},
+					'args'                => $args,
 					'permission_callback' => 'etch_toolkit_can_manage',
 				)
 			);
@@ -280,6 +287,34 @@ function etch_toolkit_fonts_save( array $families ): void {
 }
 
 /**
+ * Save the families from the builder. A family that sanitizing would leave
+ * out, for a name that's empty once cleaned or already taken, fails the save
+ * with a message instead of disappearing.
+ *
+ * @return array|WP_Error
+ */
+function etch_toolkit_fonts_rest_save( WP_REST_Request $request ) {
+	$families = etch_toolkit_fonts_sanitize_families( $request['families'], $skipped );
+	$errors   = array();
+	foreach ( $skipped as $name ) {
+		$clean = etch_toolkit_fonts_sanitize_name( $name );
+		if ( '' !== $clean ) {
+			$errors[] = sprintf( "There's already a family called %s.", $clean );
+		} elseif ( '' === trim( $name ) ) {
+			$errors[] = 'Every family needs a name.';
+		} else {
+			$errors[] = sprintf( '"%s" won\'t work as a family name. Try one with letters or numbers.', $name );
+		}
+	}
+	if ( $errors ) {
+		return new WP_Error( 'etch_toolkit_font_name', implode( ' ', array_unique( $errors ) ), array( 'status' => 400 ) );
+	}
+
+	etch_toolkit_fonts_save( $families );
+	return etch_toolkit_fonts_state();
+}
+
+/**
  * @return array{blockGoogle: bool, stylesheetId: string}
  */
 function etch_toolkit_fonts_settings(): array {
@@ -306,6 +341,10 @@ function etch_toolkit_fonts_save_settings( array $input ): void {
  */
 function etch_toolkit_fonts_state(): array {
 	$families = etch_toolkit_fonts_families();
+	$vars     = array();
+	foreach ( $families as $family ) {
+		$vars[ $family['name'] ] = '--font-' . etch_toolkit_fonts_slug( $family['name'] );
+	}
 	return array(
 		'families' => $families,
 		'files'    => etch_toolkit_fonts_files( $families ),
@@ -314,6 +353,8 @@ function etch_toolkit_fonts_state(): array {
 		'css'      => etch_toolkit_fonts_css( $families ),
 		// For specimen previews in the builder, where the stylesheet itself doesn't load.
 		'faces'    => etch_toolkit_fonts_css( $families, true, true ),
+		// Each family's CSS variable by name, as the stylesheet has it.
+		'vars'     => (object) $vars,
 	);
 }
 
@@ -322,7 +363,8 @@ function etch_toolkit_fonts_state(): array {
  */
 
 function etch_toolkit_fonts_sanitize_name( string $name ): string {
-	return trim( (string) preg_replace( '/["\'{};\\\\\/()<>]/', '', sanitize_text_field( $name ) ) );
+	// Control characters too: sanitize_text_field() keeps a form feed, which ends a quoted name in CSS.
+	return trim( (string) preg_replace( '/["\'{};\\\\\/()<>\x00-\x1F\x7F]/', '', sanitize_text_field( $name ) ) );
 }
 
 /**
@@ -374,7 +416,7 @@ function etch_toolkit_fonts_sanitize_range( string $range ): string {
  * @return array<string, mixed> Empty when unusable.
  */
 function etch_toolkit_fonts_sanitize_metrics( $metrics ): array {
-	if ( ! is_array( $metrics ) || ! isset( ETCH_TOOLKIT_FONTS_LOCALS[ $metrics['local'] ?? '' ] ) ) {
+	if ( ! is_array( $metrics ) || ! is_string( $metrics['local'] ?? null ) || ! isset( ETCH_TOOLKIT_FONTS_LOCALS[ $metrics['local'] ] ) ) {
 		return array();
 	}
 	$clean = array( 'local' => $metrics['local'] );
@@ -389,20 +431,24 @@ function etch_toolkit_fonts_sanitize_metrics( $metrics ): array {
 }
 
 /**
- * @param array<int, mixed> $input Raw families.
+ * @param array<int, mixed> $input   Raw families.
+ * @param string[]|null     $skipped Set to the names, as given, of families left out: empty once sanitized, or already taken.
  * @return array<int, array<string, mixed>>
  */
-function etch_toolkit_fonts_sanitize_families( array $input ): array {
-	$clean = array();
-	$names = array();
-	$taken = array(); // Each role belongs to one enabled family, the first that claims it.
+function etch_toolkit_fonts_sanitize_families( array $input, ?array &$skipped = null ): array {
+	$clean   = array();
+	$names   = array();
+	$taken   = array(); // Each role belongs to one enabled family, the first that claims it.
+	$skipped = array();
 
 	foreach ( $input as $family ) {
 		if ( ! is_array( $family ) ) {
 			continue;
 		}
-		$name = etch_toolkit_fonts_sanitize_name( (string) ( $family['name'] ?? '' ) );
+		$given = (string) ( $family['name'] ?? '' );
+		$name  = etch_toolkit_fonts_sanitize_name( $given );
 		if ( '' === $name || isset( $names[ strtolower( $name ) ] ) ) {
+			$skipped[] = $given;
 			continue;
 		}
 		$names[ strtolower( $name ) ] = true;
@@ -432,7 +478,7 @@ function etch_toolkit_fonts_sanitize_families( array $input ): array {
 		$enabled = ! array_key_exists( 'enabled', $family ) || ! empty( $family['enabled'] );
 		$roles   = array();
 		foreach ( (array) ( $family['roles'] ?? array() ) as $role ) {
-			if ( $enabled && isset( ETCH_TOOLKIT_FONTS_ROLES[ $role ] ) && ! isset( $taken[ $role ] ) ) {
+			if ( $enabled && is_string( $role ) && isset( ETCH_TOOLKIT_FONTS_ROLES[ $role ] ) && ! isset( $taken[ $role ] ) ) {
 				$taken[ $role ] = true;
 				$roles[]        = $role;
 			}
@@ -519,8 +565,14 @@ function etch_toolkit_fonts_guess_variant( string $filename ): array {
  * CSS
  */
 
+/**
+ * The name's part of its CSS variable, --font-{slug}. sanitize_title()
+ * percent-encodes letters outside Latin, and % can't go in a custom property,
+ * so those go. A name with nothing left, like one in Chinese, gets a short hash.
+ */
 function etch_toolkit_fonts_slug( string $name ): string {
-	return sanitize_title( $name );
+	$slug = trim( (string) preg_replace( '/(?:%[0-9a-f]{2}|[^a-z0-9_])+/', '-', sanitize_title( $name ) ), '-' );
+	return '' === $slug ? substr( md5( $name ), 0, 8 ) : $slug;
 }
 
 /**
@@ -911,25 +963,48 @@ function etch_toolkit_fonts_import( array $data ) {
 		return new WP_Error( 'etch_toolkit_font_import', "This isn't an Etch Toolkit fonts export.", array( 'status' => 400 ) );
 	}
 
-	// Decode and write every file first, so a bad one stops the import before anything changes.
-	$renamed = array();
+	// Check every family and file before writing anything, so a bad one stops the import with nothing changed.
+	$families = array();
+	foreach ( $data['families'] as $family ) {
+		// Left out, like a family without a name.
+		if ( ! is_array( $family ) ) {
+			continue;
+		}
+		$variants = $family['variants'] ?? array();
+		if ( ! is_array( $variants ) || array_filter( $variants, fn( $variant ) => ! is_array( $variant ) || ! is_string( $variant['file'] ?? '' ) ) ) {
+			$name = trim( is_string( $family['name'] ?? null ) ? $family['name'] : '' );
+			return new WP_Error( 'etch_toolkit_font_import', sprintf( '%s is damaged in this export.', '' === $name ? 'A family' : $name ), array( 'status' => 400 ) );
+		}
+		$families[] = $family;
+	}
+
 	$decoded = array();
 	$total   = 0;
 	foreach ( (array) ( $data['files'] ?? array() ) as $name => $encoded ) {
-		$bytes = base64_decode( (string) $encoded, true );
+		$name = (string) $name;
+		$ext  = strtolower( pathinfo( $name, PATHINFO_EXTENSION ) );
+		if ( ! isset( ETCH_TOOLKIT_FONTS_FORMATS[ $ext ] ) ) {
+			return new WP_Error( 'etch_toolkit_font_import', sprintf( "%s isn't a WOFF2, WOFF, TTF or OTF file.", $name ), array( 'status' => 400 ) );
+		}
+		$bytes = is_string( $encoded ) ? base64_decode( $encoded, true ) : false;
 		if ( false === $bytes ) {
 			return new WP_Error( 'etch_toolkit_font_import', sprintf( '%s is damaged.', $name ), array( 'status' => 400 ) );
+		}
+		if ( strlen( $bytes ) > ETCH_TOOLKIT_FONTS_MAX_FILE ) {
+			return new WP_Error( 'etch_toolkit_font_import', sprintf( '%s is larger than 10 MB.', $name ), array( 'status' => 400 ) );
 		}
 		$total += strlen( $bytes );
 		if ( $total > ETCH_TOOLKIT_FONTS_MAX_IMPORT ) {
 			return new WP_Error( 'etch_toolkit_font_import', 'The export holds more than 50 MB of fonts.', array( 'status' => 400 ) );
 		}
-		$ext = strtolower( pathinfo( (string) $name, PATHINFO_EXTENSION ) );
 		if ( ! etch_toolkit_fonts_is_font( $bytes, $ext ) ) {
 			return new WP_Error( 'etch_toolkit_font_import', sprintf( "%s isn't a valid font file.", $name ), array( 'status' => 400 ) );
 		}
-		$decoded[ (string) $name ] = $bytes;
+		$decoded[ $name ] = $bytes;
 	}
+
+	// Then write the files, then save the families.
+	$renamed = array();
 	foreach ( $decoded as $name => $bytes ) {
 		$written = etch_toolkit_fonts_write( $name, $bytes );
 		if ( is_wp_error( $written ) ) {
@@ -946,7 +1021,7 @@ function etch_toolkit_fonts_import( array $data ) {
 				}
 				return $family;
 			},
-			$data['families']
+			$families
 		)
 	);
 

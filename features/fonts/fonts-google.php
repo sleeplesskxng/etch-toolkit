@@ -280,9 +280,11 @@ function etch_toolkit_fonts_download( string $url, string $path ): bool {
 	$response = wp_remote_get(
 		$url,
 		array(
-			'timeout'  => 30,
-			'stream'   => true,
-			'filename' => $partial,
+			'timeout'             => 30,
+			'stream'              => true,
+			'filename'            => $partial,
+			// Stops at the upload limit. A file cut short then fails the check below.
+			'limit_response_size' => ETCH_TOOLKIT_FONTS_MAX_FILE,
 		)
 	);
 	$ok = ! is_wp_error( $response ) && 200 === wp_remote_retrieve_response_code( $response )
