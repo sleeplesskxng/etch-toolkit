@@ -2,8 +2,8 @@
  * Etch Toolkit: Fonts manager.
  *
  * A Settings Bar control (Etch's Controls API) opens a manager beside the bar,
- * like Etch's own Style Manager. Views: Library, family editor, Upload, Google
- * Fonts and Settings.
+ * like Etch's own Style Manager. Views: Library (families and files), family
+ * editor, Google Fonts and Settings.
  *
  * The server owns the families and builds the CSS. After every change this
  * writes that CSS into the Etch stylesheet "Etch Toolkit Fonts" through
@@ -60,11 +60,11 @@
 	};
 	// Subsets Google serves in many small slices per style, which aren't downloaded here.
 	const SLICED = { japanese: 'Japanese', korean: 'Korean', 'chinese-simplified': 'Chinese', 'chinese-traditional': 'Chinese', 'chinese-hongkong': 'Chinese', emoji: 'Emoji' };
-	// Every view's name. The sidebar lists NAV. Upload has no item: it's reached from the Library.
-	const VIEWS = { library: 'Library', upload: 'Upload', google: 'Google Fonts', settings: 'Settings' };
+	// Every view's name. The sidebar lists NAV.
+	const VIEWS = { library: 'Library', google: 'Google Fonts', settings: 'Settings' };
 	const NAV = [ 'library', 'google', 'settings' ];
 	// Views that light up another view's nav item.
-	const PARENTS = { family: 'library', upload: 'library', 'google-font': 'google' };
+	const PARENTS = { family: 'library', 'google-font': 'google' };
 
 	// Hugeicons strokes, 24px grid, like Etch's own.
 	const ICONS = {
@@ -153,7 +153,7 @@
 		} catch {}
 	};
 
-	const google = { search: '', category: '', subset: '', sort: 'popularity', results: [], total: 0, categories: [], subsets: [], loading: false, loaded: false, error: '', variable: false, weight: 400, font: null, scroll: 0 };
+	const google = { search: '', category: '', subset: '', sort: 'popularity', results: [], total: 0, categories: [], subsets: [], counts: {}, catalogue: 0, loading: false, loaded: false, error: '', variable: false, weight: 400, font: null, pick: null, installing: false, scroll: 0 };
 
 	// For the Google preview <link> ids. The server names the CSS variables, see varOf.
 	const slugOf = ( name ) =>
@@ -362,16 +362,16 @@
 	const prepareUpload = async ( file ) => {
 		const ext = file.name.split( '.' ).pop().toLowerCase();
 		if ( ext === 'woff2' || ! [ 'ttf', 'otf', 'woff' ].includes( ext ) ) return { file, note: '' };
-		if ( ext === 'woff' && typeof DecompressionStream !== 'function' ) return { file, note: 'kept as WOFF' };
+		if ( ext === 'woff' && typeof DecompressionStream !== 'function' ) return { file, note: 'Kept as WOFF' };
 
 		try {
 			let buffer = await file.arrayBuffer();
 			if ( ext === 'woff' ) buffer = await woffToSfnt( buffer );
 			const woff2 = await convertToWoff2( buffer );
 			const name = file.name.replace( /\.[^.]+$/, '.woff2' );
-			return { file: new File( [ woff2 ], name, { type: 'font/woff2' } ), note: `converted, ${ size( file.size ) } → ${ size( woff2.byteLength ) }` };
+			return { file: new File( [ woff2 ], name, { type: 'font/woff2' } ), note: `Converted from ${ ext.toUpperCase() }` };
 		} catch ( error ) {
-			return { file, note: `kept as ${ ext.toUpperCase() }, conversion failed` };
+			return { file, note: `Kept as ${ ext.toUpperCase() }, conversion failed` };
 		}
 	};
 
@@ -767,15 +767,16 @@
 			},
 		} );
 
-	// Rows or grid for Google Fonts.
+	// Grid or list for Google Fonts.
 	const layoutToggle = ( key ) =>
 		segmented( {
 			name: `layout-${ key }`,
 			legend: 'Layout',
 			value: prefs[ key ],
+			boxed: true,
 			options: [
-				{ value: 'rows', label: 'Rows' },
-				{ value: 'grid', label: 'Grid' },
+				{ value: 'grid', label: 'Grid', icon: 'grid' },
+				{ value: 'rows', label: 'List', icon: 'list' },
 			],
 			onchange: ( value ) => {
 				prefs[ key ] = value;
@@ -784,57 +785,278 @@
 			},
 		} );
 
-	// Upload now lives under the Library, until its Files tab replaces the view.
-	const addFontMenu = () =>
+	/*
+	 * The upload illustration: two file cards, with "Rg" in Instrument Serif and
+	 * "Aa" in Fraunces drawn as outlines, so no font loads for it. Colors are in CSS.
+	 */
+	const GLYPH_STACK = '<svg class="etk-fonts__glyphs" viewBox="0 0 290 210" width="290" height="210" aria-hidden="true" focusable="false"><defs><filter id="etk-fonts-glyph-shadow" x="-40%" y="-30%" width="180%" height="180%" color-interpolation-filters="sRGB"><feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000" flood-opacity=".35"/></filter></defs><g class="etk-fonts__glyph-card etk-fonts__glyph-card--back" transform="translate(0 32) rotate(-10)"><rect x=".5" y=".5" width="143" height="171" rx="9.5"/><text x="14" y="23.5">.ttf</text><path d="M44.6 147.7Q38.7 147.7 37.1 140L35.5 132.4Q34.7 128.8 33.8 126.9Q32.9 125 31.3 124.3Q29.7 123.6 26.9 123.6Q26 123.6 25.4 124.1Q24.9 124.6 24.9 125.4L24.9 142.4Q24.9 143.8 25.4 144.3Q26 144.8 27.9 145.1L30.4 145.6Q31.1 145.7 31.1 146.3Q31.1 147.1 30.1 147.1L16.3 147.1Q15.3 147.1 15.3 146.4Q15.3 145.8 16.2 145.6L17.7 145.3Q19.2 145 19.6 144.5Q20.1 144.1 20.1 142.6L20.1 102.6Q20.1 101.2 19.6 100.7Q19.2 100.3 17.7 100L16.2 99.7Q15.3 99.5 15.3 98.9Q15.3 98.2 16.3 98.2L30.1 98.2Q34.1 98.2 37.3 99.7Q40.4 101.3 42.2 104Q43.9 106.8 43.9 110.4Q43.9 114.7 41.3 118.1Q38.8 121.6 34.8 123Q34.3 123.1 34.3 123.4Q34.3 123.7 34.7 123.9Q36.9 125 38.2 126.8Q39.4 128.6 40.1 131.7L41.6 138.6Q42.4 142.2 43.4 143.7Q44.4 145.1 46 145.1Q46.5 145.1 46.9 145Q47.4 144.8 48.1 144.3Q48.6 144 49.1 144.2Q49.6 144.3 49.6 144.9Q49.6 146 48.1 146.9Q46.6 147.7 44.6 147.7zM29.4 121.9Q34.1 121.9 36.4 118.8Q38.8 115.7 38.8 110.5Q38.8 105.5 36.1 102.7Q33.3 99.9 28.5 99.9Q24.9 99.9 24.9 102.6L24.9 118.2Q24.9 121.9 29.4 121.9zM59.8 161.7Q54.6 161.7 51.6 159.7Q48.6 157.6 48.6 154.7Q48.6 153.4 49 152.5Q49.3 151.5 50.4 150.2Q51.5 148.9 53.8 146.8Q54.7 146.1 54.7 145.5Q54.7 144.8 53.8 144.5Q51.4 143.4 50.9 141.9Q50.4 140.3 52.1 138.9L57 134.7Q57.8 134 56.9 133.5Q54.1 132.2 52.5 129.3Q50.9 126.4 50.9 123.2Q50.9 120.1 52.2 117.5Q53.6 115 55.9 113.5Q58.2 112 61.1 112Q62.7 112 64.2 112.6Q65.1 112.9 65.3 112Q66 109.4 67.6 107.9Q69.3 106.5 70.9 106.5Q72.5 106.5 73.5 107.4Q74.5 108.3 74.5 109.7Q74.5 110.8 73.8 111.5Q73.1 112.2 72.1 112.2Q71.2 112.2 70.8 111.8Q70.4 111.5 70 111.1Q69.7 110.8 68.9 110.8Q67.3 110.8 66.9 112.6Q66.7 113.3 66.9 113.7Q67.2 114.2 67.7 114.7Q69.3 116.2 70.2 118.5Q71.1 120.7 71.1 123.5Q71.1 126.7 69.8 129.3Q68.5 131.9 66.2 133.4Q63.9 134.9 61.1 134.9Q59.8 134.9 58.9 135.4Q58.1 135.9 57.2 136.9L56 138.1Q55.1 139.2 55.5 140.2Q55.9 141.2 57.4 141.2L63.2 141.2Q68.1 141.2 71 143.6Q73.8 146 73.8 150.2Q73.8 153.6 71.9 156.2Q70 158.7 66.9 160.2Q63.7 161.7 59.8 161.7zM61 133.2Q63.4 133.2 64.9 130.5Q66.3 127.9 66.3 123.3Q66.3 118.9 64.8 116.2Q63.4 113.5 61 113.5Q58.6 113.5 57.1 116.2Q55.7 118.9 55.7 123.3Q55.7 127.9 57.1 130.5Q58.5 133.2 61 133.2zM60.6 160.2Q63 160.2 65.1 159.2Q67.1 158.1 68.3 156.1Q69.5 154.2 69.5 151.7Q69.5 148.7 67.7 147Q65.9 145.4 62.6 145.4L61.1 145.4Q58.9 145.4 57.9 145.8Q56.8 146.2 55.9 147.2Q53.8 149.4 53.2 150.8Q52.7 152.2 52.7 153.6Q52.7 156.6 54.8 158.4Q56.8 160.2 60.6 160.2z"/></g><g class="etk-fonts__glyph-card etk-fonts__glyph-card--front" transform="translate(126 12) rotate(6)"><rect x=".5" y=".5" width="143" height="171" rx="9.5" filter="url(#etk-fonts-glyph-shadow)"/><text x="14" y="23.5">.woff2</text><path d="M24.3 131.7L24.6 129.9L43.7 129.9L43.9 131.7L24.3 131.7zM26.8 147.8Q26.8 148.1 26.5 148.4Q26.2 148.6 25.7 148.6L15.5 148.6Q15 148.6 14.8 148.4Q14.5 148.2 14.5 147.8Q14.5 147.6 14.7 147.4Q14.9 147.2 15.3 147.1L16.7 146.6Q17.7 146.2 18.4 145.4Q19 144.6 19.6 142.6L31.5 105.2Q31.9 104.1 31.6 103.5Q31.3 103 30.1 102.6Q29.5 102.4 29.2 102.2Q28.9 102 28.9 101.7Q28.9 101.4 29.2 101.2Q29.5 101 30 101L42.5 101Q43.1 101 43.3 101.2Q43.6 101.4 43.6 101.7Q43.6 102 43.3 102.3Q43.1 102.5 42.5 102.6Q41.5 102.8 41.3 103.1Q41.1 103.5 41.4 104.4L54.6 144.5Q55 145.6 55.6 146.2Q56.2 146.7 57.3 146.9Q57.9 147.1 58.1 147.3Q58.3 147.5 58.3 147.8Q58.3 148.1 58 148.4Q57.7 148.6 57.2 148.6L44.1 148.6Q43.5 148.6 43.3 148.4Q43 148.1 43 147.8Q43 147.5 43.2 147.3Q43.4 147.2 43.9 147.1L46 146.7Q46.8 146.5 46.9 146Q47 145.5 46.7 144.5L33.5 103.9L34.3 103.1L21.9 142.4Q21.5 143.6 21.6 144.5Q21.7 145.3 22.3 145.8Q23 146.3 24.1 146.7L25.9 147.1Q26.3 147.2 26.5 147.4Q26.8 147.5 26.8 147.8zM80.7 144.9L80.7 144.4L80.3 144.4L80.3 124.5Q80.3 121.5 79 119.9Q77.6 118.4 75 118.4Q72.4 118.4 71.2 119.5Q69.9 120.6 69.9 122.1L69.9 124.6Q69.9 126.1 68.9 127Q67.9 127.9 66.2 127.9Q64.8 127.9 64 127.1Q63.2 126.3 63.2 125Q63.2 123 64.7 121.2Q66.2 119.4 69.1 118.2Q72 117 76.1 117Q81.6 117 84.2 119.4Q86.9 121.8 86.9 125.9L86.9 144.2Q86.9 145.4 87.4 145.9Q87.8 146.5 88.5 146.5Q89.2 146.5 89.7 146.1Q90.1 145.7 90.3 145.1Q90.4 145 90.5 144.9Q90.6 144.8 90.8 144.8Q91 144.8 91.1 144.9Q91.2 145.1 91.2 145.4Q91.2 146.2 90.7 147.1Q90.1 148 88.9 148.6Q87.7 149.3 85.9 149.3Q83.4 149.3 82 148.1Q80.7 147 80.7 144.9zM61.7 141.8Q61.7 138 64.9 135.6Q68.2 133.1 74.4 133.1Q76.8 133.1 78.5 133.6Q80.3 134 81.7 134.7L81.3 135.8Q80 135.2 78.5 134.8Q77 134.4 75.3 134.4Q72 134.4 70.3 136.1Q68.5 137.8 68.5 140.7Q68.5 143.5 70 145.1Q71.6 146.6 74 146.6Q76 146.6 77.9 145.7Q79.8 144.8 81.2 143.1L81.7 144.1Q79.9 146.6 77 147.9Q74.1 149.3 70.8 149.3Q66.7 149.3 64.2 147.2Q61.7 145.1 61.7 141.8z"/></g></svg>';
+
+	// The Library's tab, and the Files tab's filter.
+	let libTab = 'families';
+	let fileFilter = 'all';
+
+	// The Files tab, where uploads show their progress.
+	const showFiles = () => {
+		if ( view === 'library' && libTab === 'files' ) return;
+		libTab = 'files';
+		view === 'library' ? render() : go( 'library' );
+	};
+
+	// From a menu: open the picker from the Files tab, with focus on its Choose files button.
+	const chooseFiles = () => {
+		showFiles();
+		const input = panel.querySelector( '.etk-fonts__upload-input' );
+		input?.focus();
+		input?.click();
+	};
+
+	const ADD_FONT = [
+		{ label: 'Upload files', icon: 'upload', onselect: chooseFiles },
+		{ label: 'Browse Google Fonts', icon: 'search', onselect: () => go( 'google' ) },
+	];
+	const addFontMenu = () => menu( button( 'Add font', null, { variant: 'primary', iconName: 'plus', iconAfter: 'chevron-down' } ), ADD_FONT, { label: 'Add font' } );
+
+	/**
+	 * Font files dropped anywhere on node upload and show on the Files tab.
+	 * highlight gets is-over while files are dragged over node.
+	 */
+	const dropTarget = ( node, highlight = node ) => {
+		const hasFiles = ( e ) => [ ...( e.dataTransfer?.types || [] ) ].includes( 'Files' );
+		node.addEventListener( 'dragover', ( e ) => {
+			if ( ! hasFiles( e ) ) return;
+			e.preventDefault();
+			e.dataTransfer.dropEffect = 'copy';
+			highlight.classList.add( 'is-over' );
+		} );
+		node.addEventListener( 'dragleave', ( e ) => {
+			if ( ! node.contains( e.relatedTarget ) ) highlight.classList.remove( 'is-over' );
+		} );
+		node.addEventListener( 'drop', ( e ) => {
+			if ( ! hasFiles( e ) ) return;
+			e.preventDefault();
+			highlight.classList.remove( 'is-over' );
+			const files = [ ...e.dataTransfer.files ];
+			showFiles();
+			uploadFiles( files );
+		} );
+		return node;
+	};
+
+	// "100–900", or "400" for one weight.
+	const weightRange = ( family ) => {
+		const weights = family.variants.flatMap( ( v ) => String( v.weight ).split( ' ' ).map( Number ) ).filter( Boolean );
+		if ( ! weights.length ) return '';
+		const min = Math.min( ...weights );
+		const max = Math.max( ...weights );
+		return min === max ? String( min ) : `${ min }–${ max }`;
+	};
+
+	const familyTile = ( family, index ) => {
+		const script = scriptOf( family.google?.script, family.google?.subsets );
+		const glyphs = SCRIPTS[ script ] ? [ ...SCRIPTS[ script ][ 1 ] ].slice( 0, 2 ).join( '' ) : 'Aa';
+		const badges = family.enabled ? family.roles.map( ( role ) => badge( ROLES[ role ], 'accent' ) ) : [ badge( 'Disabled' ) ];
+		const weights = weightRange( family );
+		return h(
+			'li',
+			{ class: `etk-fonts__card etk-fonts__tile${ family.enabled ? '' : ' is-disabled' }` },
+			h(
+				'div',
+				{ class: 'etk-fonts__tile-canvas' },
+				h(
+					'div',
+					{ class: 'etk-fonts__tile-top' },
+					badges.length ? h( 'div', { class: 'etk-fonts__family-badges' }, badges ) : null,
+					weights ? h( 'span', { class: 'etk-fonts__tile-note' }, h( 'span', { class: 'screen-reader-text', textContent: 'Weights ' } ), weights ) : null
+				),
+				h( 'p', { class: 'etk-fonts__tile-specimen etk-fonts__family-specimen', 'aria-hidden': 'true', style: `font-family: "${ family.name }", ${ family.fallback || 'sans-serif' }`, textContent: glyphs } )
+			),
+			h(
+				'div',
+				{ class: 'etk-fonts__tile-meta' },
+				h( 'div', { class: 'etk-fonts__tile-title' }, h( 'h3', { class: 'etk-fonts__tile-name', textContent: family.name } ), state.vars[ family.name ] ? h( 'span', { class: 'etk-fonts__tile-sub', textContent: state.vars[ family.name ] } ) : null ),
+				h( 'div', { class: 'etk-fonts__tile-actions' }, copyVar( family.name, { variant: 'icon' } ), button( 'Edit', () => edit( index ), { attrs: { 'aria-label': `Edit ${ family.name }` } } ) )
+			)
+		);
+	};
+
+	// The dashed "Add a family" tile: a drop target, and the Add font menu on click.
+	const addTile = () =>
 		menu(
-			button( 'Add font', null, { variant: 'primary', iconName: 'plus', iconAfter: 'chevron-down' } ),
-			[
-				{ label: 'Upload files', icon: 'upload', onselect: () => go( 'upload' ) },
-				{ label: 'Browse Google Fonts', icon: 'search', onselect: () => go( 'google' ) },
-			],
-			{ label: 'Add font' }
+			h(
+				'button',
+				{ type: 'button', class: 'etk-fonts__card etk-fonts__card--dashed etk-fonts__family-add' },
+				h( 'span', { class: 'etk-fonts__family-add-icon', html: icon( 'plus' ) } ),
+				h( 'span', { class: 'etk-fonts__family-add-text' }, h( 'span', { class: 'etk-fonts__family-add-title', textContent: 'Add a family' } ), h( 'span', { class: 'etk-fonts__family-add-hint', textContent: 'Drop files here or browse Google Fonts' } ) )
+			),
+			ADD_FONT,
+			{ label: 'Add a family', align: 'start' }
 		);
 
-	const renderLibrary = () => {
-		const families = state.families;
-		const sample = previewInput();
+	const renderFamilies = () => {
+		const add = addTile();
+		return dropTarget( tabPanel( 'library', 'families', h( 'ul', { class: 'etk-fonts__tiles', role: 'list' }, state.families.map( familyTile ), h( 'li', { class: 'etk-fonts__family-add-item' }, add ) ) ), add );
+	};
 
-		if ( ! families.length ) {
-			return [
-				pageHeader( 'Library' ),
-				h( 'div', { class: 'etk-fonts__empty' }, h( 'p', { textContent: 'No fonts yet. Upload font files or add a family from Google Fonts.' } ), h( 'div', { class: 'etk-fonts__actions' }, button( 'Upload fonts', () => go( 'upload' ), { iconName: 'upload' } ), button( 'Browse Google Fonts', () => go( 'google' ) ) ) ),
-			];
-		}
+	// Files: uploads in progress or failed first, then the fonts folder.
+	const iconCell = ( name ) =>
+		h(
+			'td',
+			{ class: 'etk-fonts__files-icon', 'aria-hidden': 'true' },
+			name === 'spinner' ? h( 'span', { class: 'etk-fonts__spinner' } ) : name ? h( 'span', { class: `etk-fonts__files-glyph etk-fonts__files-glyph--${ name }`, html: icon( name, 15 ) } ) : null
+		);
 
-		return [
-			pageHeader( 'Library', `${ plural( families.length, 'family', 'families' ) }. Use a family anywhere with its CSS variable.`, addFontMenu() ),
-			h( 'div', { class: 'etk-fonts__toolbar' }, sample, sizeSlider() ),
+	const STAGES = { waiting: 'Waiting', converting: 'Converting', uploading: 'Uploading' };
+	const logRow = ( entry ) => {
+		const busy = entry.stage === 'converting' || entry.stage === 'uploading';
+		return h(
+			'tr',
+			{},
+			iconCell( entry.error ? 'alert' : entry.done ? 'check' : busy ? 'spinner' : null ),
+			h( 'td', {}, h( 'span', { class: 'etk-fonts__files-name', textContent: entry.name } ) ),
 			h(
-				'ul',
-				{ class: 'etk-fonts__families', role: 'list' },
-				families.map( ( family, index ) =>
+				'td',
+				{},
+				entry.error || entry.done
+					? h( 'span', { class: entry.error ? 'etk-fonts__files-error' : 'etk-fonts__muted', textContent: entry.text } )
+					: h( 'span', { class: 'etk-fonts__files-progress' }, busy ? h( 'span', { class: 'etk-fonts__progress' } ) : null, h( 'span', { class: 'etk-fonts__muted', textContent: STAGES[ entry.stage ] } ) )
+			),
+			h( 'td', { class: 'etk-fonts__num etk-fonts__muted', textContent: size( entry.size ) } ),
+			h( 'td', { class: entry.family ? null : 'etk-fonts__files-none', textContent: entry.family || '—' } ),
+			h(
+				'td',
+				{},
+				entry.error
+					? iconButton( `Dismiss ${ entry.name }`, 'close', () => {
+							uploadLog = uploadLog.filter( ( e ) => e !== entry );
+							renderLog();
+					  } )
+					: null
+			)
+		);
+	};
+
+	const newFamily = ( file ) => {
+		const name = window.prompt( 'Family name', file.name.replace( /[-_].*$|\.[^.]+$/g, '' ) );
+		if ( name?.trim() ) adopt( file, name.trim() );
+	};
+
+	const fileMenu = ( file ) =>
+		menu(
+			iconButton( `Actions for ${ file.name }`, 'more', null ),
+			() => [
+				...state.families.map( ( family ) => ( { label: `Add to ${ family.name }`, icon: 'plus', onselect: () => adopt( file, family.name ) } ) ),
+				{ label: 'New family…', icon: 'plus', onselect: () => newFamily( file ) },
+				'-',
+				{ label: 'Delete file', icon: 'delete', danger: true, onselect: () => deleteFile( file ) },
+			]
+		);
+
+	const fileRow = ( file ) => {
+		const done = uploadLog.find( ( e ) => e.done && e.file === file.name );
+		const unused = ! file.family;
+		return h(
+			'tr',
+			{ class: unused ? 'is-unused' : null },
+			iconCell( done ? 'check' : null ),
+			h( 'td', {}, h( 'span', { class: 'etk-fonts__files-name', textContent: file.name } ) ),
+			h( 'td', {}, done ? h( 'span', { class: 'etk-fonts__muted', textContent: done.text } ) : unused ? badge( 'Unused', 'warning' ) : h( 'span', { class: 'etk-fonts__files-quiet', textContent: 'In use' } ) ),
+			h( 'td', { class: 'etk-fonts__num etk-fonts__muted', textContent: size( file.size ) } ),
+			h( 'td', { class: unused ? 'etk-fonts__files-none' : null, textContent: file.family || 'No family' } ),
+			h( 'td', {}, unused ? fileMenu( file ) : null )
+		);
+	};
+
+	const FILES_EMPTY = { all: 'The fonts folder is empty.', family: 'No files are in a family yet.', unused: 'Every file is in a family.' };
+	const fileRows = () => {
+		const pending = fileFilter === 'all' ? uploadLog.filter( ( e ) => ! e.done || ! state.files.some( ( f ) => f.name === e.file ) ) : [];
+		const files = state.files.filter( ( f ) => fileFilter === 'all' || ( fileFilter === 'unused' ? ! f.family : !! f.family ) );
+		const rows = [ ...pending.map( logRow ), ...files.map( fileRow ) ];
+		return rows.length ? rows : [ h( 'tr', {}, h( 'td', { colspan: '6', class: 'etk-fonts__files-empty etk-fonts__muted', textContent: FILES_EMPTY[ fileFilter ] } ) ) ];
+	};
+
+	const renderFiles = () => {
+		const input = h( 'input', {
+			type: 'file',
+			multiple: true,
+			accept: '.woff2,.woff,.ttf,.otf',
+			class: 'screen-reader-text etk-fonts__upload-input',
+			onchange: ( e ) => {
+				const files = [ ...e.target.files ];
+				e.target.value = '';
+				uploadFiles( files );
+			},
+		} );
+		const zone = h(
+			'div',
+			{ class: 'etk-fonts__dropzone etk-fonts__upload' },
+			h(
+				'div',
+				{ class: 'etk-fonts__upload-text' },
+				h( 'p', { class: 'etk-fonts__upload-eyebrow', textContent: 'Upload' } ),
+				h( 'h3', { class: 'etk-fonts__upload-title', textContent: 'Drop font files anywhere.' } ),
+				h( 'p', { class: 'etk-fonts__upload-body', textContent: 'Files are grouped into families by name, like Inter-BoldItalic.woff2. Anything but WOFF2 is converted in your browser first.' } ),
+				h( 'div', { class: 'etk-fonts__upload-actions' }, h( 'label', { class: btnClass( 'primary', 'etk-fonts__file-btn' ) }, input, btnIcon( 'upload' ), 'Choose files' ), h( 'span', { class: 'etk-fonts__upload-formats', textContent: '.woff2 .woff .ttf .otf' } ) )
+			),
+			h( 'div', { class: 'etk-fonts__upload-art', html: GLYPH_STACK } )
+		);
+		const unused = state.files.filter( ( f ) => ! f.family ).length;
+		const filter = segmented( {
+			name: 'library-files',
+			legend: 'Show',
+			value: fileFilter,
+			options: [
+				{ value: 'all', label: 'All' },
+				{ value: 'family', label: 'In a family' },
+				{ value: 'unused', label: 'Unused', count: unused || undefined },
+			],
+			onchange: ( value ) => {
+				fileFilter = value;
+				render();
+			},
+		} );
+		const th = ( text, className ) => h( 'th', { scope: 'col', class: className, textContent: text } );
+		return dropTarget(
+			tabPanel(
+				'library',
+				'files',
+				zone,
+				h(
+					'div',
+					{ class: 'etk-fonts__files' },
+					h( 'div', { class: 'etk-fonts__files-toolbar' }, filter, config.fontsPath ? h( 'span', { class: 'etk-fonts__files-path', textContent: config.fontsPath } ) : null ),
 					h(
-						'li',
-						{ class: `etk-fonts__family${ family.enabled ? '' : ' is-disabled' }` },
-						specimen( 'etk-fonts__specimen', scriptOf( family.google?.script, family.google?.subsets ), `font-family: "${ family.name }", ${ family.fallback || 'sans-serif' }` ),
-						h(
-							'div',
-							{ class: 'etk-fonts__family-meta' },
-							h( 'h3', { class: 'etk-fonts__family-name', textContent: family.name } ),
-							h(
-								'span',
-								{ class: 'etk-fonts__muted' },
-								[ plural( family.variants.length, 'file', 'files' ), family.source === 'google' ? 'Google Fonts' : 'Uploaded', family.enabled ? null : 'Disabled' ].filter( Boolean ).join( ' · ' )
-							),
-							family.roles.map( ( role ) => h( 'span', { class: 'etk-fonts__badge', textContent: ROLES[ role ] } ) ),
-							copyVar( family.name ),
-							button( 'Edit', () => edit( index ), { attrs: { 'aria-label': `Edit ${ family.name }` } } )
-						)
+						'table',
+						{ class: 'etk-fonts__table etk-fonts__files-table', 'aria-label': 'Font files' },
+						h( 'thead', {}, h( 'tr', {}, h( 'td', { class: 'etk-fonts__files-icon', 'aria-hidden': 'true' } ), th( 'File' ), th( 'Status' ), th( 'Size', 'etk-fonts__num' ), th( 'Family' ), h( 'th', { scope: 'col' }, h( 'span', { class: 'screen-reader-text', textContent: 'Actions' } ) ) ) ),
+						h( 'tbody', { class: 'etk-fonts__files-body' }, fileRows() )
 					)
 				)
 			),
-		];
+			zone
+		);
 	};
+
+	const renderLibrary = () => [
+		pageHeader( {
+			title: 'Library',
+			hidden: false,
+			tabs: tabs( {
+				key: 'library',
+				label: 'Library',
+				value: libTab,
+				items: [
+					{ id: 'families', label: 'Families', count: state.families.length },
+					{ id: 'files', label: 'Files', count: state.files.length },
+				],
+				onchange: ( id ) => {
+					libTab = id;
+					render();
+				},
+			} ),
+			actions: [ libTab === 'families' ? addFontMenu() : null ],
+		} ),
+		libTab === 'files' ? renderFiles() : renderFamilies(),
+	];
 
 	/* ------------------------------------------------------------------ */
 	/* Family editor                                                       */
@@ -936,131 +1158,237 @@
 		return { local, size: round( scale * 100 ), ascent: round( ascent / scale ), descent: round( descent / scale ), gap: round( Math.max( 0, height - ascent - descent ) / scale ) };
 	};
 
+	// The waterfall's rows: size, the weight and style each asks for, and its text.
+	const WATERFALL = [
+		{ size: 96, weight: 300, text: 'Honest type' },
+		{ size: 56, weight: 400, text: 'Honest type for honest work' },
+		{ size: 32, weight: 500, italic: true, text: 'Honest type for honest work, set with care' },
+		{ size: 20, weight: 400, text: 'Set the headline, then let the body text do the quiet work. Good type disappears into the reading.' },
+		{ size: 14, weight: 400, text: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789 & ! ? “ ” ( ) → €' },
+	];
+
+	// The closest style the family has to a weight and style, so no row is faked by the browser.
+	const nearestVariant = ( variants, weight, italic ) => {
+		const styled = variants.filter( ( v ) => ( v.style === 'italic' ) === italic );
+		const pool = styled.length ? styled : variants;
+		let best = null;
+		for ( const v of pool ) {
+			const [ min, max = min ] = v.weight.split( ' ' ).map( Number );
+			const w = Math.min( Math.max( weight, min ), max );
+			const distance = Math.abs( w - weight );
+			if ( ! best || distance < best.distance ) best = { weight: w, style: v.style, distance };
+		}
+		return best || { weight, style: italic ? 'italic' : 'normal' };
+	};
+
+	// Its weight as a number for font-weight: a variable range shows at 400, or its nearest end.
+	const variantWeight = ( weight ) => {
+		const [ min, max = min ] = weight.split( ' ' ).map( Number );
+		return Math.min( Math.max( 400, min ), max );
+	};
+
+	// Files could be edited in place: the one whose weight and style are open.
+	let editingFile = null;
+
+	const discardDraft = () => {
+		editingFile = null;
+		edit( state.families.findIndex( ( f ) => f.name === draft.original ) );
+	};
+
 	const renderFamily = () => {
 		const family = draft.family;
+		const saved = state.families.find( ( f ) => f.name === draft.original );
 		const update = ( changes ) => {
 			Object.assign( family, changes );
 			renderSavebar();
 		};
 		const unused = state.files.filter( ( f ) => ! f.family && ! family.variants.some( ( v ) => v.file === f.name ) );
 		const takenBy = ( role ) => state.families.find( ( f ) => f.name !== draft.original && f.roles.includes( role ) );
+		const face = `"${ draft.original }", ${ family.fallback || 'sans-serif' }`;
+		const script = scriptOf( family.google?.script, family.google?.subsets );
 
-		const variants = h(
-			'table',
-			{ class: 'etk-fonts__table' },
-			h( 'thead', {}, h( 'tr', {}, h( 'th', { scope: 'col', textContent: 'File' } ), h( 'th', { scope: 'col', textContent: 'Weight' } ), h( 'th', { scope: 'col', textContent: 'Style' } ), h( 'th', { scope: 'col' }, h( 'span', { class: 'screen-reader-text', textContent: 'Actions' } ) ) ) ),
-			h(
-				'tbody',
-				{},
-				family.variants.map( ( variant, i ) => {
-					const weights = variant.weight.includes( ' ' ) ? [ variant.weight, ...WEIGHTS ] : WEIGHTS;
-					return h(
-						'tr',
-						{},
-						h( 'td', {}, h( 'span', { class: 'etk-fonts__file', textContent: variant.file } ), variant.subset ? h( 'span', { class: 'etk-fonts__muted', textContent: ` ${ variant.subset }` } ) : null ),
-						h( 'td', {}, select( weights.map( ( w ) => [ w, weightLabel( w ) ] ), variant.weight, ( value ) => ( ( variant.weight = value ), renderSavebar() ), { 'aria-label': `Weight of ${ variant.file }` } ) ),
-						h( 'td', {}, select( [ [ 'normal', 'Normal' ], [ 'italic', 'Italic' ] ], variant.style, ( value ) => ( ( variant.style = value ), renderSavebar() ), { 'aria-label': `Style of ${ variant.file }` } ) ),
-						h(
-							'td',
-							{},
-							iconButton( `Remove ${ variant.file } from ${ family.name }`, 'close', () => ( family.variants.splice( i, 1 ), render() ), { title: 'Remove from family (keeps the file)' } )
-						)
-					);
-				} )
+		// Latin families show the set texts, or the preview text in the display sizes. Others show their script's sample.
+		const waterfall = h(
+			'div',
+			{ class: 'etk-fonts__waterfall', 'aria-hidden': 'true' },
+			WATERFALL.map( ( row ) => {
+				const pick = nearestVariant( family.variants, row.weight, !! row.italic );
+				const own = script || ( sampleText !== SAMPLE && row.size >= 32 );
+				return h(
+					'div',
+					{ class: 'etk-fonts__waterfall-row', style: `--size: ${ row.size }px` },
+					h( 'span', { class: 'etk-fonts__waterfall-size', textContent: row.size } ),
+					specimen( 'etk-fonts__waterfall-text', script, `font-family: ${ face }; font-weight: ${ pick.weight }; font-style: ${ pick.style }`, own ? {} : { 'data-script': null, textContent: row.text } )
+				);
+			} )
+		);
+
+		const roleBadges = ( saved?.roles || [] ).map( ( role ) => badge( ROLES[ role ], 'accent' ) );
+		if ( saved && ! saved.enabled ) roleBadges.push( badge( 'Disabled' ) );
+
+		const familySection = section(
+			{ title: 'Family', variant: 'panel' },
+			field( 'Name', h( 'input', { class: 'etk-fonts__input', type: 'text', value: family.name, oninput: ( e ) => update( { name: e.target.value } ) } ), null, { row: true } ),
+			varOf( draft.original ) ? field( 'Variable', copyVar( draft.original, { variant: 'field' } ), null, { row: true } ) : null,
+			field( 'Fallback', h( 'input', { class: 'etk-fonts__input etk-fonts__input--mono', type: 'text', value: family.fallback, placeholder: 'system-ui, sans-serif', oninput: ( e ) => update( { fallback: e.target.value } ) } ), null, { row: true } ),
+			field(
+				'Display',
+				select(
+					[ 'swap', 'fallback', 'optional', 'block', 'auto' ].map( ( value ) => [ value, value ] ),
+					family.display,
+					( value ) => update( { display: value } ),
+					{ class: 'etk-fonts__input--mono', title: 'font-display. swap is the usual choice.' }
+				),
+				null,
+				{ row: true }
 			)
 		);
 
-		const fileInput = h( 'input', { type: 'file', multiple: true, accept: '.woff2,.woff,.ttf,.otf', class: 'screen-reader-text', onchange: ( e ) => uploadInto( [ ...e.target.files ] ) } );
+		const loadingSection = section(
+			{ title: 'Loading', variant: 'panel' },
+			toggle( 'Enabled', family.enabled, ( value ) => update( { enabled: value } ), family.enabled ? null : 'Keeps its files, adds nothing to the stylesheet' ),
+			toggle( 'Preload', family.preload, ( value ) => update( { preload: value } ), 'Load it early, for fonts above the fold' ),
+			toggle(
+				'Size-matched fallback',
+				!! family.metrics,
+				async ( value ) => {
+					if ( ! value ) {
+						delete family.metrics;
+						return render();
+					}
+					try {
+						update( { metrics: await measureMetrics( draft.original, family.fallback ) } );
+						announce( `Measured ${ draft.original }. Save to add the fallback.` );
+					} catch ( error ) {
+						warn( errorText( error ) );
+					}
+					render();
+				},
+				family.metrics ? `${ LOCALS[ family.metrics.local ] } at ${ family.metrics.size }%` : 'Resizes a local font to match, so text doesn’t jump'
+			)
+		);
+
+		// Automatic.css roles: a switch each, and under it the family that has the role now, unless it's this one.
+		const roleStrip = ( role ) => {
+			const other = takenBy( role );
+			if ( ! other && saved?.roles.includes( role ) ) return null;
+			return h(
+				'div',
+				{ class: `etk-fonts__role-owner${ other ? '' : ' is-unset' }` },
+				other ? null : h( 'span', { class: 'etk-fonts__role-glyph', 'aria-hidden': 'true', textContent: 'Ag' } ),
+				h( 'span', { class: 'etk-fonts__role-name', style: other ? `font-family: "${ other.name }", ${ other.fallback || 'sans-serif' }` : null, textContent: other ? other.name : 'Nothing set' } ),
+				h( 'span', { class: 'etk-fonts__role-current', textContent: 'Current' } )
+			);
+		};
+		const rolesSection = section(
+			{ title: state.acss ? 'Automatic.css' : 'Typography tokens', variant: 'panel' },
+			state.acss ? null : h( 'p', { class: 'etk-fonts__help', textContent: 'Adds --heading-font-family or --text-font-family and applies it to headings or the body.' } ),
+			...Object.entries( ROLES ).map( ( [ role, label ] ) => {
+				const strip = roleStrip( role );
+				const other = takenBy( role );
+				const help = other ? `${ other.name } has this now` : strip ? 'Nothing has this now' : null;
+				const row = toggle( `Use for ${ label.toLowerCase() }`, family.roles.includes( role ), ( value ) => update( { roles: value ? [ ...family.roles, role ] : family.roles.filter( ( r ) => r !== role ) } ) );
+				// The strip shows who has it. Screen readers hear it with the switch.
+				if ( strip ) {
+					const input = row.querySelector( 'input' );
+					const id = `${ input.id }-owner`;
+					row.append( h( 'span', { class: 'screen-reader-text', id, textContent: help } ) );
+					input.setAttribute( 'aria-describedby', id );
+					strip.setAttribute( 'aria-hidden', 'true' );
+				}
+				return h( 'div', { class: 'etk-fonts__role' }, row, strip );
+			} )
+		);
+		rolesSection.classList.add( 'etk-fonts__section--roles' );
+
+		const fileInput = h( 'input', { type: 'file', multiple: true, accept: '.woff2,.woff,.ttf,.otf', class: 'screen-reader-text', tabindex: '-1', 'aria-hidden': 'true', onchange: ( e ) => uploadInto( [ ...e.target.files ] ) } );
+		const addMenu = menu(
+			iconButton( 'Add files', 'plus', null ),
+			() => [
+				{ label: 'Upload files…', icon: 'upload', onselect: () => fileInput.click() },
+				unused.length ? '-' : null,
+				...unused.map( ( f ) => ( {
+					label: f.name,
+					onselect: () => {
+						family.variants.push( { file: f.name, weight: f.weight, style: f.style } );
+						render();
+					},
+				} ) ),
+			],
+			{ label: 'Add files' }
+		);
+
+		const fileRow = ( variant, i ) => {
+			const file = state.files.find( ( f ) => f.name === variant.file );
+			const title = `${ weightLabel( variant.weight ) }${ variant.style === 'italic' ? ' Italic' : '' }`;
+			const meta = [ variant.subset || null, file ? size( file.size ) : null ].filter( Boolean ).join( ' · ' ) || variant.file;
+			const open = editingFile === variant.file;
+			const weights = variant.weight.includes( ' ' ) ? [ variant.weight, ...WEIGHTS ] : WEIGHTS;
+			return h(
+				'li',
+				{ class: `etk-fonts__file-row${ open ? ' is-open' : '' }`, title: variant.file },
+				h(
+					'div',
+					{ class: 'etk-fonts__file-main' },
+					h( 'span', { class: 'etk-fonts__file-glyph', 'aria-hidden': 'true', style: `font-family: ${ face }; font-weight: ${ variantWeight( variant.weight ) }; font-style: ${ variant.style }`, textContent: 'Ag' } ),
+					h( 'div', { class: 'etk-fonts__file-text' }, h( 'span', { class: 'etk-fonts__file-title', textContent: title } ), h( 'span', { class: 'etk-fonts__file-meta', textContent: meta } ) ),
+					menu( iconButton( `Actions for ${ variant.file }`, 'more', null ), [
+						{
+							label: open ? 'Done editing' : 'Change weight and style',
+							onselect: () => {
+								editingFile = open ? null : variant.file;
+								render();
+								if ( editingFile ) main.querySelector( '.etk-fonts__file-row.is-open select' )?.focus();
+							},
+						},
+						'-',
+						{ label: 'Remove from family', icon: 'close', danger: true, onselect: () => ( family.variants.splice( i, 1 ), render() ) },
+					] )
+				),
+				open
+					? h(
+							'div',
+							{ class: 'etk-fonts__file-edit' },
+							select( weights.map( ( w ) => [ w, weightLabel( w ) ] ), variant.weight, ( value ) => ( ( variant.weight = value ), render() ), { 'aria-label': `Weight of ${ variant.file }` } ),
+							select( [ [ 'normal', 'Normal' ], [ 'italic', 'Italic' ] ], variant.style, ( value ) => ( ( variant.style = value ), render() ), { 'aria-label': `Style of ${ variant.file }` } )
+					  )
+					: null
+			);
+		};
+
+		const filesSection = section(
+			{ title: `Files · ${ family.variants.length }`, variant: 'panel', action: addMenu },
+			fileInput,
+			family.variants.length ? h( 'ul', { class: 'etk-fonts__file-list' }, family.variants.map( fileRow ) ) : h( 'p', { class: 'etk-fonts__help', textContent: 'No files yet. Add some with the plus button.' } ),
+			family.source === 'google' ? h( 'div', { class: 'etk-fonts__family-link-wrap' }, h( 'button', { type: 'button', class: 'etk-fonts__family-link', textContent: 'Change styles…', onclick: () => installDialog( family.name ) } ) ) : null
+		);
+		filesSection.classList.add( 'etk-fonts__section--files' );
 
 		return [
-			h( 'div', { class: 'etk-fonts__crumb' }, button( 'All fonts', () => leaveFamily( 'library' ), { variant: 'ghost', iconName: 'back' } ) ),
-			pageHeader( draft.original, null, copyVar( draft.original ) ),
-			specimen( 'etk-fonts__specimen etk-fonts__specimen--large', scriptOf( family.google?.script, family.google?.subsets ), `font-family: "${ draft.original }", ${ family.fallback || 'sans-serif' }` ),
-			section(
-				'Family',
+			h(
+				'div',
+				{ class: 'etk-fonts__split etk-fonts__family-view' },
 				h(
 					'div',
-					{ class: 'etk-fonts__grid' },
-					field( 'Name', h( 'input', { class: 'etk-fonts__input', type: 'text', value: family.name, oninput: ( e ) => update( { name: e.target.value } ) } ), 'Renaming changes the CSS variable too.' ),
-					field( 'Fallback fonts', h( 'input', { class: 'etk-fonts__input', type: 'text', value: family.fallback, placeholder: 'system-ui, sans-serif', oninput: ( e ) => update( { fallback: e.target.value } ) } ), 'Used while the font loads, or if it fails.' ),
-					field(
-						'Font display',
-						select(
-							[
-								[ 'swap', 'swap (recommended)' ],
-								[ 'fallback', 'fallback' ],
-								[ 'optional', 'optional' ],
-								[ 'block', 'block' ],
-								[ 'auto', 'auto' ],
-							],
-							family.display,
-							( value ) => update( { display: value } )
-						)
-					)
+					{ class: 'etk-fonts__pane' },
+					pageHeader( { title: draft.original, hidden: false, bar: true, back: { label: 'Back to the library', onclick: () => leaveFamily( 'library' ) }, meta: roleBadges.length ? h( 'span', { class: 'etk-fonts__family-badges' }, roleBadges ) : null } ),
+					waterfall
 				),
 				h(
-					'div',
-					{ class: 'etk-fonts__checks' },
-					check( 'Enabled', family.enabled, ( value ) => update( { enabled: value } ), 'Disabled families keep their files but add nothing to the stylesheet.' ),
-					check( 'Preload', family.preload, ( value ) => update( { preload: value } ), 'Starts downloading the regular style before the CSS asks for it. Use it for the font above the fold.' ),
-					check(
-						'Size-matched fallback',
-						!! family.metrics,
-						async ( value ) => {
-							if ( ! value ) {
-								delete family.metrics;
-								return renderSavebar();
-							}
-							try {
-								update( { metrics: await measureMetrics( draft.original, family.fallback ) } );
-								announce( `Measured ${ draft.original }. Save to add the fallback.` );
-							} catch ( error ) {
-								warn( errorText( error ) );
-								render();
-							}
-						},
-						family.metrics ? `Resized ${ LOCALS[ family.metrics.local ] } to ${ family.metrics.size }%, so text doesn’t jump when the font loads.` : 'Resizes a local font like Arial to match this one, so text doesn’t jump when the font loads.'
+					'aside',
+					{ class: 'etk-fonts__inspector', 'aria-label': `${ draft.original } settings` },
+					familySection,
+					loadingSection,
+					rolesSection,
+					filesSection,
+					h(
+						'div',
+						{ class: 'etk-fonts__inspector-footer' },
+						iconButton( `Delete ${ draft.original }`, 'trash', deleteFamily, { variant: 'danger', title: 'Delete family' } ),
+						h( 'div', { class: 'etk-fonts__family-actions' }, button( 'Discard', discardDraft, { variant: 'ghost' } ), button( 'Save family', saveDraft, { variant: 'primary' } ) )
 					)
 				)
 			),
-			section(
-				'Typography tokens',
-				h( 'p', { class: 'etk-fonts__help', textContent: state.acss
-					? 'Automatic.css is active, so this sets its heading or text font family instead of adding it to the fonts stylesheet.'
-					: 'Adds --heading-font-family or --text-font-family to the fonts stylesheet and applies it to headings or the body.' } ),
-				h(
-					'div',
-					{ class: 'etk-fonts__checks' },
-					Object.entries( ROLES ).map( ( [ role, label ] ) => {
-						const other = takenBy( role );
-						return check( `Use for ${ label.toLowerCase() }`, family.roles.includes( role ), ( value ) => update( { roles: value ? [ ...family.roles, role ] : family.roles.filter( ( r ) => r !== role ) } ), other ? `${ other.name } has this now.` : null );
-					} )
-				)
-			),
-			section(
-				'Files',
-				family.variants.length ? variants : h( 'p', { class: 'etk-fonts__muted', textContent: 'No files. Add some below.' } ),
-				h(
-					'div',
-					{ class: 'etk-fonts__actions' },
-					h( 'label', { class: btnClass( 'secondary', 'etk-fonts__file-btn' ) }, fileInput, btnIcon( 'upload' ), 'Upload files' ),
-					unused.length
-						? select(
-								[ [ '', 'Add an existing file…' ], ...unused.map( ( f ) => [ f.name, f.name ] ) ],
-								'',
-								( name ) => {
-									const file = unused.find( ( f ) => f.name === name );
-									if ( ! file ) return;
-									family.variants.push( { file: file.name, weight: file.weight, style: file.style } );
-									render();
-								},
-								{ 'aria-label': 'Add an existing file' }
-						  )
-						: null,
-					family.source === 'google' ? button( 'Change styles…', () => installDialog( family.name ) ) : null
-				)
-			),
-			h( 'div', { class: 'etk-fonts__danger-zone' }, button( 'Delete family', deleteFamily, { variant: 'danger', iconName: 'delete' } ) ),
 		];
 	};
 
@@ -1072,68 +1400,73 @@
 			dialog.close();
 		}
 		draft = null;
+		editingFile = null;
 		go( next );
 		return true;
 	};
 
-	let savebar = null;
+	// Save and Discard sit in the inspector's footer, live only with changes to save.
 	const renderSavebar = () => {
-		if ( ! savebar ) return;
-		const show = view === 'family' && dirty();
-		// Saving or discarding hides the bar under focus, so focus goes to the page title.
-		if ( ! show && savebar.contains( document.activeElement ) ) panel.querySelector( '.etk-fonts__page-title' )?.focus();
-		savebar.hidden = ! show;
+		const actions = view === 'family' ? main?.querySelector( '.etk-fonts__family-actions' ) : null;
+		if ( ! actions ) return;
+		const show = dirty();
+		// Saving or discarding disables the button under focus, so focus goes to the page title.
+		if ( ! show && actions.contains( document.activeElement ) ) panel.querySelector( '.etk-fonts__page-title' )?.focus();
+		actions.querySelectorAll( 'button' ).forEach( ( b ) => ( b.disabled = ! show ) );
 	};
 
 	/* ------------------------------------------------------------------ */
 	/* Upload                                                              */
 	/* ------------------------------------------------------------------ */
 
+	// One entry per file in the last upload: { name, size, stage, family, file, text, done, error }.
 	let uploadLog = [];
 
 	/**
 	 * Convert and upload files one by one. Each lands in the named family, or
-	 * a family named after the file.
+	 * a family named after the file. Anything that isn't a font is listed as an error.
 	 */
 	const uploadFiles = async ( files, family = '' ) => {
-		const fonts = files.filter( ( f ) => /\.(woff2?|ttf|otf)$/i.test( f.name ) );
-		if ( ! fonts.length ) return warn( 'Choose WOFF2, WOFF, TTF or OTF files.' );
-
-		uploadLog = fonts.map( ( f ) => ( { name: f.name, text: 'Waiting' } ) );
+		const sources = new Map();
+		uploadLog = files.map( ( f ) => {
+			const entry = /\.(woff2?|ttf|otf)$/i.test( f.name ) ? { name: f.name, size: f.size, stage: 'waiting', family } : { name: f.name, size: f.size, stage: 'error', error: true, text: 'Not a font file' };
+			if ( ! entry.error ) sources.set( entry, f );
+			return entry;
+		} );
 		renderLog();
+		if ( ! sources.size ) return warn( 'Choose WOFF2, WOFF, TTF or OTF files.' );
+
 		let next = null;
 		let added = 0;
-
-		for ( const [ i, original ] of fonts.entries() ) {
-			const entry = uploadLog[ i ];
+		for ( const [ entry, original ] of sources ) {
 			try {
-				entry.text = 'Converting…';
+				entry.stage = 'converting';
 				renderLog();
 				const { file, note } = await prepareUpload( original );
-				entry.text = 'Uploading…';
+				entry.stage = 'uploading';
 				renderLog();
 				const body = new FormData();
 				body.append( 'file', file );
 				if ( family ) body.append( 'family', family );
 				next = await api( 'fonts/upload', 'POST', body );
-				entry.text = [ `Added to ${ next.uploaded.family }`, note ].filter( Boolean ).join( ', ' );
-				entry.ok = true;
+				Object.assign( entry, { stage: 'done', done: true, file: next.uploaded.file, family: next.uploaded.family, size: file.size, text: note ? `${ note } · added` : 'Added' } );
 				added++;
 			} catch ( error ) {
-				entry.text = errorText( error );
-				entry.error = true;
+				Object.assign( entry, { stage: 'error', error: true, text: errorText( error ) } );
 			}
 			renderLog();
 		}
 
-		if ( next ) await apply( next, `Uploaded ${ plural( added, 'file', 'files' ) }.` );
+		const failed = uploadLog.length - added;
+		const message = [ `Uploaded ${ plural( added, 'file', 'files' ) }.`, failed ? `${ plural( failed, 'file', 'files' ) } didn’t upload.` : null ].filter( Boolean ).join( ' ' );
+		if ( next ) await apply( next, message );
 		else warn( 'Nothing was uploaded.' );
 	};
 
+	// Uploads show as rows in the Files tab's table, updated in place.
 	const renderLog = () => {
-		const log = panel?.querySelector( '.etk-fonts__log' );
-		if ( ! log ) return;
-		log.replaceChildren( ...uploadLog.map( ( entry ) => h( 'li', { class: entry.error ? 'is-error' : entry.ok ? 'is-ok' : '' }, h( 'span', { class: 'etk-fonts__file', textContent: entry.name } ), h( 'span', { class: 'etk-fonts__muted', textContent: entry.text } ) ) ) );
+		const body = panel?.querySelector( '.etk-fonts__files-body' );
+		if ( body ) keepFocus( () => body.replaceChildren( ...fileRows() ) );
 	};
 
 	const adopt = async ( file, familyName ) => {
@@ -1145,84 +1478,6 @@
 		}
 		family.variants.push( { file: file.name, weight: file.weight, style: file.style } );
 		await saveFamilies( families, `Added ${ file.name } to ${ familyName }.` ).catch( ( error ) => warn( errorText( error ) ) );
-	};
-
-	const renderUpload = () => {
-		const input = h( 'input', { type: 'file', multiple: true, accept: '.woff2,.woff,.ttf,.otf', class: 'screen-reader-text', onchange: ( e ) => uploadFiles( [ ...e.target.files ] ) } );
-		const drop = h(
-			'label',
-			{
-				class: 'etk-fonts__drop',
-				ondragover: ( e ) => {
-					e.preventDefault();
-					drop.classList.add( 'is-over' );
-				},
-				ondragleave: () => drop.classList.remove( 'is-over' ),
-				ondrop: ( e ) => {
-					e.preventDefault();
-					drop.classList.remove( 'is-over' );
-					uploadFiles( [ ...e.dataTransfer.files ] );
-				},
-			},
-			input,
-			h( 'span', { html: icon( 'upload' ) } ),
-			h( 'strong', { textContent: 'Drop font files here, or choose files' } ),
-			h( 'span', { class: 'etk-fonts__muted', textContent: 'WOFF2, WOFF, TTF or OTF. Anything but WOFF2 is converted to WOFF2 in your browser first. Files are grouped into families by name, like Inter-BoldItalic.woff2.' } )
-		);
-
-		const unused = state.files.filter( ( f ) => ! f.family );
-		const familyNames = state.families.map( ( f ) => f.name );
-
-		return [
-			pageHeader( { title: 'Upload', hidden: false, back: { label: 'Back to the library', onclick: () => go( 'library' ) } } ),
-			drop,
-			h( 'ul', { class: 'etk-fonts__log', role: 'list', 'aria-live': 'polite' } ),
-			section(
-				`Font files (${ state.files.length })`,
-				state.files.length
-					? h(
-							'table',
-							{ class: 'etk-fonts__table' },
-							h( 'thead', {}, h( 'tr', {}, h( 'th', { scope: 'col', textContent: 'File' } ), h( 'th', { scope: 'col', textContent: 'Size' } ), h( 'th', { scope: 'col', textContent: 'Family' } ), h( 'th', { scope: 'col' }, h( 'span', { class: 'screen-reader-text', textContent: 'Actions' } ) ) ) ),
-							h(
-								'tbody',
-								{},
-								state.files.map( ( file ) =>
-									h(
-										'tr',
-										{},
-										h( 'td', {}, h( 'span', { class: 'etk-fonts__file', textContent: file.name } ) ),
-										h( 'td', { class: 'etk-fonts__muted', textContent: size( file.size ) } ),
-										h(
-											'td',
-											{},
-											file.family
-												? file.family
-												: select(
-														[ [ '', 'Not used. Add to…' ], ...familyNames.map( ( n ) => [ n, n ] ), [ '__new', 'New family…' ] ],
-														'',
-														( value ) => {
-															if ( value === '__new' ) {
-																const name = window.prompt( 'Family name', file.name.replace( /[-_].*$|\.[^.]+$/g, '' ) );
-																if ( name?.trim() ) adopt( file, name.trim() );
-															} else if ( value ) adopt( file, value );
-														},
-														{ 'aria-label': `Add ${ file.name } to a family` }
-												  )
-										),
-										h(
-											'td',
-											{},
-											file.family ? null : iconButton( `Delete ${ file.name }`, 'delete', () => deleteFile( file ), { variant: 'danger', title: 'Delete file' } )
-										)
-									)
-								)
-							)
-					  )
-					: h( 'p', { class: 'etk-fonts__muted', textContent: 'The fonts folder is empty.' } ),
-				unused.length ? h( 'p', { class: 'etk-fonts__help', textContent: `${ plural( unused.length, 'file isn’t', 'files aren’t' ) } used by any family.` } ) : null
-			),
-		];
 	};
 
 	const deleteFile = async ( file ) => {
@@ -1255,7 +1510,7 @@
 			const params = new URLSearchParams( { search: google.search, category: google.category, subset: google.subset, sort: google.sort, variable: google.variable ? 1 : '', offset: more ? google.results.length : 0 } );
 			const data = await api( `fonts/google?${ params }` );
 			if ( id !== searchId ) return;
-			Object.assign( google, { results: [ ...google.results, ...data.results ], total: data.total, categories: data.categories, subsets: data.subsets } );
+			Object.assign( google, { results: [ ...google.results, ...data.results ], total: data.total, categories: data.categories, subsets: data.subsets, counts: data.counts || {}, catalogue: data.catalogue || google.catalogue } );
 			loadGooglePreviews( data.results );
 		} catch ( error ) {
 			if ( id !== searchId ) return;
@@ -1318,10 +1573,11 @@
 
 	/**
 	 * A native range input, styled, with nine notches: one per step from min.
-	 * CSS reads --v (1-9) for the fill and notches.
+	 * CSS reads --v (1-9) for the fill and notches. boxed puts it in a bordered
+	 * value box, the label first and the value last, as in the Google toolbar.
 	 */
-	const notchedSlider = ( { name, label, min, step, value, text, spoken, onchange } ) => {
-		const output = h( 'output', { class: 'etk-fonts__muted', textContent: text( value ) } );
+	const notchedSlider = ( { name, label, min, step, value, text, spoken, onchange, boxed = false } ) => {
+		const output = h( 'output', { class: boxed ? 'etk-fonts__valuebox-value' : 'etk-fonts__muted', textContent: text( value ) } );
 		const range = h(
 			'span',
 			{ class: 'etk-range', style: `--v: ${ ( value - min ) / step + 1 }` },
@@ -1343,35 +1599,39 @@
 			} ),
 			h( 'span', { class: 'etk-range__notches', 'aria-hidden': 'true' }, WEIGHTS.map( ( w, i ) => h( 'span', { style: `--t: ${ i + 1 }` } ) ) )
 		);
-		return h( 'div', { class: 'etk-fonts__slider' }, h( 'span', { 'aria-hidden': 'true', textContent: name } ), range, output );
+		return boxed
+			? h( 'div', { class: 'etk-fonts__inputbox etk-fonts__valuebox' }, h( 'span', { class: 'etk-fonts__inputbox-label', 'aria-hidden': 'true', textContent: name } ), range, output )
+			: h( 'div', { class: 'etk-fonts__slider' }, h( 'span', { 'aria-hidden': 'true', textContent: name } ), range, output );
 	};
 
-	const weightSlider = () =>
+	const weightSlider = ( boxed = false ) =>
 		notchedSlider( {
 			name: 'Weight',
 			label: 'Preview weight',
 			min: 100,
 			step: 100,
 			value: google.weight,
-			text: ( value ) => weightLabel( String( value ) ),
+			boxed,
+			text: ( value ) => ( boxed ? String( value ) : weightLabel( String( value ) ) ),
 			spoken: ( value ) => weightLabel( String( value ) ),
 			onchange: ( value ) => {
 				google.weight = value;
-				main.querySelectorAll( '.etk-fonts__card-specimen' ).forEach( ( node ) => ( node.style.fontWeight = value ) );
+				main.querySelectorAll( '.etk-fonts__google-results .etk-fonts__tile-specimen' ).forEach( ( node ) => ( node.style.fontWeight = value ) );
 				reloadGooglePreviews();
 			},
 		} );
 
 	// Each list starts at its own size until you pick one, then they all share it.
 	const SIZE_DEFAULT = { library: 32, google: 40, 'google-font': 40 };
-	const sizeSlider = () =>
+	const sizeSlider = ( { boxed = false } = {} ) =>
 		notchedSlider( {
 			name: 'Size',
 			label: 'Preview size',
 			min: 16,
 			step: 8,
 			value: prefs.size ?? SIZE_DEFAULT[ view ],
-			text: ( value ) => `${ value }px`,
+			boxed,
+			text: ( value ) => ( boxed ? String( value ) : `${ value }px` ),
 			spoken: ( value ) => `${ value } pixels`,
 			onchange: ( value ) => {
 				prefs.size = value;
@@ -1382,7 +1642,8 @@
 
 	const openGoogleFont = ( font ) => {
 		google.font = font;
-		google.scroll = panel.querySelector( '.etk-fonts__content' ).scrollTop;
+		google.pick = null;
+		google.scroll = panel.querySelector( '.etk-fonts__gresults' )?.scrollTop || 0;
 		loadGoogleFont();
 		go( 'google-font' );
 	};
@@ -1392,45 +1653,68 @@
 		const family = google.font.family;
 		view = 'google';
 		render();
-		panel.querySelector( '.etk-fonts__content' ).scrollTop = google.scroll;
+		const pane = panel.querySelector( '.etk-fonts__gresults' );
+		if ( pane ) pane.scrollTop = google.scroll;
 		[ ...panel.querySelectorAll( '.etk-fonts__card-view' ) ].find( ( b ) => b.dataset.family === family )?.focus( { preventScroll: true } );
 	};
 
 	const addButton = ( font ) => {
 		const have = installed( font.family );
 		return have
-			? button( 'Installed', () => edit( state.families.indexOf( have ) ), { variant: 'ghost', attrs: { 'aria-label': `${ font.family } is installed. Edit it` } } )
-			: button( 'Add', () => installDialog( font.family, font ), { attrs: { 'aria-label': `Add ${ font.family }` } } );
+			? button( 'Added', () => edit( state.families.indexOf( have ) ), { variant: 'ghost', iconName: 'check', attrs: { class: 'etk-fonts__gadd is-added', 'aria-label': `${ font.family } is added. Edit it` } } )
+			: button( 'Add', () => installDialog( font.family, font ), { attrs: { class: 'etk-fonts__gadd', 'aria-label': `Add ${ font.family }` } } );
 	};
 
-	const fontSummary = ( font ) => [ font.category.replace( /\b\w/g, ( c ) => c.toUpperCase() ), plural( font.cuts.length, 'style', 'styles' ), font.wght?.min ? 'variable' : null ].filter( Boolean ).join( ' · ' );
+	// Google's categories, in the order of the filter list: "sans serif" reads "Sans serif".
+	const CATEGORIES = [ 'sans serif', 'serif', 'display', 'handwriting', 'monospace' ];
+	const categoryLabel = ( category ) => ( category ? category.charAt( 0 ).toUpperCase() + category.slice( 1 ).replace( /-/g, ' ' ) : 'All' );
+	const subsetLabel = ( subset ) => subset.replace( /-/g, ' ' ).replace( /\b\w/g, ( c ) => c.toUpperCase() );
+	const weightsOf = ( font ) => [ ...new Set( font.cuts.map( ( c ) => parseInt( c, 10 ) ) ) ].sort( ( a, b ) => a - b );
+	const hasItalics = ( font ) => font.cuts.some( ( c ) => c.endsWith( 'i' ) );
+
+	// "100–900 · Italic": the weight range, and whether it has italics.
+	const styleNote = ( font ) => {
+		const weights = weightsOf( font );
+		const range = font.wght?.min ? `${ font.wght.min }–${ font.wght.max }` : weights.length > 1 ? `${ weights[ 0 ] }–${ weights.at( -1 ) }` : String( weights[ 0 ] ?? '' );
+		return [ range, hasItalics( font ) ? 'Italic' : null ].filter( Boolean ).join( ' · ' );
+	};
 
 	const installed = ( name ) => state.families.find( ( f ) => f.name.toLowerCase() === name.toLowerCase() );
+
+	// The CSS variable a family has, or will have once added.
+	const googleVar = ( name ) => state.vars[ installed( name )?.name ] || `--font-${ slugOf( name ) }`;
 
 	const renderGoogleResults = () => {
 		const list = panel?.querySelector( '.etk-fonts__google-results' );
 		if ( ! list ) return;
 		const summary = panel.querySelector( '.etk-fonts__google-summary' );
-		summary.textContent = google.error || ( google.loading && ! google.results.length ? 'Loading…' : `${ google.total.toLocaleString() } families` );
+		const empty = ! google.loading && ! google.results.length;
+		summary.textContent = google.error || ( google.loading && ! google.results.length ? 'Loading…' : google.total ? `${ google.total.toLocaleString() } families` : 'No families match. Try another search or filter.' );
+		// Shown for errors and no results. Otherwise it's for screen readers, the counts beside the categories say the same.
+		summary.classList.toggle( 'is-shown', !! google.error || empty );
+
+		panel.querySelectorAll( '[data-count]' ).forEach( ( node ) => ( node.textContent = ( google.counts[ node.dataset.count ] ?? 0 ).toLocaleString() ) );
+		const search = panel.querySelector( '.etk-fonts__gsearch input' );
+		if ( search && google.catalogue ) search.placeholder = `Search ${ google.catalogue.toLocaleString() } families`;
 
 		list.replaceChildren(
 			...google.results.map( ( font ) => {
+				const open = () => openGoogleFont( font );
 				return h(
 					'li',
-					{ class: 'etk-fonts__card' },
-					// View is the keyboard target. The specimen is a larger click target for the same thing.
-					specimen( 'etk-fonts__card-specimen', scriptOf( font.script, font.subsets ), `font-family: "${ font.family }", ${ font.category === 'serif' ? 'serif' : 'sans-serif' }; font-weight: ${ google.weight }`, { onclick: () => openGoogleFont( font ) } ),
+					{ class: 'etk-fonts__card etk-fonts__tile etk-fonts__gtile' },
+					// View is the keyboard target. The canvas is a larger click target for the same thing.
 					h(
 						'div',
-						{ class: 'etk-fonts__card-meta' },
-						h( 'h3', { class: 'etk-fonts__family-name', textContent: font.family } ),
-						h( 'span', { class: 'etk-fonts__muted', textContent: fontSummary( font ) } )
+						{ class: 'etk-fonts__tile-canvas', onclick: open },
+						h( 'div', { class: 'etk-fonts__tile-top' }, badge( categoryLabel( font.category ), 'tag' ), h( 'span', { class: 'etk-fonts__tile-note', textContent: styleNote( font ) } ) ),
+						specimen( 'etk-fonts__tile-specimen', scriptOf( font.script, font.subsets ), `font-family: "${ font.family }", ${ font.category === 'serif' ? 'serif' : 'sans-serif' }; font-weight: ${ google.weight }` )
 					),
 					h(
 						'div',
-						{ class: 'etk-fonts__actions' },
-						addButton( font ),
-						button( 'View', () => openGoogleFont( font ), { variant: 'ghost', attrs: { class: 'etk-fonts__card-view', 'data-family': font.family, 'aria-label': `View ${ font.family }` } } )
+						{ class: 'etk-fonts__tile-meta' },
+						h( 'div', { class: 'etk-fonts__tile-title' }, h( 'h3', { class: 'etk-fonts__tile-name', textContent: font.family } ), h( 'span', { class: 'etk-fonts__tile-sub', textContent: googleVar( font.family ) } ) ),
+						h( 'div', { class: 'etk-fonts__tile-actions' }, iconButton( `View ${ font.family }`, 'chevron-right', open, { title: 'View', attrs: { class: 'etk-fonts__card-view', 'data-family': font.family } } ), addButton( font ) )
 					)
 				);
 			} )
@@ -1441,6 +1725,45 @@
 		// Not disabled, which would drop focus to <body> while it loads.
 		more.setAttribute( 'aria-disabled', String( google.loading ) );
 	};
+
+	/**
+	 * What to download of a Google family: subsets, variable or static, and
+	 * styles. Starts from what's installed, if it is.
+	 */
+	const installChoice = ( meta ) => {
+		const current = installed( meta.family );
+		const hasItalic = hasItalics( meta );
+		const canVary = !! meta.wght?.min;
+		const offered = meta.subsets.filter( ( s ) => ! SLICED[ s ] );
+		const sliced = [ ...new Set( meta.subsets.filter( ( s ) => SLICED[ s ] ).map( ( s ) => SLICED[ s ] ) ) ];
+		// A font with no subsets at all comes as one file. One with only sliced subsets can't be added.
+		const addable = offered.length > 0 || ! sliced.length;
+		const choice = {
+			subsets: new Set( ( current?.google?.subsets || [ 'latin', SCRIPTS[ meta.script ]?.[ 0 ] ] ).filter( ( s ) => offered.includes( s ) ) ),
+			variable: current ? !! current.google?.variable : canVary,
+			italic: current ? current.variants.some( ( v ) => v.style === 'italic' ) : false,
+			cuts: new Set( current && ! current.google?.variable ? current.variants.map( ( v ) => v.weight + ( v.style === 'italic' ? 'i' : '' ) ) : [ '400', '700' ].filter( ( c ) => meta.cuts.includes( c ) ) ),
+		};
+		if ( ! choice.subsets.size && offered.length ) choice.subsets.add( offered[ 0 ] );
+		if ( ! choice.cuts.size ) choice.cuts.add( meta.cuts[ 0 ] );
+		const ready = () => addable && ( ! offered.length || choice.subsets.size > 0 ) && ( choice.variable || choice.cuts.size > 0 );
+		const slicedNote = sliced.length
+			? `${ addable ? `${ sliced.join( ' and ' ) } ${ sliced.length > 1 ? 'aren’t' : 'isn’t' } offered` : `${ meta.family } can’t be added` }. Google serves ${ sliced.join( ' and ' ) } in many small files per style, which aren’t downloaded here.`
+			: '';
+		return { meta, current, hasItalic, canVary, offered, sliced, addable, choice, ready, slicedNote };
+	};
+
+	// Download the chosen files. Resolves with the new state, for apply().
+	const installGoogle = async ( { meta, choice } ) => {
+		const cuts = choice.variable ? ( choice.italic ? meta.cuts : meta.cuts.filter( ( c ) => ! c.endsWith( 'i' ) ) ) : [ ...choice.cuts ];
+		const next = await api( 'fonts/google/install', 'POST', { family: meta.family, subsets: [ ...choice.subsets ], variable: choice.variable, cuts } );
+		if ( draft?.original === meta.family ) {
+			draft.family.variants = clone( next.families.find( ( f ) => f.name === meta.family ).variants );
+		}
+		return next;
+	};
+
+	const cutLabel = ( cut ) => `${ weightLabel( cut.replace( 'i', '' ) ) }${ cut.endsWith( 'i' ) ? ' Italic' : '' }`;
 
 	/**
 	 * Choose subsets and styles, then install. Reinstalling starts from what's
@@ -1457,22 +1780,8 @@
 			if ( ! meta ) return warn( `Couldn't find ${ name } on Google Fonts.` );
 		}
 
-		const current = installed( meta.family );
-		const hasItalic = meta.cuts.some( ( c ) => c.endsWith( 'i' ) );
-		const canVary = !! meta.wght?.min;
-		const offered = meta.subsets.filter( ( s ) => ! SLICED[ s ] );
-		const sliced = [ ...new Set( meta.subsets.filter( ( s ) => SLICED[ s ] ).map( ( s ) => SLICED[ s ] ) ) ];
-		// A font with no subsets at all comes as one file. One with only sliced subsets can't be added.
-		const addable = offered.length > 0 || ! sliced.length;
-		const choice = {
-			subsets: new Set( ( current?.google?.subsets || [ 'latin', SCRIPTS[ meta.script ]?.[ 0 ] ] ).filter( ( s ) => offered.includes( s ) ) ),
-			variable: current ? !! current.google?.variable : canVary,
-			italic: current ? current.variants.some( ( v ) => v.style === 'italic' ) : false,
-			cuts: new Set( current && ! current.google?.variable ? current.variants.map( ( v ) => v.weight + ( v.style === 'italic' ? 'i' : '' ) ) : [ '400', '700' ].filter( ( c ) => meta.cuts.includes( c ) ) ),
-		};
-		if ( ! choice.subsets.size && offered.length ) choice.subsets.add( offered[ 0 ] );
-		if ( ! choice.cuts.size ) choice.cuts.add( meta.cuts[ 0 ] );
-		const ready = () => addable && ( ! offered.length || choice.subsets.size > 0 ) && ( choice.variable || choice.cuts.size > 0 );
+		const pick = installChoice( meta );
+		const { current, hasItalic, canVary, offered, choice, ready } = pick;
 
 		const cutsBox = h( 'fieldset', { class: 'etk-fonts__fieldset' } );
 		const renderCuts = () => {
@@ -1486,7 +1795,7 @@
 							'div',
 							{ class: 'etk-fonts__cuts' },
 							meta.cuts.map( ( cut ) =>
-								check( `${ weightLabel( cut.replace( 'i', '' ) ) }${ cut.endsWith( 'i' ) ? ' Italic' : '' }`, choice.cuts.has( cut ), ( value ) => {
+								check( cutLabel( cut ), choice.cuts.has( cut ), ( value ) => {
 									value ? choice.cuts.add( cut ) : choice.cuts.delete( cut );
 									dialog.setConfirmEnabled( ready() );
 								} )
@@ -1517,12 +1826,7 @@
 							)
 					  )
 					: null,
-				sliced.length
-					? h( 'p', {
-							class: 'etk-fonts__help',
-							textContent: `${ addable ? `${ sliced.join( ' and ' ) } ${ sliced.length > 1 ? 'aren’t' : 'isn’t' } offered` : `${ meta.family } can’t be added` }. Google serves ${ sliced.join( ' and ' ) } in many small files per style, which aren’t downloaded here.`,
-					  } )
-					: null,
+				pick.slicedNote ? h( 'p', { class: 'etk-fonts__help', textContent: pick.slicedNote } ) : null,
 				canVary
 					? check( 'Variable font', choice.variable, ( value ) => {
 							choice.variable = value;
@@ -1541,30 +1845,44 @@
 		dialog.setConfirmEnabled( ready() );
 		if ( ! ( await dialog.result ) ) return;
 
-		const cuts = choice.variable ? ( choice.italic ? meta.cuts : meta.cuts.filter( ( c ) => ! c.endsWith( 'i' ) ) ) : [ ...choice.cuts ];
 		try {
-			const next = await api( 'fonts/google/install', 'POST', { family: meta.family, subsets: [ ...choice.subsets ], variable: choice.variable, cuts } );
+			const next = await installGoogle( pick );
 			dialog.close();
-			if ( draft?.original === meta.family ) {
-				draft.family.variants = clone( next.families.find( ( f ) => f.name === meta.family ).variants );
-			}
 			await apply( next, `${ current ? 'Updated' : 'Added' } ${ meta.family }.` );
 		} catch ( error ) {
 			dialog.fail( errorText( error ) );
 		}
 	};
 
+	// Filters that need the first response: the category list and the language select.
 	const googleFilter = ( key ) => {
-		const [ label, options ] = key === 'category' ? [ 'All categories', google.categories ] : [ 'All languages', google.subsets ];
-		return select( [ [ '', label ], ...options.map( ( o ) => [ o, o.replace( /-/g, ' ' ) ] ) ], google[ key ], ( value ) => ( ( google[ key ] = value ), searchGoogle() ), { 'aria-label': label, 'data-filter': key } );
+		if ( key === 'subset' ) {
+			return select( [ [ '', 'All languages' ], ...google.subsets.map( ( o ) => [ o, subsetLabel( o ) ] ) ], google.subset, ( value ) => ( ( google.subset = value ), searchGoogle() ), { id: 'etk-fonts-google-subset', class: 'etk-fonts__input--md', 'data-filter': key } );
+		}
+		const rank = ( c ) => ( CATEGORIES.includes( c ) ? CATEGORIES.indexOf( c ) : CATEGORIES.length );
+		const categories = [ '', ...[ ...google.categories ].sort( ( a, b ) => rank( a ) - rank( b ) ) ];
+		return h(
+			'fieldset',
+			{ class: 'etk-fonts__gcategories', 'data-filter': key },
+			h( 'legend', { class: 'etk-fonts__label', textContent: 'Category' } ),
+			categories.map( ( category ) =>
+				h(
+					'label',
+					{ class: 'etk-fonts__gcategory' },
+					h( 'input', { type: 'radio', name: 'etk-fonts-google-category', value: category, checked: category === google.category, onchange: () => ( ( google.category = category ), searchGoogle() ) } ),
+					h( 'span', { textContent: categoryLabel( category ) } ),
+					h( 'span', { class: 'etk-fonts__count', 'data-count': category, textContent: google.counts[ category ]?.toLocaleString() ?? '' } )
+				)
+			)
+		);
 	};
 
 	const renderGoogle = () => {
 		const search = h( 'input', {
-			class: 'etk-fonts__input',
+			class: 'etk-fonts__input etk-fonts__input--md',
 			type: 'search',
 			value: google.search,
-			placeholder: 'Search Google Fonts',
+			placeholder: google.catalogue ? `Search ${ google.catalogue.toLocaleString() } families` : 'Search Google Fonts',
 			'aria-label': 'Search Google Fonts',
 			oninput: ( e ) => {
 				google.search = e.target.value;
@@ -1576,66 +1894,216 @@
 		if ( ! google.loaded && ! google.loading ) window.setTimeout( () => searchGoogle() );
 
 		return [
-			pageHeader( 'Google Fonts', 'Fonts are downloaded to your site, so pages make no requests to Google.' ),
 			h(
 				'div',
-				{ class: 'etk-fonts__toolbar etk-fonts__google-filters' },
-				search,
-				googleFilter( 'category' ),
-				googleFilter( 'subset' ),
-				select(
-					[
-						[ 'popularity', 'Popular' ],
-						[ 'trending', 'Trending' ],
-						[ 'newest', 'Newest' ],
-						[ 'alphabetical', 'A to Z' ],
-					],
-					google.sort,
-					( value ) => ( ( google.sort = value ), searchGoogle() ),
-					{ 'aria-label': 'Sort' }
+				{ class: 'etk-fonts__split' },
+				h(
+					'div',
+					{ class: 'etk-fonts__gfilters', role: 'search', 'aria-label': 'Google Fonts' },
+					h( 'div', { class: 'etk-fonts__gsearch' }, h( 'span', { class: 'etk-fonts__gsearch-icon', html: icon( 'search', 14 ) } ), search ),
+					googleFilter( 'category' ),
+					field( 'Language', googleFilter( 'subset' ) ),
+					h(
+						'div',
+						{ class: 'etk-fonts__field' },
+						h( 'span', { class: 'etk-fonts__label', 'aria-hidden': 'true', textContent: 'Sort' } ),
+						segmented( {
+							name: 'google-sort',
+							legend: 'Sort',
+							fill: true,
+							value: google.sort,
+							options: [
+								{ value: 'popularity', label: 'Popular' },
+								{ value: 'newest', label: 'New' },
+								{ value: 'alphabetical', label: 'A–Z' },
+							],
+							onchange: ( value ) => ( ( google.sort = value ), searchGoogle() ),
+						} )
+					),
+					toggle( 'Variable only', google.variable, ( value ) => ( ( google.variable = value ), searchGoogle() ) ),
+					h( 'p', { class: 'etk-fonts__help etk-fonts__gfilters-note', textContent: 'Fonts are downloaded to your site, so pages make no requests to Google.' } )
 				),
-				check( 'Variable only', google.variable, ( value ) => ( ( google.variable = value ), searchGoogle() ) )
+				h(
+					'div',
+					{ class: 'etk-fonts__pane etk-fonts__gresults' },
+					pageHeader( 'Google Fonts' ),
+					h( 'div', { class: 'etk-fonts__gtoolbar' }, inputBox( 'Preview', previewInput( reloadGooglePreviews ) ), weightSlider( true ), sizeSlider( { boxed: true } ), layoutToggle( 'google' ) ),
+					h( 'p', { class: 'etk-fonts__help etk-fonts__google-summary', role: 'status' } ),
+					h( 'ul', { class: 'etk-fonts__tiles etk-fonts__google-results', role: 'list', 'data-layout': prefs.google } ),
+					h( 'div', { class: 'etk-fonts__actions etk-fonts__actions--center' }, button( 'Load more', () => google.loading || searchGoogle( true ), { variant: 'ghost', attrs: { class: 'etk-fonts__more', hidden: true } } ) )
+				)
 			),
-			h( 'div', { class: 'etk-fonts__toolbar' }, previewInput( reloadGooglePreviews ), weightSlider(), sizeSlider(), layoutToggle( 'google' ) ),
-			h( 'p', { class: 'etk-fonts__muted etk-fonts__google-summary', role: 'status' } ),
-			h( 'ul', { class: 'etk-fonts__cards etk-fonts__google-results', role: 'list', 'data-layout': prefs.google } ),
-			h( 'div', { class: 'etk-fonts__actions etk-fonts__actions--center' }, button( 'Load more', () => google.loading || searchGoogle( true ), { attrs: { class: 'etk-fonts__more', hidden: true } } ) ),
 		];
+	};
+
+	// Download it in the detail view's inspector. Its choices live in google.pick until you leave.
+	const addGoogleFont = async () => {
+		const pick = google.pick;
+		if ( google.installing || ! pick?.ready() ) return;
+		google.installing = true;
+		render();
+		try {
+			const next = await installGoogle( pick );
+			google.pick = null;
+			await apply( next, `${ pick.current ? 'Updated' : 'Added' } ${ pick.meta.family }.` );
+		} catch ( error ) {
+			warn( errorText( error ) );
+		}
+		google.installing = false;
+		render();
 	};
 
 	const renderGoogleFont = () => {
 		const font = google.font;
-		const styles = [ ...font.cuts ].sort( ( a, b ) => a.endsWith( 'i' ) - b.endsWith( 'i' ) || parseInt( a, 10 ) - parseInt( b, 10 ) );
+		const pick = ( google.pick ||= installChoice( font ) );
+		const { choice } = pick;
 		const stack = `"${ font.family }", ${ font.category === 'serif' ? 'serif' : 'sans-serif' }`;
+		const script = scriptOf( font.script, font.subsets );
+		const italic = hasItalics( font );
+		const update = ( change ) => ( value ) => {
+			change( value );
+			render();
+		};
+
+		const preview = previewInput( reloadGooglePreviews );
+		const previewBox = inputBox(
+			'Preview',
+			preview,
+			button(
+				'Reset',
+				() => {
+					preview.value = '';
+					preview.dispatchEvent( new Event( 'input' ) );
+					preview.focus();
+				},
+				{ variant: 'ghost', attrs: { class: 'etk-fonts__reset', 'aria-label': 'Reset preview text' } }
+			)
+		);
+		previewBox.classList.add( 'etk-fonts__inputbox--lg' );
+
+		const cell = ( weight, style ) =>
+			font.cuts.includes( `${ weight }${ style === 'italic' ? 'i' : '' }` ) ? specimen( 'etk-fonts__gspec-cell', script, `font-family: ${ stack }; font-weight: ${ weight }; font-style: ${ style }` ) : h( 'span', { class: 'etk-fonts__gspec-cell' } );
+
+		const files = ( pick.offered.length ? choice.subsets.size : 1 ) * ( choice.variable ? ( choice.italic && pick.hasItalic ? 2 : 1 ) : choice.cuts.size );
+		// Roman and italic side by side, lightest first.
+		const cuts = [ ...font.cuts ].sort( ( a, b ) => parseInt( a, 10 ) - parseInt( b, 10 ) || a.endsWith( 'i' ) - b.endsWith( 'i' ) );
+		// Latin first, the rest as Google lists them.
+		const rank = ( subset ) => ( [ 'latin', 'latin-ext' ].indexOf( subset ) + 3 ) % 3;
+		const subsets = [ ...pick.offered ].sort( ( a, b ) => rank( a ) - rank( b ) );
 
 		return [
-			h( 'div', { class: 'etk-fonts__crumb' }, button( 'Google Fonts', closeGoogleFont, { variant: 'ghost', iconName: 'back' } ) ),
-			pageHeader(
-				font.family,
-				[ fontSummary( font ), font.wght?.min ? `weights ${ font.wght.min }–${ font.wght.max }` : null, plural( font.subsets.length, 'language set', 'language sets' ) ].filter( Boolean ).join( ' · ' ),
-				h(
-					'a',
-					{ class: btnClass( 'ghost' ), href: `https://fonts.google.com/specimen/${ font.family.replace( / /g, '+' ) }`, target: '_blank', rel: 'noopener' },
-					'View on Google Fonts',
-					h( 'span', { class: 'screen-reader-text', textContent: ' (opens in a new tab)' } ),
-					btnIcon( 'external' )
-				),
-				addButton( font )
-			),
-			h( 'div', { class: 'etk-fonts__toolbar' }, previewInput( reloadGooglePreviews ), sizeSlider() ),
 			h(
-				'ul',
-				{ class: 'etk-fonts__styles', role: 'list' },
-				styles.map( ( cut ) => {
-					const weight = String( parseInt( cut, 10 ) );
-					const italic = cut.endsWith( 'i' );
-					return h(
-						'li',
-						{ class: 'etk-fonts__style' },
-						h( 'span', { class: 'etk-fonts__muted', textContent: `${ weightLabel( weight ) }${ italic ? ' Italic' : '' }` } ),
-						specimen( 'etk-fonts__specimen', scriptOf( font.script, font.subsets ), `font-family: ${ stack }; font-weight: ${ weight }; font-style: ${ italic ? 'italic' : 'normal' }` )
-					);
-				} )
+				'div',
+				{ class: 'etk-fonts__split' },
+				h(
+					'div',
+					{ class: 'etk-fonts__pane' },
+					pageHeader( {
+						title: font.family,
+						bar: true,
+						back: { label: 'Back to Google Fonts', onclick: closeGoogleFont },
+						meta: `${ categoryLabel( font.category ) } · ${ font.wght?.min ? 'Variable' : 'Static' }`,
+						actions: [
+							h(
+								'a',
+								{ class: btnClass( 'secondary' ), href: `https://fonts.google.com/specimen/${ font.family.replace( / /g, '+' ) }`, target: '_blank', rel: 'noopener' },
+								'View on Google Fonts',
+								h( 'span', { class: 'screen-reader-text', textContent: ' (opens in a new tab)' } ),
+								btnIcon( 'external' )
+							),
+						],
+					} ),
+					h(
+						'div',
+						{ class: 'etk-fonts__gdetail' },
+						previewBox,
+						h(
+							'div',
+							{ class: 'etk-fonts__gspec' },
+							h( 'div', { class: 'etk-fonts__gspec-row etk-fonts__gspec-head', 'aria-hidden': 'true' }, h( 'span', { textContent: 'Weight' } ), h( 'span', { textContent: 'Roman' } ), italic ? h( 'span', { textContent: 'Italic' } ) : null ),
+							h(
+								'ul',
+								{ class: 'etk-fonts__gspec-list', role: 'list', 'aria-label': 'Styles' },
+								weightsOf( font ).map( ( weight ) => {
+									const styles = [ font.cuts.includes( String( weight ) ) ? 'roman' : null, font.cuts.includes( `${ weight }i` ) ? 'italic' : null ].filter( Boolean ).join( ' and ' );
+									return h(
+										'li',
+										{ class: 'etk-fonts__gspec-row' },
+										h( 'span', { class: 'etk-fonts__gspec-weight' }, weightLabel( String( weight ) ), h( 'span', { class: 'screen-reader-text', textContent: `, ${ styles }` } ) ),
+										cell( weight, 'normal' ),
+										italic ? cell( weight, 'italic' ) : null
+									);
+								} )
+							)
+						)
+					)
+				),
+				h(
+					'aside',
+					{ class: 'etk-fonts__inspector', 'aria-label': `${ pick.current ? 'Update' : 'Add' } ${ font.family }` },
+					section(
+						{ title: 'Files', variant: 'panel' },
+						pick.canVary
+							? segmented( {
+									name: 'google-files',
+									legend: 'Files',
+									fill: true,
+									value: choice.variable ? 'variable' : 'static',
+									options: [
+										{ value: 'variable', label: 'Variable' },
+										{ value: 'static', label: 'Static' },
+									],
+									onchange: update( ( value ) => ( choice.variable = value === 'variable' ) ),
+							  } )
+							: null,
+						choice.variable ? h( 'p', { class: 'etk-fonts__help', textContent: `One file per style covers weights ${ font.wght.min }–${ font.wght.max }.` } ) : null,
+						choice.variable && pick.hasItalic ? toggle( 'Include italic', choice.italic, update( ( value ) => ( choice.italic = value ) ) ) : null,
+						choice.variable
+							? null
+							: h(
+									'fieldset',
+									{ class: 'etk-fonts__fieldset' },
+									h( 'legend', { class: 'screen-reader-text', textContent: 'Styles' } ),
+									h(
+										'div',
+										{ class: 'etk-fonts__cuts etk-fonts__gcuts' },
+										cuts.map( ( cut ) => check( cutLabel( cut ), choice.cuts.has( cut ), update( ( value ) => ( value ? choice.cuts.add( cut ) : choice.cuts.delete( cut ) ) ) ) )
+									)
+							  )
+					),
+					pick.offered.length || pick.slicedNote
+						? section(
+								{ title: 'Languages', variant: 'panel', action: pick.offered.length ? h( 'span', { class: 'etk-fonts__muted etk-fonts__gcount', textContent: `${ choice.subsets.size } of ${ pick.offered.length }` } ) : null },
+								pick.offered.length
+									? h(
+											'div',
+											{ class: 'etk-fonts__chips', role: 'group', 'aria-label': 'Languages' },
+											subsets.map( ( subset ) => chip( subsetLabel( subset ), choice.subsets.has( subset ), update( ( value ) => ( value ? choice.subsets.add( subset ) : choice.subsets.delete( subset ) ) ) ) )
+									  )
+									: null,
+								pick.slicedNote ? h( 'p', { class: 'etk-fonts__help', textContent: pick.slicedNote } ) : null
+						  )
+						: null,
+					section(
+						{ title: 'Summary', variant: 'panel' },
+						h(
+							'dl',
+							{ class: 'etk-fonts__summary' },
+							h( 'div', {}, h( 'dt', { textContent: 'Files' } ), h( 'dd', { textContent: String( files ) } ) ),
+							h( 'div', {}, h( 'dt', { textContent: 'CSS variable' } ), h( 'dd', {}, h( 'code', { class: 'etk-fonts__code', textContent: googleVar( font.family ) } ) ) )
+						),
+						pick.current ? h( 'p', { class: 'etk-fonts__help', textContent: 'This replaces the family’s current files. Settings like fallback and tokens are kept.' } ) : null
+					),
+					h(
+						'div',
+						{ class: 'etk-fonts__inspector-footer' },
+						button( google.installing ? 'Downloading…' : `${ pick.current ? 'Update' : 'Add' } ${ font.family }`, addGoogleFont, {
+							variant: 'primary',
+							iconName: google.installing || pick.current ? null : 'plus',
+							attrs: { class: 'etk-fonts__btn--block', disabled: ! pick.ready(), 'aria-disabled': google.installing ? 'true' : null },
+						} )
+					)
+				)
 			),
 		];
 	};
@@ -1644,55 +2112,29 @@
 	/* Settings                                                            */
 	/* ------------------------------------------------------------------ */
 
-	// Choose families, then download them with their files as one JSON file.
-	const exportFonts = async () => {
-		const chosen = new Set( state.families.map( ( f ) => f.name ) );
-		const toggleAll = h( 'input', { type: 'checkbox', checked: true } );
-		const boxes = state.families.map( ( family ) =>
-			check( family.name, true, ( value ) => {
-				value ? chosen.add( family.name ) : chosen.delete( family.name );
-				sync();
-			} )
-		);
-		const sync = () => {
-			toggleAll.checked = chosen.size === state.families.length;
-			toggleAll.indeterminate = chosen.size > 0 && ! toggleAll.checked;
-			dialog.setConfirmEnabled( chosen.size > 0 );
-		};
-		toggleAll.addEventListener( 'change', () => {
-			boxes.forEach( ( box, i ) => {
-				box.querySelector( 'input' ).checked = toggleAll.checked;
-				toggleAll.checked ? chosen.add( state.families[ i ].name ) : chosen.delete( state.families[ i ].name );
-			} );
-			sync();
-		} );
+	// Families left out of the export. New families start in it.
+	const exportSkip = new Set();
+	let exporting = false;
 
-		const dialog = confirmDialog( {
-			title: 'Export fonts',
-			message: [
-				h( 'p', { class: 'etk-fonts__help', textContent: 'Each family is exported with its font files.' } ),
-				h( 'fieldset', { class: 'etk-fonts__fieldset' }, h( 'legend', { class: 'screen-reader-text', textContent: 'Families to export' } ), h( 'label', { class: 'etk-fonts__check etk-fonts__check--all' }, toggleAll, h( 'span', { textContent: 'All families' } ) ), h( 'div', { class: 'etk-fonts__cuts' }, boxes ) ),
-			],
-			confirmLabel: 'Export',
-			busyLabel: 'Exporting…',
-			variant: 'primary',
-			form: true,
-		} );
-		if ( ! ( await dialog.result ) ) return;
-
+	// Download the chosen families with their files as one JSON file.
+	const exportFonts = async ( names ) => {
+		if ( exporting || ! names.length ) return;
+		exporting = true;
+		render();
 		try {
 			const params = new URLSearchParams();
-			chosen.forEach( ( name ) => params.append( 'families[]', name ) );
+			names.forEach( ( name ) => params.append( 'families[]', name ) );
 			const data = await api( `fonts/export?${ params }` );
 			const url = URL.createObjectURL( new Blob( [ JSON.stringify( data ) ], { type: 'application/json' } ) );
 			h( 'a', { href: url, download: `fonts-${ location.hostname }.json` } ).click();
 			// Revoking straight away can cancel the download in some browsers.
 			window.setTimeout( () => URL.revokeObjectURL( url ), 60000 );
-			dialog.close();
 			announce( `Exported ${ plural( data.families.length, 'family', 'families' ) }.` );
 		} catch ( error ) {
-			dialog.fail( errorText( error ) );
+			warn( errorText( error ) );
 		}
+		exporting = false;
+		render();
 	};
 
 	/**
@@ -1761,36 +2203,121 @@
 	};
 
 	const renderSettings = () => {
+		const families = state.families;
+		const chosen = families.filter( ( f ) => ! exportSkip.has( f.name ) );
+		const bytesOf = ( family ) => family.variants.reduce( ( sum, v ) => sum + ( state.files.find( ( f ) => f.name === v.file )?.size || 0 ), 0 );
+		const total = chosen.reduce( ( sum, f ) => sum + bytesOf( f ), 0 );
+		const enabled = families.filter( ( f ) => f.enabled ).length;
+
+		const all = h( 'input', {
+			type: 'checkbox',
+			checked: chosen.length === families.length,
+			indeterminate: chosen.length > 0 && chosen.length < families.length,
+			onchange: ( e ) => {
+				families.forEach( ( f ) => ( e.target.checked ? exportSkip.delete( f.name ) : exportSkip.add( f.name ) ) );
+				render();
+			},
+		} );
+
 		const importInput = h( 'input', { type: 'file', accept: '.json,application/json', class: 'screen-reader-text', onchange: ( e ) => importFonts( e.target.files[ 0 ] ) } );
+		const drop = h(
+			'div',
+			{
+				class: 'etk-fonts__dropzone',
+				ondragover: ( e ) => {
+					e.preventDefault();
+					drop.classList.add( 'is-over' );
+				},
+				ondragleave: () => drop.classList.remove( 'is-over' ),
+				ondrop: ( e ) => {
+					e.preventDefault();
+					drop.classList.remove( 'is-over' );
+					importFonts( e.dataTransfer.files[ 0 ] );
+				},
+			},
+			h( 'span', { class: 'etk-fonts__dropzone-icon', html: icon( 'upload' ) } ),
+			h( 'p', { class: 'etk-fonts__dropzone-text', textContent: 'Drop a fonts .json export, or choose a file. You’ll see what changes first.' } ),
+			h( 'label', { class: btnClass( 'secondary', 'etk-fonts__file-btn' ) }, importInput, 'Choose file' )
+		);
+
 		return [
-			pageHeader( 'Settings' ),
-			section(
-				'Stylesheet',
-				h( 'p', { class: 'etk-fonts__help' }, 'Fonts are written to the Etch stylesheet ', h( 'strong', { textContent: config.stylesheetName } ), '. Etch loads it, so your fonts keep working even without Etch Toolkit. Edits made to it directly are overwritten when fonts change.' )
-			),
-			section(
-				'Privacy',
+			h(
+				'div',
+				{ class: 'etk-fonts__settings' },
+				pageHeader( 'Settings' ),
 				h(
 					'div',
-					{ class: 'etk-fonts__checks' },
-					check(
-						'Block Google Fonts from other plugins and themes',
-						state.settings.blockGoogle,
-						async ( value ) => {
-							try {
-								await apply( await api( 'fonts/settings', 'POST', { blockGoogle: value } ), value ? 'Google Fonts from other plugins are now blocked.' : 'Google Fonts are no longer blocked.' );
-							} catch ( error ) {
-								warn( errorText( error ) );
-							}
-						},
-						'Removes stylesheets and hints for fonts.googleapis.com on the front end. Stops if Etch Toolkit is removed.'
+					{ class: 'etk-fonts__settings-group' },
+					section(
+						{ title: 'Output', variant: 'rows' },
+						h( 'div', { class: 'etk-fonts__card-row etk-fonts__setting' }, h( 'span', { class: 'etk-fonts__setting-title', textContent: 'Stylesheet' } ), h( 'span', { class: 'etk-fonts__setting-value', textContent: config.stylesheetName } ) ),
+						h(
+							'div',
+							{ class: 'etk-fonts__card-row etk-fonts__setting' },
+							h( 'span', { class: 'etk-fonts__setting-title', textContent: 'Status' } ),
+							h( 'span', { class: 'etk-fonts__setting-status' }, h( 'span', { class: 'etk-fonts__dot', 'aria-hidden': 'true' } ), enabled ? `${ plural( enabled, 'family', 'families' ) }, loaded by Etch` : 'No families loaded' )
+						)
+					),
+					h( 'p', { class: 'etk-fonts__help etk-fonts__settings-note', textContent: 'Fonts keep working without Etch Toolkit. Direct edits are overwritten when fonts change.' } )
+				),
+				section(
+					{ title: 'Privacy', variant: 'rows' },
+					h(
+						'div',
+						{ class: 'etk-fonts__card-row' },
+						toggle(
+							'Block Google Fonts from other plugins',
+							state.settings.blockGoogle,
+							async ( value ) => {
+								try {
+									await apply( await api( 'fonts/settings', 'POST', { blockGoogle: value } ), value ? 'Google Fonts from other plugins are now blocked.' : 'Google Fonts are no longer blocked.' );
+								} catch ( error ) {
+									warn( errorText( error ) );
+								}
+							},
+							'Removes fonts.googleapis.com requests on the front end.'
+						)
 					)
-				)
-			),
-			section(
-				'Import and export',
-				h( 'p', { class: 'etk-fonts__help', textContent: 'Export the families you choose, with their font files, to import on another site. Importing replaces families with the same name.' } ),
-				h( 'div', { class: 'etk-fonts__actions' }, button( 'Export fonts…', exportFonts, { attrs: { disabled: ! state.families.length } } ), h( 'label', { class: btnClass( 'secondary', 'etk-fonts__file-btn' ) }, importInput, 'Import fonts' ) )
+				),
+				families.length
+					? section(
+							{ title: 'Export', variant: 'rows' },
+							h(
+								'fieldset',
+								{ class: 'etk-fonts__export' },
+								h( 'legend', { class: 'screen-reader-text', textContent: 'Families to export' } ),
+								h(
+									'div',
+									{ class: 'etk-fonts__card-row etk-fonts__export-head' },
+									h( 'label', { class: 'etk-fonts__check' }, all, h( 'span', { textContent: `${ chosen.length } of ${ plural( families.length, 'family', 'families' ) }` } ) ),
+									h( 'span', { class: 'etk-fonts__help', textContent: chosen.length ? `About ${ size( total ) }` : '' } )
+								),
+								h(
+									'div',
+									{ class: 'etk-fonts__export-list' },
+									families.map( ( family ) =>
+										h(
+											'div',
+											{ class: 'etk-fonts__export-row' },
+											check( h( 'span', { class: 'etk-fonts__export-name', style: `font-family: "${ family.name }", var(--e-font-interface)`, textContent: family.name } ), ! exportSkip.has( family.name ), ( value ) => {
+												value ? exportSkip.delete( family.name ) : exportSkip.add( family.name );
+												render();
+											} ),
+											h( 'span', { class: 'etk-fonts__help', textContent: plural( family.variants.length, 'file', 'files' ) } )
+										)
+									)
+								)
+							),
+							h(
+								'div',
+								{ class: 'etk-fonts__card-row etk-fonts__export-foot' },
+								button( exporting ? 'Exporting…' : chosen.length ? `Export ${ plural( chosen.length, 'family', 'families' ) }` : 'Export', () => exportFonts( chosen.map( ( f ) => f.name ) ), {
+									attrs: { disabled: ! chosen.length, 'aria-disabled': exporting ? 'true' : null },
+								} )
+							)
+					  )
+					: section( { title: 'Export', variant: 'rows' }, h( 'p', { class: 'etk-fonts__card-row etk-fonts__help', textContent: 'Add a family to export it.' } ) ),
+				h( 'section', { class: 'etk-fonts__section etk-fonts__section--card' }, h( 'div', { class: 'etk-fonts__section-head' }, h( 'h3', { class: 'etk-fonts__label', textContent: 'Import' } ) ), drop )
 			),
 		];
 	};
@@ -1840,7 +2367,7 @@
 
 	const render = () => {
 		if ( ! panel || panel.hidden || ! state ) return;
-		const views = { library: renderLibrary, family: renderFamily, upload: renderUpload, google: renderGoogle, 'google-font': renderGoogleFont, settings: renderSettings };
+		const views = { library: renderLibrary, family: renderFamily, google: renderGoogle, 'google-font': renderGoogleFont, settings: renderSettings };
 		if ( view === 'family' && ! draft ) view = 'library';
 		// Its button may be about to go.
 		closeMenu();
@@ -1855,7 +2382,6 @@
 		prefs.size ? main.style.setProperty( '--etk-fonts-size', `${ prefs.size }px` ) : main.style.removeProperty( '--etk-fonts-size' );
 		const update = () => {
 			main.replaceChildren( ...views[ view ]() );
-			renderLog();
 			renderGoogleResults();
 		};
 		inPlace ? keepFocus( update ) : update();
@@ -1865,17 +2391,6 @@
 	const build = () => {
 		status = h( 'div', { class: 'etk-fonts__status', role: 'status', 'aria-live': 'polite' } );
 		main = h( 'div', { class: 'etk-fonts__main' } );
-		savebar = h(
-			'div',
-			{ class: 'etk-fonts__savebar', hidden: true },
-			h( 'span', { class: 'etk-fonts__muted', textContent: 'Unsaved changes' } ),
-			button( 'Discard', () => {
-				const index = state.families.findIndex( ( f ) => f.name === draft.original );
-				edit( index );
-			} ),
-			button( 'Save', saveDraft, { variant: 'primary' } )
-		);
-
 		panel = h(
 			'section',
 			{
@@ -1907,7 +2422,7 @@
 					NAV.map( ( key ) => h( 'button', { type: 'button', class: 'etk-fonts__nav-item', 'data-view': key, textContent: VIEWS[ key ], onclick: () => ( view === 'family' ? leaveFamily( key ) : go( key ) ) } ) )
 				)
 			),
-			h( 'div', { class: 'etk-fonts__body' }, status, h( 'div', { class: 'etk-fonts__content' }, main ), savebar )
+			h( 'div', { class: 'etk-fonts__body' }, status, h( 'div', { class: 'etk-fonts__content' }, main ) )
 		);
 		document.body.append( panel );
 	};

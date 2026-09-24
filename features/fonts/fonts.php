@@ -81,6 +81,8 @@ add_action(
 				array(
 					'stylesheetName' => ETCH_TOOLKIT_FONTS_STYLESHEET,
 					'workerUrl'      => ETCH_TOOLKIT_URL . 'lib/woff2/woff2-worker.js?' . filemtime( $wasm ),
+					// Where uploads go, as shown on the Files tab.
+					'fontsPath'      => untrailingslashit( str_replace( wp_normalize_path( ABSPATH ), '', wp_normalize_path( etch_toolkit_fonts_dir()['path'] ) ) ),
 				)
 			) . ';',
 			'before'

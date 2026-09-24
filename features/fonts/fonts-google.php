@@ -92,15 +92,26 @@ function etch_toolkit_fonts_google_search( string $search, array $args ) {
 	$category = strtolower( (string) ( $args['category'] ?? '' ) );
 	$subset   = sanitize_key( (string) ( $args['subset'] ?? '' ) );
 	$variable = ! empty( $args['variable'] );
-	$fonts    = array_values(
+	$catalogue = count( $fonts );
+	// Every filter but the category, so each category can say how many it would show.
+	$fonts = array_values(
 		array_filter(
 			$fonts,
 			fn( $font ) => ( '' === $needle || str_contains( strtolower( $font['family'] ), $needle ) )
-				&& ( '' === $category || $font['category'] === $category )
 				&& ( '' === $subset || in_array( $subset, $font['subsets'], true ) )
 				&& ( ! $variable || $font['wght'] )
 		)
 	);
+	$counts = array_fill_keys( $categories, 0 );
+	foreach ( $fonts as $font ) {
+		if ( isset( $counts[ $font['category'] ] ) ) {
+			++$counts[ $font['category'] ];
+		}
+	}
+	$all = count( $fonts );
+	if ( '' !== $category ) {
+		$fonts = array_values( array_filter( $fonts, fn( $font ) => $font['category'] === $category ) );
+	}
 
 	$sort = (string) ( $args['sort'] ?? 'popularity' );
 	usort(
@@ -132,6 +143,9 @@ function etch_toolkit_fonts_google_search( string $search, array $args ) {
 		'offset'     => $offset,
 		'categories' => $categories,
 		'subsets'    => array_keys( $subsets ),
+		// Families per category with the other filters applied, and in all of them.
+		'counts'     => (object) ( $counts + array( '' => $all ) ),
+		'catalogue'  => $catalogue,
 	);
 }
 

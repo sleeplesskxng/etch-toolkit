@@ -174,7 +174,7 @@
 	}
 }
 
-/* The view: status, the scrolling content, then the save bar. */
+/* The view: status, then the scrolling content. */
 .etk-fonts__body {
 	display: flex;
 	flex-direction: column;
@@ -321,23 +321,6 @@
 	border-block-end: 1px solid var(--etk-fonts-line);
 	color: var(--etk-fonts-danger);
 	font-size: var(--e-font-size-s, 11px);
-}
-
-.etk-fonts__savebar {
-	display: flex;
-	align-items: center;
-	gap: var(--e-space-s, 8px);
-	padding: 12px 32px;
-	border-block-start: 1px solid var(--etk-fonts-line);
-	background: var(--etk-fonts-surface);
-
-	&[hidden] {
-		display: none;
-	}
-
-	.etk-fonts__muted {
-		margin-inline-end: auto;
-	}
 }
 
 /* ------------------------------------------------------------------ */
@@ -1335,33 +1318,7 @@
 /* Views, until they're rebuilt on the pieces above                    */
 /* ------------------------------------------------------------------ */
 
-/* Library */
-
-.etk-fonts__families {
-	display: flex;
-	flex-direction: column;
-	margin: 0;
-	padding: 0;
-	border: 1px solid var(--etk-fonts-line);
-	border-radius: var(--etk-fonts-radius-lg);
-	background: var(--etk-fonts-surface);
-	list-style: none;
-}
-
-.etk-fonts__family {
-	display: flex;
-	flex-direction: column;
-	gap: var(--e-space-s, 8px);
-	padding: var(--e-space-l, 16px);
-
-	& + & {
-		border-block-start: 1px solid var(--etk-fonts-line);
-	}
-
-	&.is-disabled .etk-fonts__specimen {
-		opacity: var(--etch-opacity-low, 0.35);
-	}
-}
+/* Library (legacy specimens, still used by Google Fonts) */
 
 .etk-fonts__specimen {
 	overflow: hidden;
@@ -1370,21 +1327,6 @@
 	line-height: 1.25;
 	white-space: nowrap;
 	text-overflow: ellipsis;
-}
-
-.etk-fonts__specimen--large {
-	font-size: 48px;
-}
-
-.etk-fonts__family-meta {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--e-space-s, 8px);
-
-	.etk-fonts__btn:last-child {
-		margin-inline-start: auto;
-	}
 }
 
 .etk-fonts__family-name {
@@ -1414,174 +1356,6 @@
 	font-family: var(--e-font-code);
 	font-size: var(--e-font-size-s, 11px);
 	word-break: break-all;
-}
-
-.etk-fonts__danger-zone {
-	display: flex;
-	justify-content: flex-end;
-}
-
-/* Upload */
-
-.etk-fonts__drop {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 6px;
-	padding: 40px 16px;
-	border: 1px dashed var(--etk-fonts-line-heavy);
-	border-radius: var(--etk-fonts-radius-lg);
-	text-align: center;
-	cursor: pointer;
-	transition: background-color var(--e-transition, 0.15s ease-in-out);
-
-	svg {
-		inline-size: 24px;
-		block-size: 24px;
-		color: var(--etk-fonts-muted);
-	}
-
-	.etk-fonts__muted {
-		max-inline-size: 60ch;
-	}
-
-	&:hover {
-		background: var(--etk-fonts-surface);
-	}
-
-	&.is-over {
-		border-color: var(--etk-fonts-accent);
-		background: var(--etk-fonts-accent-soft);
-	}
-
-	&:focus-within {
-		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
-	}
-}
-
-.etk-fonts__log {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	margin: 0;
-	padding: 0;
-	list-style: none;
-
-	&:empty {
-		display: none;
-	}
-
-	li {
-		display: flex;
-		justify-content: space-between;
-		gap: var(--e-space-m, 12px);
-	}
-
-	.is-ok .etk-fonts__muted {
-		color: var(--etk-fonts-success);
-	}
-
-	.is-error .etk-fonts__muted {
-		color: var(--etk-fonts-danger);
-	}
-}
-
-/* Google Fonts */
-
-.etk-fonts__cards {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-	gap: var(--e-space-m, 12px);
-	margin: 0;
-	padding: 0;
-	list-style: none;
-
-	> .etk-fonts__card {
-		gap: var(--e-space-s, 8px);
-		padding: var(--e-space-l, 16px);
-	}
-}
-
-.etk-fonts__card-specimen {
-	display: -webkit-box;
-	overflow: hidden;
-	-webkit-line-clamp: 3;
-	-webkit-box-orient: vertical;
-	/* Fills the card so names and buttons line up across a row. */
-	flex: 1;
-	font-size: var(--etk-fonts-size, 40px);
-	font-weight: 400;
-	line-height: 1.3;
-	overflow-wrap: anywhere;
-	cursor: pointer;
-}
-
-.etk-fonts__card-meta {
-	display: flex;
-	flex-direction: column;
-}
-
-.etk-fonts__cards[data-layout="rows"] {
-	grid-template-columns: 1fr;
-	gap: 0;
-	border: 1px solid var(--etk-fonts-line);
-	border-radius: var(--etk-fonts-radius-lg);
-	overflow: clip;
-
-	> .etk-fonts__card {
-		flex-direction: row;
-		flex-wrap: wrap;
-		align-items: center;
-		border: 0;
-		border-radius: 0;
-	}
-
-	> .etk-fonts__card + .etk-fonts__card {
-		border-block-start: 1px solid var(--etk-fonts-line);
-	}
-
-	.etk-fonts__card-specimen {
-		flex: 1 0 100%;
-		-webkit-line-clamp: 1;
-	}
-
-	.etk-fonts__card-meta {
-		margin-inline-end: auto;
-	}
-}
-
-.etk-fonts__styles {
-	display: flex;
-	flex-direction: column;
-	margin: 0;
-	padding: 0;
-	border: 1px solid var(--etk-fonts-line);
-	border-radius: var(--etk-fonts-radius-lg);
-	list-style: none;
-}
-
-.etk-fonts__style {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	padding: var(--e-space-l, 16px);
-
-	& + & {
-		border-block-start: 1px solid var(--etk-fonts-line);
-	}
-
-	.etk-fonts__specimen {
-		font-size: var(--etk-fonts-size, 40px);
-	}
-}
-
-.etk-fonts__toolbar .etk-fonts__check {
-	align-items: center;
-	white-space: nowrap;
-
-	input {
-		margin: 0;
-	}
 }
 
 .etk-fonts__slider {
@@ -1763,4 +1537,1159 @@
 .etk-fonts__import-list {
 	margin: 0;
 	padding-inline-start: 1.25em;
+}
+
+/* === View: Family === */
+
+/* The badges beside the family's name in the bar. */
+.etk-fonts__family-badges {
+	display: flex;
+	gap: 6px;
+
+	.etk-fonts__badge {
+		padding: 2px 6px;
+	}
+}
+
+/* The waterfall: each size in its gutter, then a line set at it. */
+.etk-fonts__waterfall {
+	display: flex;
+	flex-direction: column;
+	padding: 28px 32px;
+	overflow: hidden;
+}
+
+.etk-fonts__waterfall-row {
+	display: flex;
+	align-items: baseline;
+	gap: 20px;
+	padding-block: 18px;
+
+	&:first-child {
+		padding-block-start: 6px;
+	}
+
+	& + & {
+		border-block-start: 1px solid var(--etk-fonts-line);
+	}
+}
+
+.etk-fonts__waterfall-size {
+	flex: none;
+	inline-size: 36px;
+	color: var(--etk-fonts-text-40);
+	font-family: var(--e-font-code);
+	font-size: 10px;
+	font-weight: 400;
+	line-height: 12px;
+}
+
+.etk-fonts .etk-fonts__waterfall-text {
+	min-inline-size: 0;
+	color: var(--etk-fonts-text);
+	font-size: var(--size);
+	white-space: nowrap;
+}
+
+.etk-fonts__waterfall-row:nth-child(1) .etk-fonts__waterfall-text {
+	line-height: 100px;
+	letter-spacing: -0.035em;
+}
+
+.etk-fonts__waterfall-row:nth-child(2) .etk-fonts__waterfall-text {
+	line-height: 60px;
+	letter-spacing: -0.025em;
+}
+
+.etk-fonts__waterfall-row:nth-child(3) .etk-fonts__waterfall-text {
+	line-height: 40px;
+	letter-spacing: -0.01em;
+}
+
+/* The two text sizes wrap at a reading width. */
+.etk-fonts .etk-fonts__waterfall-row:nth-child(n + 4) .etk-fonts__waterfall-text {
+	white-space: normal;
+}
+
+.etk-fonts__waterfall-row:nth-child(4) .etk-fonts__waterfall-text {
+	max-inline-size: 560px;
+	color: var(--etk-fonts-text-85);
+	line-height: 30px;
+}
+
+.etk-fonts__waterfall-row:nth-child(5) .etk-fonts__waterfall-text {
+	max-inline-size: 480px;
+	color: var(--etk-fonts-text-70);
+	line-height: 22px;
+}
+
+/* Inspector sections. */
+.etk-fonts__family-view {
+	.etk-fonts__field--row > label {
+		font-size: var(--e-font-size-m, 12px);
+		line-height: 16px;
+	}
+
+	.etk-fonts__field--row > .etk-fonts__input:not(.etk-fonts__input--mono) {
+		font-weight: 500;
+	}
+
+	.etk-fonts__input--mono {
+		line-height: 14px;
+	}
+
+	.etk-fonts__var--field {
+		padding-inline-end: 4px;
+	}
+
+	.etk-fonts__toggle-title {
+		font-weight: 400;
+	}
+}
+
+.etk-fonts__section--roles {
+	gap: 14px;
+
+	.etk-fonts__toggle-title {
+		font-weight: 500;
+	}
+}
+
+.etk-fonts__role {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+/* Who has the role now, when it isn't this family. Dashed when nobody does. */
+.etk-fonts__role-owner {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	block-size: 30px;
+	padding-inline: 10px;
+	border: 1px solid transparent;
+	border-radius: var(--etk-fonts-radius);
+	background: var(--etk-fonts-field);
+
+	&.is-unset {
+		padding-inline-start: 4px;
+		border-style: dashed;
+		border-color: var(--etk-fonts-line-strong);
+		background: none;
+	}
+}
+
+.etk-fonts__role-glyph {
+	display: grid;
+	flex: none;
+	place-items: center;
+	inline-size: 24px;
+	block-size: 24px;
+	color: var(--etk-fonts-text-25);
+	font-size: 14px;
+	font-weight: 400;
+	line-height: 18px;
+}
+
+.etk-fonts__role-name {
+	flex: 1;
+	overflow: hidden;
+	color: var(--etk-fonts-text-70);
+	font-size: var(--e-font-size-l, 13px);
+	font-weight: 400;
+	line-height: 16px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+
+	.is-unset & {
+		color: var(--etk-fonts-text-40);
+		font-size: var(--e-font-size-m, 12px);
+	}
+}
+
+.etk-fonts__role-current {
+	flex: none;
+	color: var(--etk-fonts-text-40);
+	font-size: 10px;
+	font-weight: 500;
+	line-height: 14px;
+}
+
+/* Files: one row each, then the Google styles link. */
+.etk-fonts__section--files {
+	flex: 1;
+	gap: 8px;
+	border-block-end: 0;
+
+	.etk-fonts__section-head {
+		margin-block: -7px;
+		margin-inline-end: -7px;
+	}
+}
+
+.etk-fonts__file-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.etk-fonts__file-row {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 8px 4px 8px 10px;
+	border-radius: var(--etk-fonts-radius);
+	background: var(--etk-fonts-field);
+}
+
+.etk-fonts__file-main {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.etk-fonts__file-glyph {
+	flex: none;
+	inline-size: 26px;
+	font-size: 20px;
+	line-height: 24px;
+}
+
+.etk-fonts__file-text {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 1px;
+	min-inline-size: 0;
+}
+
+.etk-fonts__file-title {
+	overflow: hidden;
+	line-height: 16px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.etk-fonts__file-meta {
+	overflow: hidden;
+	color: var(--etk-fonts-text-50);
+	font-family: var(--e-font-code);
+	font-size: 10px;
+	font-weight: 400;
+	line-height: 12px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.etk-fonts .etk-fonts__file-row .etk-fonts__btn--icon.etch-builder-button:not(:is(:hover, :focus-visible, [selected="true"])) {
+	color: var(--etk-fonts-text-50);
+}
+
+/* Weight and style, while they're being changed. */
+.etk-fonts__file-edit {
+	display: grid;
+	grid-template-columns: 3fr 2fr;
+	gap: 6px;
+	padding-inline: 36px 6px;
+
+	.etk-fonts__input {
+		background-color: var(--etk-fonts-surface);
+	}
+}
+
+.etk-fonts__family-link-wrap {
+	padding-block-start: 4px;
+}
+
+.etk-fonts__family-link {
+	padding: 0;
+	border: 0;
+	border-radius: var(--etk-fonts-radius-sm);
+	background: none;
+	color: var(--etk-fonts-text-70);
+	font: inherit;
+	line-height: 16px;
+	cursor: pointer;
+
+	&:hover {
+		color: var(--etk-fonts-text);
+	}
+}
+
+/* Footer: delete, then Discard and Save family, live only with changes. */
+.etk-fonts__family-actions {
+	display: flex;
+	gap: 6px;
+}
+
+.etk-fonts .etk-fonts__family-actions .etk-fonts__btn.etch-builder-button {
+	block-size: 30px;
+}
+
+.etk-fonts .etk-fonts__family-actions .etk-fonts__btn--primary.etch-builder-button {
+	padding-inline: 14px;
+}
+
+.etk-fonts .etk-fonts__family-actions .etk-fonts__btn--ghost.etch-builder-button {
+	padding-inline: 12px;
+
+	&:disabled {
+		opacity: 0.3;
+	}
+}
+
+/* === View: Library === */
+
+.etk-fonts__main[data-view="library"] > .etk-fonts__tabpanel {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 20px;
+}
+
+/* Families */
+
+.etk-fonts__family-badges {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.etk-fonts__tile-specimen.etk-fonts__family-specimen {
+	margin: 0;
+	font-size: 96px;
+	line-height: 88px;
+	letter-spacing: -0.03em;
+}
+
+.etk-fonts__family-add-item {
+	display: flex;
+}
+
+.etk-fonts__family-add {
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	inline-size: 100%;
+	min-block-size: 252px;
+	padding: 16px;
+	color: var(--etk-fonts-text);
+	font: inherit;
+	text-align: center;
+	cursor: pointer;
+	transition:
+		background-color var(--e-transition, 0.15s ease-in-out),
+		border-color var(--e-transition, 0.15s ease-in-out);
+
+	&:hover,
+	&[aria-expanded="true"] {
+		border-color: var(--etk-fonts-line-heavy);
+	}
+
+	&:focus-visible {
+		outline: none;
+		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+	}
+
+	&.is-over {
+		border-color: var(--etk-fonts-accent);
+		background: var(--etk-fonts-accent-soft);
+	}
+}
+
+.etk-fonts__family-add-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	inline-size: 36px;
+	block-size: 36px;
+	border-radius: 50%;
+	background: var(--etk-fonts-raised);
+}
+
+.etk-fonts__family-add-text {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.etk-fonts__family-add-title {
+	font-size: var(--e-font-size-l, 13px);
+	font-weight: 600;
+	line-height: 16px;
+}
+
+.etk-fonts__family-add-hint {
+	color: var(--etk-fonts-text-55);
+	font-weight: 400;
+	line-height: 16px;
+}
+
+/* Files: the upload hero, then the table. */
+
+.etk-fonts__main[data-view="library"] > #etk-fonts-library-panel-files {
+	container-type: inline-size;
+}
+
+.etk-fonts__dropzone.etk-fonts__upload {
+	flex: none;
+	justify-content: space-between;
+	gap: 24px;
+	block-size: 240px;
+	padding: 0 40px 0 36px;
+	overflow: clip;
+	background: var(--etk-fonts-surface);
+
+	&.is-over {
+		background: var(--etk-fonts-accent-soft);
+	}
+}
+
+.etk-fonts__upload-text {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	max-inline-size: 500px;
+
+	> * {
+		margin: 0;
+	}
+}
+
+.etk-fonts__upload-eyebrow {
+	color: var(--etk-fonts-text-50);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 600;
+	line-height: 14px;
+}
+
+.etk-fonts__upload-title {
+	color: var(--etk-fonts-text);
+	font-size: 26px;
+	font-weight: 600;
+	line-height: 32px;
+	letter-spacing: -0.02em;
+}
+
+.etk-fonts__upload-body {
+	color: var(--etk-fonts-text-60);
+	font-weight: 400;
+	line-height: 18px;
+}
+
+.etk-fonts__upload-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+	padding-block-start: 2px;
+}
+
+.etk-fonts__upload-formats,
+.etk-fonts__files-path {
+	color: var(--etk-fonts-text-50);
+	font-family: var(--e-font-code);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 400;
+	line-height: 14px;
+}
+
+.etk-fonts__files-path {
+	color: var(--etk-fonts-text-45);
+}
+
+.etk-fonts__upload-art {
+	display: flex;
+	flex: none;
+}
+
+/* Outlined glyphs, no fonts to load. Colors follow Etch's tokens. */
+.etk-fonts__glyphs {
+	overflow: visible;
+
+	rect {
+		stroke: var(--etk-fonts-line-heavy);
+		stroke-width: 1;
+	}
+
+	text {
+		font-family: var(--e-font-code);
+		font-size: 10px;
+	}
+}
+
+.etk-fonts__glyph-card--back {
+	rect {
+		fill: var(--etk-fonts-raised);
+	}
+
+	text {
+		fill: var(--etk-fonts-text-50);
+	}
+
+	path {
+		fill: var(--etk-fonts-text-60);
+	}
+}
+
+.etk-fonts__glyph-card--front {
+	rect {
+		fill: var(--etk-fonts-selected);
+	}
+
+	text {
+		fill: var(--etk-fonts-accent);
+	}
+
+	path {
+		fill: var(--etk-fonts-text);
+	}
+}
+
+@container (inline-size < 760px) {
+	.etk-fonts__upload-art {
+		display: none;
+	}
+}
+
+.etk-fonts__files-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px 16px;
+	padding-block-end: 12px;
+
+	.etk-fonts__seg {
+		padding: 2px;
+	}
+
+	/* The Unused count. */
+	.etk-fonts__seg label:last-of-type .etk-fonts__count {
+		color: var(--etk-fonts-warning);
+		font-weight: 400;
+	}
+}
+
+.etk-fonts__files-table {
+	table-layout: fixed;
+
+	th,
+	td {
+		box-sizing: content-box;
+	}
+
+	thead td {
+		block-size: 32px;
+		border: 0;
+		border-start-start-radius: var(--etk-fonts-radius);
+		background: var(--etk-fonts-surface);
+	}
+
+	th:last-child {
+		border-start-start-radius: 0;
+	}
+
+	.etk-fonts__files-icon {
+		inline-size: 18px;
+		text-align: center;
+	}
+
+	th:nth-child(3) {
+		inline-size: 210px;
+	}
+
+	th:nth-child(4) {
+		inline-size: 64px;
+	}
+
+	th:nth-child(5) {
+		inline-size: 140px;
+	}
+
+	td:last-child,
+	th:last-child {
+		inline-size: 28px;
+	}
+
+	td {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	td:last-child {
+		overflow: visible;
+	}
+
+	.etk-fonts__icon-btn {
+		vertical-align: middle;
+	}
+}
+
+.etk-fonts__files-name {
+	display: block;
+	overflow: hidden;
+	color: var(--etk-fonts-text);
+	font-family: var(--e-font-code);
+	font-size: var(--e-font-size-m, 12px);
+	font-weight: 400;
+	line-height: 16px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+
+	.is-unused & {
+		color: var(--etk-fonts-text-55);
+	}
+}
+
+.etk-fonts__files-quiet {
+	color: var(--etk-fonts-text-45);
+}
+
+.etk-fonts__files-none {
+	color: var(--etk-fonts-text-40);
+}
+
+.etk-fonts__files-error {
+	color: var(--etk-fonts-danger);
+}
+
+.etk-fonts__files-empty {
+	text-align: start;
+}
+
+.etk-fonts__files-glyph {
+	display: inline-flex;
+	vertical-align: middle;
+
+	svg {
+		stroke-width: 2;
+	}
+}
+
+.etk-fonts__files-glyph--check {
+	color: var(--etk-fonts-accent);
+}
+
+.etk-fonts__files-glyph--alert {
+	color: var(--etk-fonts-danger);
+}
+
+.etk-fonts__spinner {
+	display: inline-block;
+	box-sizing: border-box;
+	inline-size: 12px;
+	block-size: 12px;
+	vertical-align: middle;
+	border: 2px solid var(--etk-fonts-selected);
+	border-block-start-color: var(--etk-fonts-text);
+	border-radius: 50%;
+	animation: etk-fonts-spin 0.8s linear infinite;
+}
+
+.etk-fonts__files-progress {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+/* No real progress to show, so the fill travels along the track. */
+.etk-fonts__progress {
+	position: relative;
+	flex: none;
+	inline-size: 110px;
+	block-size: 3px;
+	overflow: hidden;
+	border-radius: 2px;
+	background: var(--etk-fonts-selected);
+
+	&::after {
+		content: "";
+		position: absolute;
+		inset-block: 0;
+		inset-inline-start: 0;
+		inline-size: 68px;
+		border-radius: 2px;
+		background: var(--etk-fonts-text);
+		animation: etk-fonts-progress 1.2s ease-in-out infinite alternate;
+	}
+}
+
+@keyframes etk-fonts-spin {
+	to {
+		rotate: 1turn;
+	}
+}
+
+@keyframes etk-fonts-progress {
+	from {
+		translate: -60px 0;
+	}
+
+	to {
+		translate: 102px 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.etk-fonts__spinner {
+		animation-duration: 2.4s;
+	}
+
+	.etk-fonts__progress::after {
+		animation: none;
+	}
+}
+
+/* === Views: Google + Settings === */
+
+/* A bare header still leaves a gap in a flex column. Take it out of the flow. */
+:is(.etk-fonts__gresults, .etk-fonts__settings) > .etk-fonts__page-header--bare {
+	display: block;
+	position: absolute;
+}
+
+/* Google Fonts: filters on the left, results on the right. */
+.etk-fonts__gfilters {
+	display: flex;
+	flex: none;
+	flex-direction: column;
+	gap: 22px;
+	inline-size: 232px;
+	padding: 20px 16px;
+	overflow-y: auto;
+	border-inline-end: 1px solid var(--etk-fonts-line);
+
+	.etk-fonts__field {
+		gap: 8px;
+	}
+
+	.etk-fonts__field > label,
+	.etk-fonts__field > .etk-fonts__label {
+		padding-inline: 8px;
+		color: var(--etk-fonts-text-50);
+		font-size: var(--e-font-size-s, 11px);
+		font-weight: 600;
+		line-height: 14px;
+	}
+
+	.etk-fonts__select {
+		block-size: 30px;
+	}
+
+	.etk-fonts__toggle {
+		padding-inline: 8px;
+	}
+}
+
+.etk-fonts__gsearch {
+	position: relative;
+
+	.etk-fonts__input {
+		inline-size: 100%;
+		padding-inline-start: 32px;
+	}
+}
+
+.etk-fonts__gsearch-icon {
+	position: absolute;
+	inset: 0 auto 0 10px;
+	display: flex;
+	align-items: center;
+	color: var(--etk-fonts-text-55);
+	pointer-events: none;
+}
+
+.etk-fonts__gcategories {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-inline-size: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+
+	legend {
+		padding: 0 8px 6px;
+	}
+}
+
+.etk-fonts__gcategory {
+	position: relative;
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: var(--etk-fonts-radius);
+	color: var(--etk-fonts-text-75);
+	line-height: 16px;
+	cursor: pointer;
+
+	input {
+		position: absolute;
+		inset: 0;
+		margin: 0;
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	.etk-fonts__count {
+		font-weight: 400;
+	}
+
+	&:hover {
+		color: var(--etk-fonts-text);
+	}
+
+	&:has(input:checked) {
+		background: var(--etk-fonts-raised);
+		color: var(--etk-fonts-text);
+
+		.etk-fonts__count {
+			color: var(--etk-fonts-text-50);
+		}
+	}
+
+	&:has(input:focus-visible) {
+		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+	}
+}
+
+.etk-fonts__gfilters .etk-fonts__gfilters-note {
+	margin-block-start: auto;
+	padding-inline: 8px;
+	color: var(--etk-fonts-text-45);
+}
+
+.etk-fonts__gresults {
+	gap: 16px;
+	padding: 20px 24px;
+}
+
+.etk-fonts__gtoolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px;
+
+	> .etk-fonts__inputbox:first-child {
+		flex: 1 1 220px;
+	}
+}
+
+/* Weight and Size: a value box with its slider. */
+.etk-fonts__valuebox {
+	flex: none;
+
+	.etk-range {
+		--thumb: 12px;
+		--ring: var(--etk-fonts-surface);
+
+		flex: none;
+		inline-size: 64px;
+		min-inline-size: 0;
+		block-size: 18px;
+	}
+
+	.etk-range__notches {
+		display: none;
+	}
+}
+
+.etk-fonts__valuebox-value {
+	min-inline-size: 3ch;
+	font-family: var(--e-font-code);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 400;
+	line-height: 14px;
+	font-variant-numeric: tabular-nums;
+	text-align: end;
+}
+
+/* The count is for screen readers, unless there's an error or nothing to show. */
+.etk-fonts__google-summary:not(.is-shown) {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.etk-fonts__google-results {
+	grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+
+	.etk-fonts__tile-canvas {
+		cursor: pointer;
+	}
+
+	.etk-fonts__tile-specimen {
+		display: -webkit-box;
+		overflow: hidden;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		white-space: normal;
+		font-size: var(--etk-fonts-size, 40px);
+		font-weight: 400;
+		line-height: 1.15;
+		letter-spacing: -0.02em;
+		overflow-wrap: anywhere;
+	}
+
+	/* View brightens with the tile. */
+	.etk-fonts__gtile:hover .etk-fonts__card-view {
+		color: var(--etk-fonts-text);
+	}
+
+	&[data-layout="rows"] {
+		grid-template-columns: 1fr;
+
+		.etk-fonts__tile-canvas {
+			gap: 10px;
+			block-size: auto;
+			padding-block: 14px;
+		}
+
+		.etk-fonts__tile-specimen {
+			-webkit-line-clamp: 1;
+		}
+	}
+}
+
+.etk-fonts .etk-fonts__gadd.etch-builder-button {
+	justify-content: center;
+	min-inline-size: 75px;
+}
+
+.etk-fonts .etk-fonts__gadd.is-added.etch-builder-button,
+.etk-fonts .etk-fonts__gadd.is-added.etch-builder-button:is(:hover, :focus-visible) {
+	--etk-icon-size: 12px;
+
+	color: var(--etk-fonts-accent);
+}
+
+/* Google font detail: preview and specimen table, then the add panel. */
+.etk-fonts__gdetail {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 20px 24px 24px;
+}
+
+.etk-fonts__inputbox--lg {
+	gap: 10px;
+	block-size: 36px;
+	padding-inline: 12px;
+
+	.etk-fonts__inputbox-label {
+		color: var(--etk-fonts-text-50);
+		font-weight: 500;
+	}
+
+	.etk-fonts__inputbox-control {
+		font-size: var(--e-font-size-l, 13px);
+	}
+}
+
+.etk-fonts .etk-fonts__reset.etch-builder-button {
+	flex: none;
+	block-size: 24px;
+	margin-inline-end: -6px;
+	padding-inline: 6px;
+	color: var(--etk-fonts-text-45);
+	font-size: var(--e-font-size-s, 11px);
+	line-height: 14px;
+}
+
+.etk-fonts__gspec-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.etk-fonts__gspec-row {
+	display: flex;
+	align-items: baseline;
+	gap: 24px;
+	padding-block: 14px;
+
+	> :first-child {
+		flex: none;
+		inline-size: 112px;
+	}
+
+	> :not(:first-child) {
+		flex: 1 1 0;
+		min-inline-size: 0;
+	}
+
+	& + & {
+		border-block-start: 1px solid var(--etk-fonts-line);
+	}
+}
+
+.etk-fonts__gspec-head {
+	padding-block: 18px 10px;
+	border-block-end: 1px solid var(--etk-fonts-line);
+	color: var(--etk-fonts-text-50);
+	font-size: var(--e-font-size-s, 11px);
+	line-height: 14px;
+}
+
+.etk-fonts__gspec-weight {
+	color: var(--etk-fonts-text-60);
+	line-height: 16px;
+}
+
+.etk-fonts__gspec-cell {
+	overflow: hidden;
+	color: var(--etk-fonts-text);
+	font-size: 28px;
+	line-height: 34px;
+	white-space: nowrap;
+}
+
+.etk-fonts__gcuts {
+	grid-template-columns: 1fr 1fr;
+}
+
+.etk-fonts__gcount {
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 400;
+	line-height: 14px;
+	color: var(--etk-fonts-text-50);
+}
+
+.etk-fonts__chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.etk-fonts__summary {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin: 0;
+
+	div {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 12px;
+	}
+
+	dt {
+		color: var(--etk-fonts-text-70);
+		font-weight: 400;
+	}
+
+	dd {
+		margin: 0;
+		overflow-wrap: anywhere;
+	}
+}
+
+/* Settings: one 680px column. */
+.etk-fonts__settings {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+	inline-size: min(680px, 100%);
+	margin-inline: auto;
+	padding-block-start: 12px;
+}
+
+.etk-fonts__settings-group {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.etk-fonts__settings-note {
+	padding-inline-start: 2px;
+}
+
+.etk-fonts__setting-title {
+	flex: 1;
+}
+
+.etk-fonts__setting-value {
+	color: var(--etk-fonts-text-60);
+	font-weight: 400;
+}
+
+.etk-fonts__setting-status {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--etk-fonts-text-70);
+	font-weight: 400;
+}
+
+.etk-fonts__settings .etk-fonts__toggle {
+	flex: 1;
+	gap: 16px;
+}
+
+.etk-fonts__export {
+	min-inline-size: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+
+	.etk-fonts__check {
+		flex: 1;
+		align-items: center;
+
+		input[type="checkbox"] {
+			margin: 0;
+		}
+	}
+}
+
+.etk-fonts__card-row.etk-fonts__export-head {
+	padding-block: 10px;
+	border-block-end: 1px solid var(--etk-fonts-line);
+}
+
+.etk-fonts__export-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 16px;
+}
+
+.etk-fonts__export-name {
+	color: var(--etk-fonts-text);
+	font-size: 15px;
+	font-weight: 400;
+	line-height: 18px;
+}
+
+.etk-fonts__export-row:has(input:not(:checked)) .etk-fonts__export-name {
+	color: var(--etk-fonts-text-55);
+}
+
+.etk-fonts__card-row.etk-fonts__export-foot {
+	justify-content: end;
+	padding-block: 10px;
+	border-block-start: 1px solid var(--etk-fonts-line);
+}
+
+.etk-fonts__dropzone-icon {
+	display: flex;
+	color: var(--etk-fonts-text-70);
+}
+
+.etk-fonts__dropzone-text {
+	flex: 1;
+	color: var(--etk-fonts-text-70);
+	font-weight: 400;
 }
