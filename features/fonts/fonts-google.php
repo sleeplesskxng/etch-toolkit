@@ -245,6 +245,7 @@ function etch_toolkit_fonts_google_install( string $family, array $subsets, bool
 		'google'   => array(
 			'subsets'  => $subsets,
 			'variable' => (bool) $axis,
+			'script'   => $meta['script'],
 		),
 	);
 

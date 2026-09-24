@@ -30,6 +30,12 @@ const ETCH_TOOLKIT_FONTS_FORMATS    = array(
 	'otf'   => 'opentype',
 );
 const ETCH_TOOLKIT_FONTS_DISPLAY    = array( 'auto', 'block', 'swap', 'fallback', 'optional' );
+// Local fonts a size-matched fallback is drawn from. The browser takes the first it has.
+const ETCH_TOOLKIT_FONTS_LOCALS     = array(
+	'sans'  => array( 'Arial', 'Liberation Sans' ),
+	'serif' => array( 'Times New Roman', 'Liberation Serif' ),
+	'mono'  => array( 'Courier New', 'Liberation Mono' ),
+);
 const ETCH_TOOLKIT_FONTS_ROLES      = array(
 	'heading' => 'h1, h2, h3, h4, h5, h6',
 	'text'    => 'body',
@@ -57,6 +63,8 @@ const ETCH_TOOLKIT_FONTS_WEIGHT_WORDS = array(
 	'book'       => '400',
 	'bold'       => '700',
 );
+
+require __DIR__ . '/fonts-acss.php';
 
 add_action(
 	'wp_enqueue_scripts',
@@ -278,6 +286,7 @@ function etch_toolkit_fonts_state(): array {
 		'families' => $families,
 		'files'    => etch_toolkit_fonts_files( $families ),
 		'settings' => etch_toolkit_fonts_settings(),
+		'acss'     => etch_toolkit_fonts_acss_active(),
 		'css'      => etch_toolkit_fonts_css( $families ),
 		// For specimen previews in the builder, where the stylesheet itself doesn't load.
 		'faces'    => etch_toolkit_fonts_css( $families, true, true ),
@@ -314,6 +323,28 @@ function etch_toolkit_fonts_sanitize_weight( string $weight ): string {
 function etch_toolkit_fonts_sanitize_range( string $range ): string {
 	$range = trim( $range );
 	return preg_match( '/^[Uu]\+[0-9A-Fa-f?]+(-[0-9A-Fa-f]+)?(\s*,\s*[Uu]\+[0-9A-Fa-f?]+(-[0-9A-Fa-f]+)?)*$/', $range ) ? $range : '';
+}
+
+/**
+ * A size-matched fallback's measurements, as percentages. Anything out of range
+ * drops the lot: no fallback beats one that reshapes every line.
+ *
+ * @param mixed $metrics Raw metrics: size, ascent, descent, gap and local.
+ * @return array<string, mixed> Empty when unusable.
+ */
+function etch_toolkit_fonts_sanitize_metrics( $metrics ): array {
+	if ( ! is_array( $metrics ) || ! isset( ETCH_TOOLKIT_FONTS_LOCALS[ $metrics['local'] ?? '' ] ) ) {
+		return array();
+	}
+	$clean = array( 'local' => $metrics['local'] );
+	foreach ( array( 'size' => array( 50, 200 ), 'ascent' => array( 1, 400 ), 'descent' => array( 0, 400 ), 'gap' => array( 0, 400 ) ) as $key => [ $min, $max ] ) {
+		$value = is_numeric( $metrics[ $key ] ?? null ) ? round( (float) $metrics[ $key ], 2 ) : -1;
+		if ( $value < $min || $value > $max ) {
+			return array();
+		}
+		$clean[ $key ] = $value;
+	}
+	return $clean;
 }
 
 /**
@@ -379,10 +410,16 @@ function etch_toolkit_fonts_sanitize_families( array $input ): array {
 			'roles'    => $roles,
 		);
 
+		$metrics = etch_toolkit_fonts_sanitize_metrics( $family['metrics'] ?? null );
+		if ( $metrics ) {
+			$entry['metrics'] = $metrics;
+		}
+
 		if ( 'google' === $entry['source'] && is_array( $family['google'] ?? null ) ) {
 			$entry['google'] = array(
 				'subsets'  => array_values( array_filter( array_map( 'sanitize_key', (array) ( $family['google']['subsets'] ?? array() ) ) ) ),
 				'variable' => ! empty( $family['google']['variable'] ),
+				'script'   => sanitize_key( (string) ( $family['google']['script'] ?? '' ) ),
 			);
 		}
 
@@ -446,17 +483,20 @@ function etch_toolkit_fonts_slug( string $name ): string {
 }
 
 /**
- * "Inter", system-ui, sans-serif
+ * "Inter", "Inter fallback", system-ui, sans-serif
+ *
+ * The size-matched fallback sits right after the font, since it only matters
+ * while the font loads.
  */
 function etch_toolkit_fonts_stack( array $family ): string {
-	$stack = '"' . $family['name'] . '"';
+	$stack = '"' . $family['name'] . '"' . ( empty( $family['metrics'] ) ? '' : ', "' . $family['name'] . ' fallback"' );
 	return '' === $family['fallback'] ? $stack : $stack . ', ' . $family['fallback'];
 }
 
 /**
  * The stylesheet: @font-face rules, a --font-{slug} variable per family and
  * the heading/body tokens (--heading-font-family, --text-font-family) that
- * Etch documents and Automatic.css reads.
+ * Etch documents, unless Automatic.css is active and takes them instead.
  *
  * @param array<int, array<string, mixed>> $families   Sanitized families.
  * @param bool                             $faces_only Only @font-face rules, for the builder UI.
@@ -493,6 +533,18 @@ function etch_toolkit_fonts_css( array $families, bool $faces_only = false, bool
 				. "}\n\n";
 		}
 
+		if ( $has_face && ! $faces_only && ! empty( $family['metrics'] ) ) {
+			$metrics = $family['metrics'];
+			$faces  .= "@font-face {\n"
+				. "\tfont-family: \"{$family['name']} fallback\";\n"
+				. "\tsrc: " . implode( ', ', array_map( fn( $local ) => "local(\"{$local}\")", ETCH_TOOLKIT_FONTS_LOCALS[ $metrics['local'] ] ) ) . ";\n"
+				. "\tsize-adjust: {$metrics['size']}%;\n"
+				. "\tascent-override: {$metrics['ascent']}%;\n"
+				. "\tdescent-override: {$metrics['descent']}%;\n"
+				. "\tline-gap-override: {$metrics['gap']}%;\n"
+				. "}\n\n";
+		}
+
 		$slug = etch_toolkit_fonts_slug( $family['name'] );
 		if ( ! $has_face || '' === $slug || isset( $slugs[ $slug ] ) ) {
 			continue;
@@ -500,7 +552,8 @@ function etch_toolkit_fonts_css( array $families, bool $faces_only = false, bool
 		$slugs[ $slug ] = true;
 		$vars          .= "\t--font-{$slug}: " . etch_toolkit_fonts_stack( $family ) . ";\n";
 
-		foreach ( $family['roles'] as $role ) {
+		// With Automatic.css, the roles live in its settings instead. See fonts-acss.php.
+		foreach ( etch_toolkit_fonts_acss_active() ? array() : $family['roles'] as $role ) {
 			$tokens .= "\t--{$role}-font-family: var(--font-{$slug});\n";
 			$rules  .= ETCH_TOOLKIT_FONTS_ROLES[ $role ] . " {\n\tfont-family: var(--{$role}-font-family);\n}\n\n";
 		}
