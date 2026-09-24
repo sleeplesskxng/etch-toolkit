@@ -734,7 +734,8 @@
 	 * A view's header: an optional back button, the title (focused when the
 	 * view opens), meta, tabs, then actions at the end.
 	 * pageHeader( title, description, ...actions ), or pageHeader( { title,
-	 * hidden, description, back: { label, onclick }, meta, tabs, actions, bar } ).
+	 * hidden, description, back: { label, onclick, crumb }, meta, tabs, actions, bar } ).
+	 * crumb names where back goes, as a breadcrumb before the title.
 	 * A title that repeats its nav item is for screen readers only, unless
 	 * hidden is false. bar makes it the 52px bar over a split view.
 	 */
@@ -750,6 +751,9 @@
 				'div',
 				{ class: 'etk-fonts__page-lead' },
 				o.back ? iconButton( o.back.label, 'back', o.back.onclick, { variant: 'secondary' } ) : null,
+				o.back?.crumb
+					? h( 'nav', { class: 'etk-fonts__crumbs', 'aria-label': 'Breadcrumb' }, h( 'button', { type: 'button', class: 'etk-fonts__crumb', textContent: o.back.crumb, onclick: o.back.onclick } ), h( 'span', { class: 'etk-fonts__crumb-sep', 'aria-hidden': 'true', textContent: '/' } ) )
+					: null,
 				h( 'h2', { class: `etk-fonts__page-title${ hidden ? ' screen-reader-text' : '' }`, tabindex: '-1', textContent: o.title } ),
 				typeof o.meta === 'string' ? h( 'span', { class: 'etk-fonts__page-meta', textContent: o.meta } ) : o.meta || null,
 				o.tabs || null
@@ -1673,7 +1677,7 @@
 				h(
 					'div',
 					{ class: 'etk-fonts__pane' },
-					pageHeader( { title: draft.original, hidden: false, bar: true, back: { label: 'Back to the library', onclick: () => leaveFamily( 'library' ) }, meta: roleBadges.length ? h( 'span', { class: 'etk-fonts__family-badges' }, roleBadges ) : null } ),
+					pageHeader( { title: draft.original, hidden: false, bar: true, back: { label: 'Back to the library', crumb: 'Library', onclick: () => leaveFamily( 'library' ) }, meta: roleBadges.length ? h( 'span', { class: 'etk-fonts__family-badges' }, roleBadges ) : null } ),
 					h( 'div', { class: 'etk-fonts__gdetail' }, detailToolbar(), family.variants.length ? specimens : h( 'p', { class: 'etk-fonts__help', textContent: 'Add files to see its weights.' } ) )
 				),
 				h(
@@ -2385,7 +2389,7 @@
 					pageHeader( {
 						title: font.family,
 						bar: true,
-						back: { label: 'Back to Google Fonts', onclick: closeGoogleFont },
+						back: { label: 'Back to Google Fonts', crumb: 'Google Fonts', onclick: closeGoogleFont },
 						meta: `${ categoryLabel( font.category ) } · ${ font.wght?.min ? 'Variable' : 'Static' }`,
 						actions: [
 							h(

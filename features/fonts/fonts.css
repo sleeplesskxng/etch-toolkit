@@ -317,6 +317,41 @@
 	}
 }
 
+/* Where the back button goes, then a slash before the title. */
+.etk-fonts__crumbs {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: 8px;
+	margin-inline-start: 4px;
+}
+
+.etk-fonts__crumb {
+	padding: 0;
+	border: 0;
+	border-radius: var(--etk-fonts-radius-sm);
+	background: none;
+	color: var(--etk-fonts-text-60);
+	font: inherit;
+	font-size: var(--e-font-size-l, 13px);
+	font-weight: 500;
+	line-height: 16px;
+	cursor: pointer;
+
+	&:hover {
+		color: var(--etk-fonts-text);
+	}
+
+	&:focus-visible {
+		outline: none;
+		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+	}
+}
+
+.etk-fonts__crumb-sep {
+	color: var(--etk-fonts-text-40);
+}
+
 /* Errors show above the view. Confirmations are for screen readers only. */
 .etk-fonts__status:not(.is-error) {
 	position: absolute;
