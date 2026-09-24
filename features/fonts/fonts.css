@@ -235,6 +235,7 @@
 
 .etk-fonts__btn--ghost {
 	border-color: transparent;
+	text-decoration: none;
 	color: var(--etk-fonts-muted);
 	padding-inline: 6px;
 }
@@ -615,10 +616,6 @@ select.etk-fonts__input {
 	padding: var(--e-space-l, 16px);
 	border: 1px solid var(--etk-fonts-line);
 	border-radius: 8px;
-
-	.etk-fonts__btn {
-		align-self: flex-start;
-	}
 }
 
 .etk-fonts__card-specimen {
@@ -691,38 +688,150 @@ select.etk-fonts__input {
 
 .etk-fonts__slider {
 	display: flex;
-	flex: 1 1 260px;
+	flex: 1 1 280px;
 	align-items: center;
-	gap: var(--e-space-s, 8px);
-
-	input {
-		flex: 1;
-		min-inline-size: 80px;
-		accent-color: var(--e-primary);
-	}
+	gap: var(--e-space-m, 12px);
 
 	output {
-		min-inline-size: 11ch;
+		min-inline-size: 12ch;
+		font-variant-numeric: tabular-nums;
+	}
+}
+
+/*
+ * Weight slider: a native range input with its track and thumb restyled,
+ * and nine notches underneath. --v is the current step (1-9), --t each
+ * notch's step. The thumb travels one thumb-width less than the track, so
+ * the fill and the notches are inset by half a thumb to line up with it.
+ */
+.etk-range {
+	--thumb: 14px;
+	--track: 4px;
+	--fill: var(--e-primary, #deff38);
+	--rail: var(--e-base-light, #36363a);
+	--etk-range-notch: var(--e-foreground-color-muted, #8b8b93);
+	--pos: calc(var(--thumb) / 2 + (100% - var(--thumb)) * (var(--v) - 1) / 8);
+
+	position: relative;
+	flex: 1;
+	min-inline-size: 120px;
+	block-size: 28px;
+
+	input {
+		position: absolute;
+		inset: 0 0 auto;
+		inline-size: 100%;
+		block-size: 18px;
+		margin: 0;
+		background: none;
+		appearance: none;
+		cursor: pointer;
+
+		&:focus-visible {
+			box-shadow: none;
+		}
+	}
+
+	/* Track: primary up to the thumb, the rail after it. */
+	input::-webkit-slider-runnable-track {
+		block-size: var(--track);
+		border-radius: var(--track);
+		background: linear-gradient(to right, var(--fill) var(--pos), var(--rail) var(--pos));
+	}
+
+	input::-moz-range-track {
+		block-size: var(--track);
+		border-radius: var(--track);
+		background: linear-gradient(to right, var(--fill) var(--pos), var(--rail) var(--pos));
+	}
+
+	input::-webkit-slider-thumb {
+		inline-size: var(--thumb);
+		block-size: var(--thumb);
+		margin-block-start: calc((var(--track) - var(--thumb)) / 2);
+		border: 0;
+		border-radius: 50%;
+		background: var(--e-foreground-color, #e1e1e5);
+		box-shadow:
+			0 0 0 3px var(--e-base, #27272b),
+			0 1px 3px 3px rgb(0 0 0 / 0.25);
+		appearance: none;
+		transition: box-shadow var(--e-transition, 0.15s ease-in-out);
+	}
+
+	input::-moz-range-thumb {
+		inline-size: var(--thumb);
+		block-size: var(--thumb);
+		border: 0;
+		border-radius: 50%;
+		background: var(--e-foreground-color, #e1e1e5);
+		box-shadow:
+			0 0 0 3px var(--e-base, #27272b),
+			0 1px 3px 3px rgb(0 0 0 / 0.25);
+		transition: box-shadow var(--e-transition, 0.15s ease-in-out);
+	}
+
+	/* A halo in the primary color on hover and while dragging, and Etch's focus ring from the keyboard. */
+	input:hover::-webkit-slider-thumb,
+	input:active::-webkit-slider-thumb {
+		box-shadow:
+			0 0 0 3px var(--e-base, #27272b),
+			0 0 0 7px color-mix(in srgb, var(--fill) 30%, transparent);
+	}
+
+	input:hover::-moz-range-thumb,
+	input:active::-moz-range-thumb {
+		box-shadow:
+			0 0 0 3px var(--e-base, #27272b),
+			0 0 0 7px color-mix(in srgb, var(--fill) 30%, transparent);
+	}
+
+	input:active {
+		cursor: grabbing;
+	}
+
+	input:focus-visible::-webkit-slider-thumb {
+		box-shadow:
+			0 0 0 3px var(--e-base, #27272b),
+			0 0 0 5px var(--etch-focus-color, #469fea);
+	}
+
+	input:focus-visible::-moz-range-thumb {
+		box-shadow:
+			0 0 0 3px var(--e-base, #27272b),
+			0 0 0 5px var(--etch-focus-color, #469fea);
+	}
+}
+
+/* Notches: lit up to the current weight, brightest at it. */
+.etk-range__notches {
+	position: absolute;
+	inset: 21px calc(var(--thumb) / 2) auto;
+	block-size: 5px;
+	pointer-events: none;
+
+	span {
+		/* 1 for notches at or before the current step, 0 after it. */
+		--on: clamp(0, var(--v) - var(--t) + 1, 1);
+		--here: clamp(0, 1 - (var(--v) - var(--t)) * (var(--v) - var(--t)), 1);
+
+		position: absolute;
+		inset-inline-start: calc((var(--t) - 1) / 8 * 100%);
+		inline-size: 2px;
+		block-size: calc(3px + 2px * var(--here));
+		border-radius: 1px;
+		/* Primary up to the handle, gray ahead of it. */
+		background: color-mix(in srgb, var(--fill) calc(var(--on) * 100%), var(--etk-range-notch, #8b8b93));
+		opacity: calc(0.55 + 0.45 * var(--here));
+		translate: -50% 0;
+		transition:
+			background-color var(--e-transition, 0.15s ease-in-out),
+			block-size var(--e-transition, 0.15s ease-in-out);
 	}
 }
 
 .etk-fonts__card-specimen {
 	cursor: pointer;
-}
-
-.etk-fonts__card-link {
-	padding: 0;
-	border: 0;
-	background: none;
-	color: inherit;
-	font: inherit;
-	text-align: start;
-	cursor: pointer;
-
-	&:hover {
-		text-decoration: underline;
-		text-underline-offset: 3px;
-	}
 }
 
 .etk-fonts__styles {

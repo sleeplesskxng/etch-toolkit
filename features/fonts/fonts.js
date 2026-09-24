@@ -862,24 +862,33 @@
 		useStylesheet( 'etk-gf-detail', googleCss( font.family, spec ) );
 	};
 
+	// A native range input, styled, with a notch per weight. CSS reads --v (1-9) for the fill and notches.
 	const weightSlider = () => {
+		const step = () => String( google.weight / 100 );
 		const output = h( 'output', { class: 'etk-fonts__muted', textContent: weightLabel( String( google.weight ) ) } );
-		const input = h( 'input', {
-			type: 'range',
-			min: '100',
-			max: '900',
-			step: '100',
-			value: String( google.weight ),
-			'aria-valuetext': weightLabel( String( google.weight ) ),
-			oninput: ( e ) => {
-				google.weight = Number( e.target.value );
-				output.textContent = weightLabel( e.target.value );
-				e.target.setAttribute( 'aria-valuetext', output.textContent );
-				main.querySelectorAll( '.etk-fonts__card-specimen' ).forEach( ( node ) => ( node.style.fontWeight = google.weight ) );
-				reloadGooglePreviews();
-			},
-		} );
-		return h( 'label', { class: 'etk-fonts__slider' }, h( 'span', { textContent: 'Weight' } ), input, output );
+		const range = h(
+			'span',
+			{ class: 'etk-range', style: `--v: ${ step() }` },
+			h( 'input', {
+				type: 'range',
+				min: '100',
+				max: '900',
+				step: '100',
+				value: String( google.weight ),
+				'aria-label': 'Preview weight',
+				'aria-valuetext': weightLabel( String( google.weight ) ),
+				oninput: ( e ) => {
+					google.weight = Number( e.target.value );
+					output.textContent = weightLabel( e.target.value );
+					e.target.setAttribute( 'aria-valuetext', output.textContent );
+					range.style.setProperty( '--v', step() );
+					main.querySelectorAll( '.etk-fonts__card-specimen' ).forEach( ( node ) => ( node.style.fontWeight = google.weight ) );
+					reloadGooglePreviews();
+				},
+			} ),
+			h( 'span', { class: 'etk-range__notches', 'aria-hidden': 'true' }, WEIGHTS.map( ( w, i ) => h( 'span', { style: `--t: ${ i + 1 }` } ) ) )
+		);
+		return h( 'div', { class: 'etk-fonts__slider' }, h( 'span', { 'aria-hidden': 'true', textContent: 'Weight' } ), range, output );
 	};
 
 	const openGoogleFont = ( font ) => {
@@ -895,7 +904,7 @@
 		view = 'google';
 		render();
 		panel.querySelector( '.etk-fonts__content' ).scrollTop = google.scroll;
-		[ ...panel.querySelectorAll( '.etk-fonts__card-link' ) ].find( ( b ) => b.dataset.family === family )?.focus( { preventScroll: true } );
+		[ ...panel.querySelectorAll( '.etk-fonts__card-view' ) ].find( ( b ) => b.dataset.family === family )?.focus( { preventScroll: true } );
 	};
 
 	const addButton = ( font ) => {
@@ -920,15 +929,20 @@
 				return h(
 					'li',
 					{ class: 'etk-fonts__card' },
-					// The name is the keyboard target. The specimen is a larger click target for the same thing.
+					// View is the keyboard target. The specimen is a larger click target for the same thing.
 					h( 'p', { class: 'etk-fonts__card-specimen', style: `font-family: "${ font.family }", ${ font.category === 'serif' ? 'serif' : 'sans-serif' }; font-weight: ${ google.weight }`, 'aria-hidden': 'true', textContent: sampleText, onclick: () => openGoogleFont( font ) } ),
 					h(
 						'div',
 						{ class: 'etk-fonts__card-meta' },
-						h( 'h3', { class: 'etk-fonts__family-name' }, h( 'button', { type: 'button', class: 'etk-fonts__card-link', 'data-family': font.family, textContent: font.family, onclick: () => openGoogleFont( font ) } ) ),
+						h( 'h3', { class: 'etk-fonts__family-name', textContent: font.family } ),
 						h( 'span', { class: 'etk-fonts__muted', textContent: fontSummary( font ) } )
 					),
-					addButton( font )
+					h(
+						'div',
+						{ class: 'etk-fonts__actions' },
+						button( 'View', () => openGoogleFont( font ), { attrs: { class: 'etk-fonts__btn etk-fonts__btn--secondary etk-fonts__card-view', 'data-family': font.family, 'aria-label': `View ${ font.family }` } } ),
+						addButton( font )
+					)
 				);
 			} )
 		);
@@ -1091,6 +1105,12 @@
 			pageHeader(
 				font.family,
 				[ fontSummary( font ), font.wght?.min ? `weights ${ font.wght.min }–${ font.wght.max }` : null, plural( font.subsets.length, 'language set', 'language sets' ) ].filter( Boolean ).join( ' · ' ),
+				h(
+					'a',
+					{ class: 'etk-fonts__btn etk-fonts__btn--ghost', href: `https://fonts.google.com/specimen/${ font.family.replace( / /g, '+' ) }`, target: '_blank', rel: 'noopener' },
+					'View on Google Fonts',
+					h( 'span', { class: 'screen-reader-text', textContent: ' (opens in a new tab)' } )
+				),
 				addButton( font )
 			),
 			h( 'div', { class: 'etk-fonts__toolbar' }, previewInput( reloadGooglePreviews ) ),
