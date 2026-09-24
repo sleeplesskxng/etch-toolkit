@@ -1118,6 +1118,43 @@
 	background: var(--etk-fonts-field);
 }
 
+/* An editable CSS variable: a fixed --, the name, then its copy button. */
+.etk-fonts__var-edit {
+	display: flex;
+	align-items: center;
+	block-size: 28px;
+	padding-inline: 8px 2px;
+	border-radius: var(--etk-fonts-radius);
+	background: var(--etk-fonts-field);
+	color: var(--etk-fonts-code);
+	font-family: var(--e-font-code);
+	font-size: var(--e-font-size-s, 11px);
+	line-height: 14px;
+
+	&:focus-within {
+		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+	}
+
+	.etk-fonts__var-name {
+		flex: 1;
+		min-inline-size: 0;
+		padding: 0;
+		border: 0;
+		background: none;
+		box-shadow: none;
+		color: inherit;
+		font: inherit;
+
+		&::placeholder {
+			color: color-mix(in srgb, var(--etk-fonts-code) 55%, transparent);
+		}
+	}
+}
+
+.etk-fonts__var-prefix {
+	flex: none;
+}
+
 /*
  * Checkboxes. Also in the shared confirm dialog, outside the panel, so these
  * use Etch's tokens directly. .etk-fonts__pick is a bare one, as in the Files table.

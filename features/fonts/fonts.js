@@ -413,10 +413,12 @@
 	};
 
 	// A label over its control, or beside it in a 72px column with row: true.
+	// A wrapper's own input gets the label.
 	const field = ( label, control, help, { row = false } = {} ) => {
-		const id = control.id || ( control.id = uid() );
+		const target = control.matches( 'input, select, textarea, button' ) ? control : control.querySelector( 'input, select, textarea' ) || control;
+		const id = target.id || ( target.id = uid() );
 		const helpId = help ? `${ id }-help` : null;
-		if ( helpId ) control.setAttribute( 'aria-describedby', helpId );
+		if ( helpId ) target.setAttribute( 'aria-describedby', helpId );
 		return h( 'div', { class: `etk-fonts__field${ row ? ' etk-fonts__field--row' : '' }` }, h( 'label', { htmlFor: id, textContent: label } ), control, help ? h( 'p', { class: 'etk-fonts__help', id: helpId, textContent: help } ) : null );
 	};
 
@@ -672,12 +674,13 @@
 	 * Takes the saved name, so a family renamed in the editor shows its variable
 	 * as it is until it's saved. Variants: chip (inline), field (a full-width
 	 * field, as in the inspector) and icon (the copy button alone). Shows the
-	 * bare name, --font-x, and copies it wrapped, var(--font-x).
+	 * bare name, --font-x, and copies it wrapped, var(--font-x). get, for the
+	 * icon alone, reads what to copy at the time, like a name being typed.
 	 */
-	const copyVar = ( name, { variant = 'chip' } = {} ) => {
-		const value = varOf( name );
-		if ( ! value ) return null;
-		const label = `Copy ${ value }`;
+	const copyVar = ( name, { variant = 'chip', get } = {} ) => {
+		if ( ! get && ! varOf( name ) ) return null;
+		const current = () => ( get ? get() : varOf( name ) );
+		const label = get ? 'Copy CSS variable' : `Copy ${ current() }`;
 		const iconOnly = variant === 'icon';
 		const glyph = h( 'span', { class: 'etk-fonts__var-icon', html: icon( 'copy' ) } );
 		let timer = 0;
@@ -689,6 +692,7 @@
 				title: 'Copy CSS variable',
 				'aria-label': label,
 				onclick: async () => {
+					const value = current();
 					try {
 						await navigator.clipboard.writeText( value );
 					} catch {
@@ -1311,6 +1315,36 @@
 	/* Family editor                                                       */
 	/* ------------------------------------------------------------------ */
 
+	/*
+	 * A family's CSS variable, after a fixed --. Empty uses the default,
+	 * --font-{name}, shown as the placeholder. The copy button copies what's typed.
+	 */
+	const defaultVar = ( family ) => ( family.name === draft.original && ! state.families.find( ( f ) => f.name === family.name )?.variable ? state.vars[ family.name ]?.slice( 2 ) : null ) || `font-${ slugOf( family.name ) }`;
+	const varField = ( family, update ) => {
+		const input = h( 'input', {
+			class: 'etk-fonts__input etk-fonts__input--mono etk-fonts__var-name',
+			type: 'text',
+			value: family.variable || '',
+			placeholder: defaultVar( family ),
+			spellcheck: false,
+			autocomplete: 'off',
+			oninput: ( e ) => {
+				// Cleared, it has no key at all, so it matches the saved family again.
+				const value = e.target.value.trim().replace( /^-+/, '' );
+				if ( value ) family.variable = value;
+				else delete family.variable;
+				update( {} );
+			},
+		} );
+		return h(
+			'div',
+			{ class: 'etk-fonts__var-edit' },
+			h( 'span', { class: 'etk-fonts__var-prefix', 'aria-hidden': 'true', textContent: '--' } ),
+			input,
+			copyVar( family.name, { variant: 'icon', get: () => `var(--${ input.value.trim().replace( /^-+/, '' ) || input.placeholder })` } )
+		);
+	};
+
 	const edit = ( index ) => {
 		draft = { original: state.families[ index ].name, family: clone( state.families[ index ] ) };
 		go( 'family' );
@@ -1323,6 +1357,12 @@
 		family.name = family.name.trim();
 		if ( ! family.name ) return warn( 'Give the family a name.' );
 		if ( state.families.some( ( f ) => f.name !== draft.original && f.name.toLowerCase() === family.name.toLowerCase() ) ) return warn( `There's already a family called ${ family.name }.` );
+		if ( family.variable ) {
+			if ( ! /^[A-Za-z0-9_-]+$/.test( family.variable ) ) return warn( 'Use letters, numbers, - and _ in the variable name.' );
+			if ( Object.keys( ROLES ).some( ( role ) => family.variable === `${ role }-font-family` ) ) return warn( `--${ family.variable } is set from the heading and body roles. Pick another name.` );
+			const owner = state.families.find( ( f ) => f.name !== draft.original && state.vars[ f.name ] === `--${ family.variable }` );
+			if ( owner ) return warn( `${ owner.name } already uses --${ family.variable }.` );
+		}
 
 		// A role belongs to one family, so claiming it here takes it from the others.
 		const index = state.families.findIndex( ( f ) => f.name === draft.original );
@@ -1543,8 +1583,21 @@
 
 		const familySection = section(
 			{ title: 'Family', variant: 'panel' },
-			field( 'Name', h( 'input', { class: 'etk-fonts__input', type: 'text', value: family.name, oninput: ( e ) => update( { name: e.target.value } ) } ), null, { row: true } ),
-			varOf( draft.original ) ? field( 'Variable', copyVar( draft.original, { variant: 'field' } ), null, { row: true } ) : null,
+			field(
+				'Name',
+				h( 'input', {
+					class: 'etk-fonts__input',
+					type: 'text',
+					value: family.name,
+					oninput: ( e ) => {
+						update( { name: e.target.value } );
+						main.querySelector( '.etk-fonts__var-name' )?.setAttribute( 'placeholder', defaultVar( family ) );
+					},
+				} ),
+				null,
+				{ row: true }
+			),
+			field( 'Variable', varField( family, update ), null, { row: true } ),
 			field( 'Fallback', h( 'input', { class: 'etk-fonts__input etk-fonts__input--mono', type: 'text', value: family.fallback, placeholder: 'system-ui, sans-serif', oninput: ( e ) => update( { fallback: e.target.value } ) } ), null, { row: true } ),
 			field(
 				'Display',

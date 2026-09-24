@@ -345,7 +345,7 @@ function etch_toolkit_fonts_state(): array {
 	$families = etch_toolkit_fonts_families();
 	$vars     = array();
 	foreach ( $families as $family ) {
-		$vars[ $family['name'] ] = '--font-' . etch_toolkit_fonts_slug( $family['name'] );
+		$vars[ $family['name'] ] = etch_toolkit_fonts_var( $family );
 	}
 	return array(
 		'families' => $families,
@@ -440,6 +440,7 @@ function etch_toolkit_fonts_sanitize_metrics( $metrics ): array {
 function etch_toolkit_fonts_sanitize_families( array $input, ?array &$skipped = null ): array {
 	$clean   = array();
 	$names   = array();
+	$vars    = array(); // Custom CSS variables, the first family to claim one keeps it.
 	$taken   = array(); // Each role belongs to one enabled family, the first that claims it.
 	$skipped = array();
 
@@ -498,6 +499,12 @@ function etch_toolkit_fonts_sanitize_families( array $input, ?array &$skipped = 
 			'enabled'  => $enabled,
 			'roles'    => $roles,
 		);
+
+		$variable = etch_toolkit_fonts_sanitize_var( (string) ( $family['variable'] ?? '' ) );
+		if ( '' !== $variable && ! isset( $vars[ $variable ] ) ) {
+			$vars[ $variable ]  = true;
+			$entry['variable'] = $variable;
+		}
 
 		$metrics = etch_toolkit_fonts_sanitize_metrics( $family['metrics'] ?? null );
 		if ( $metrics ) {
@@ -578,6 +585,30 @@ function etch_toolkit_fonts_slug( string $name ): string {
 }
 
 /**
+ * A family's CSS variable: its own name if it has one, or --font-{slug}.
+ */
+function etch_toolkit_fonts_var( array $family ): string {
+	return '--' . ( empty( $family['variable'] ) ? 'font-' . etch_toolkit_fonts_slug( $family['name'] ) : $family['variable'] );
+}
+
+/**
+ * A custom property's name without its leading dashes: letters, digits, - and _.
+ * The role tokens, like heading-font-family, are taken, since they point at it.
+ */
+function etch_toolkit_fonts_sanitize_var( string $name ): string {
+	$name = ltrim( trim( $name ), '-' );
+	if ( ! preg_match( '/^[A-Za-z0-9_-]+$/', $name ) ) {
+		return '';
+	}
+	foreach ( array_keys( ETCH_TOOLKIT_FONTS_ROLES ) as $role ) {
+		if ( "{$role}-font-family" === $name ) {
+			return '';
+		}
+	}
+	return $name;
+}
+
+/**
  * "Inter", "Inter fallback", system-ui, sans-serif
  *
  * The size-matched fallback sits right after the font, since it only matters
@@ -589,7 +620,7 @@ function etch_toolkit_fonts_stack( array $family ): string {
 }
 
 /**
- * The stylesheet: @font-face rules, a --font-{slug} variable per family and
+ * The stylesheet: @font-face rules, a CSS variable per family and
  * the heading/body tokens (--heading-font-family, --text-font-family) that
  * Etch documents, unless Automatic.css is active and takes them instead.
  *
@@ -602,7 +633,7 @@ function etch_toolkit_fonts_css( array $families, bool $faces_only = false, bool
 	$vars   = '';
 	$tokens = '';
 	$rules  = '';
-	$slugs  = array();
+	$seen   = array();
 
 	foreach ( $families as $family ) {
 		if ( empty( $family['enabled'] ) ) {
@@ -640,16 +671,16 @@ function etch_toolkit_fonts_css( array $families, bool $faces_only = false, bool
 				. "}\n\n";
 		}
 
-		$slug = etch_toolkit_fonts_slug( $family['name'] );
-		if ( ! $has_face || '' === $slug || isset( $slugs[ $slug ] ) ) {
+		$var = etch_toolkit_fonts_var( $family );
+		if ( ! $has_face || isset( $seen[ $var ] ) ) {
 			continue;
 		}
-		$slugs[ $slug ] = true;
-		$vars          .= "\t--font-{$slug}: " . etch_toolkit_fonts_stack( $family ) . ";\n";
+		$seen[ $var ] = true;
+		$vars        .= "\t{$var}: " . etch_toolkit_fonts_stack( $family ) . ";\n";
 
 		// With Automatic.css, the roles live in its settings instead. See fonts-acss.php.
 		foreach ( etch_toolkit_fonts_acss_active() ? array() : $family['roles'] as $role ) {
-			$tokens .= "\t--{$role}-font-family: var(--font-{$slug});\n";
+			$tokens .= "\t--{$role}-font-family: var({$var});\n";
 			$rules  .= ETCH_TOOLKIT_FONTS_ROLES[ $role ] . " {\n\tfont-family: var(--{$role}-font-family);\n}\n\n";
 		}
 	}
