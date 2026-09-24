@@ -20,9 +20,11 @@ WordPress skills from [WordPress/agent-skills](https://github.com/WordPress/agen
 
 ## Releasing
 
-Sites update through [Git Updater](https://github.com/afragen/git-updater), which reads the `GitHub Plugin URI` header.
+Sites update through [plugin-update-checker](https://github.com/YahnisElsts/plugin-update-checker), bundled in `lib/`. It offers the latest non-prerelease GitHub release. It's skipped when the plugin folder has a `.git` directory, so this dev copy never updates itself.
 
 1. Bump `Version` in the plugin header and `ETCH_TOOLKIT_VERSION` together.
-2. Commit, then tag and publish a release: `gh release create v<version> --generate-notes`.
+2. Commit and push, then publish a release whose tag matches: `gh release create v<version> --generate-notes`. The release notes show in the update details.
+
+`lib/plugin-update-checker` is vendored. Don't edit it. Upgrade by replacing the folder with a newer release.
 
 Everything in `.gitattributes` marked `export-ignore` stays out of the installed plugin.
