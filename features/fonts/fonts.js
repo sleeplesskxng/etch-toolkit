@@ -1342,6 +1342,85 @@
 	// Files could be edited in place: the one whose weight and style are open.
 	let editingFile = null;
 
+	/*
+	 * A variant's Type, Weights (a range) or Weight, and Style, as rows. Changes
+	 * go into the variant, then onchange runs. Switching Type back brings back
+	 * what that side last had, for as long as the panel is open.
+	 */
+	const lastWeight = new Map(); // File name → { variable, static }
+	const withWeight = ( list, weight ) => ( list.includes( weight ) ? list : [ ...list, weight ].sort( ( a, b ) => a - b ) );
+	const weightFields = ( variant, onchange ) => {
+		const variable = variant.weight.includes( ' ' );
+		const memory = lastWeight.get( variant.file ) || {};
+		lastWeight.set( variant.file, memory );
+		memory[ variable ? 'variable' : 'static' ] = variant.weight;
+		// onchange re-renders, so focus goes back to the same control after.
+		const set = ( key, value ) => {
+			const active = document.activeElement;
+			const label = active?.getAttribute( 'aria-label' );
+			const again = label ? `[aria-label="${ CSS.escape( label ) }"]` : active?.type === 'radio' ? `input[value="${ active.value }"]` : null;
+			variant[ key ] = value;
+			onchange();
+			if ( again ) panel.querySelector( `.etk-fonts__weight-fields ${ again }` )?.focus();
+		};
+		const guessed = state.files.find( ( f ) => f.name === variant.file )?.weight;
+		const switchTo = ( type ) =>
+			set( 'weight', type === 'variable' ? memory.variable || ( guessed?.includes( ' ' ) ? guessed : '100 900' ) : memory.static || String( Math.min( 900, Math.max( 100, Math.round( variantWeight( variant.weight ) / 100 ) * 100 ) ) ) );
+		const row = ( label, control, labelId ) => h( 'div', { class: 'etk-fonts__weight-row' }, h( 'span', { class: 'etk-fonts__weight-label', id: labelId, 'aria-hidden': 'true', textContent: label } ), control );
+		const of = ` of ${ variant.file }`;
+
+		let weights;
+		if ( variable ) {
+			const [ min, max ] = variant.weight.split( ' ' );
+			const id = uid();
+			weights = row(
+				'Weights',
+				h(
+					'div',
+					{ class: 'etk-fonts__weight-range', role: 'group', 'aria-labelledby': id },
+					select( withWeight( WEIGHTS, min ).filter( ( w ) => +w < +max ).map( ( w ) => [ w, w ] ), min, ( value ) => set( 'weight', `${ value } ${ max }` ), { 'aria-label': `Lightest weight${ of }` } ),
+					h( 'span', { class: 'etk-fonts__weight-to', 'aria-hidden': 'true', textContent: 'to' } ),
+					select( withWeight( WEIGHTS, max ).filter( ( w ) => +w > +min ).map( ( w ) => [ w, w ] ), max, ( value ) => set( 'weight', `${ min } ${ value }` ), { 'aria-label': `Heaviest weight${ of }` } )
+				),
+				id
+			);
+		} else {
+			weights = row( 'Weight', select( withWeight( WEIGHTS, variant.weight ).map( ( w ) => [ w, weightLabel( w ) ] ), variant.weight, ( value ) => set( 'weight', value ), { 'aria-label': `Weight${ of }` } ) );
+		}
+
+		return h(
+			'div',
+			{ class: 'etk-fonts__weight-fields' },
+			row(
+				'Type',
+				segmented( {
+					name: uid(),
+					legend: `Type${ of }`,
+					fill: true,
+					value: variable ? 'variable' : 'static',
+					options: [
+						{ value: 'variable', label: 'Variable' },
+						{ value: 'static', label: 'Static' },
+					],
+					onchange: switchTo,
+				} )
+			),
+			weights,
+			row(
+				'Style',
+				select(
+					[
+						[ 'normal', 'Normal' ],
+						[ 'italic', 'Italic' ],
+					],
+					variant.style,
+					( value ) => set( 'style', value ),
+					{ 'aria-label': `Style${ of }` }
+				)
+			)
+		);
+	};
+
 	const discardDraft = () => {
 		editingFile = null;
 		edit( state.families.findIndex( ( f ) => f.name === draft.original ) );
@@ -1464,43 +1543,29 @@
 		const fileRow = ( variant, i ) => {
 			const file = state.files.find( ( f ) => f.name === variant.file );
 			const title = `${ weightLabel( variant.weight ) }${ variant.style === 'italic' ? ' Italic' : '' }`;
-			const extra = [ variant.subset || null, file ? size( file.size ) : null ].filter( Boolean ).join( ' · ' );
 			const open = editingFile === variant.file;
-			const weights = variant.weight.includes( ' ' ) ? [ variant.weight, ...WEIGHTS ] : WEIGHTS;
 			return h(
 				'li',
 				{ class: `etk-fonts__file-row${ open ? ' is-open' : '' }`, title: variant.file },
 				h(
 					'div',
 					{ class: 'etk-fonts__file-main' },
-					h( 'span', { class: 'etk-fonts__file-glyph', 'aria-hidden': 'true', style: `font-family: ${ face }; font-weight: ${ variantWeight( variant.weight ) }; font-style: ${ variant.style }`, textContent: 'Ag' } ),
-					h(
-						'div',
-						{ class: 'etk-fonts__file-text' },
-						h( 'span', { class: 'etk-fonts__file-title', textContent: title } ),
-						h( 'span', { class: 'etk-fonts__file-meta' }, h( 'span', { class: 'etk-fonts__file-name', textContent: variant.file } ), extra ? h( 'span', { textContent: extra } ) : null )
-					),
+					h( 'div', { class: 'etk-fonts__file-text' }, h( 'span', { class: 'etk-fonts__file-title', textContent: title } ), h( 'span', { class: 'etk-fonts__file-name', textContent: variant.file } ) ),
+					file ? h( 'span', { class: 'etk-fonts__file-size', textContent: size( file.size ) } ) : null,
 					menu( iconButton( `Actions for ${ variant.file }`, 'more', null ), [
 						{
 							label: open ? 'Done editing' : 'Change weight and style',
 							onselect: () => {
 								editingFile = open ? null : variant.file;
 								render();
-								if ( editingFile ) main.querySelector( '.etk-fonts__file-row.is-open select' )?.focus();
+								if ( editingFile ) main.querySelector( '.etk-fonts__file-row.is-open input:checked' )?.focus();
 							},
 						},
 						'-',
 						{ label: 'Remove from family', icon: 'close', danger: true, onselect: () => ( family.variants.splice( i, 1 ), render() ) },
 					] )
 				),
-				open
-					? h(
-							'div',
-							{ class: 'etk-fonts__file-edit' },
-							select( weights.map( ( w ) => [ w, weightLabel( w ) ] ), variant.weight, ( value ) => ( ( variant.weight = value ), render() ), { 'aria-label': `Weight of ${ variant.file }` } ),
-							select( [ [ 'normal', 'Normal' ], [ 'italic', 'Italic' ] ], variant.style, ( value ) => ( ( variant.style = value ), render() ), { 'aria-label': `Style of ${ variant.file }` } )
-					  )
-					: null
+				open ? weightFields( variant, render ) : null
 			);
 		};
 
