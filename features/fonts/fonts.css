@@ -208,13 +208,20 @@
 	cursor: pointer;
 	transition: background-color var(--e-transition, 0.15s ease-in-out);
 
-	&:hover:not(:disabled) {
+	&:hover:not(:disabled, [aria-disabled='true']) {
 		background: var(--e-base-light, #36363a);
 	}
 
-	&:disabled {
+	/* aria-disabled keeps a busy button focusable, like Load more. */
+	&:disabled,
+	&[aria-disabled='true'] {
 		opacity: var(--etch-opacity-medium, 0.5);
 		cursor: not-allowed;
+	}
+
+	/* display above would otherwise win over hidden, and Load more would never go. */
+	&[hidden] {
+		display: none;
 	}
 
 	svg {

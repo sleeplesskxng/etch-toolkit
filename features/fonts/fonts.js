@@ -113,7 +113,7 @@
 	/* State and sync                                                      */
 	/* ------------------------------------------------------------------ */
 
-	let state = null; // { families, files, settings, css, faces }
+	let state = null; // { families, files, settings, css, faces, vars }
 	let view = 'library';
 	let draft = null; // Family being edited: { original: name|null, family }
 	let panel = null;
@@ -138,6 +138,7 @@
 
 	const google = { search: '', category: '', subset: '', sort: 'popularity', results: [], total: 0, categories: [], subsets: [], loading: false, loaded: false, error: '', variable: false, weight: 400, font: null, scroll: 0 };
 
+	// For the Google preview <link> ids. The server names the CSS variables, see varOf.
 	const slugOf = ( name ) =>
 		name
 			.normalize( 'NFKD' )
@@ -145,7 +146,8 @@
 			.toLowerCase()
 			.replace( /[^a-z0-9]+/g, '-' )
 			.replace( /^-|-$/g, '' );
-	const varOf = ( family ) => `var(--font-${ slugOf( family.name ) })`;
+	// A saved family's CSS variable, as the stylesheet has it.
+	const varOf = ( name ) => ( state.vars[ name ] ? `var(${ state.vars[ name ] })` : '' );
 
 	// A family without Latin letters previews in its own script, unless you've typed your own text.
 	const scriptOf = ( script, subsets ) => ( subsets?.includes( 'latin' ) ? '' : script );
@@ -390,9 +392,12 @@
 			options.map( ( [ optionValue, label ] ) => h( 'option', { value: optionValue, selected: optionValue === value, textContent: label } ) )
 		);
 
-	// Shows a tick for a moment after copying.
-	const copyVar = ( family ) => {
-		const label = `Copy ${ varOf( family ) }`;
+	// Shows a tick for a moment after copying. Takes the saved name, so a family
+	// renamed in the editor shows its variable as it is until it's saved.
+	const copyVar = ( name ) => {
+		const value = varOf( name );
+		if ( ! value ) return null;
+		const label = `Copy ${ value }`;
 		const glyph = h( 'span', { html: icon( 'copy' ) } );
 		let timer = 0;
 		const node = h(
@@ -404,14 +409,14 @@
 				'aria-label': label,
 				onclick: async () => {
 					try {
-						await navigator.clipboard.writeText( varOf( family ) );
+						await navigator.clipboard.writeText( value );
 					} catch {
 						return warn( 'Couldn’t copy. Select the variable and copy it instead.' );
 					}
 					node.classList.add( 'is-copied' );
 					node.setAttribute( 'aria-label', 'Copied' );
 					glyph.innerHTML = icon( 'tick' );
-					announce( `Copied ${ varOf( family ) }` );
+					announce( `Copied ${ value }` );
 					window.clearTimeout( timer );
 					timer = window.setTimeout( () => {
 						node.classList.remove( 'is-copied' );
@@ -420,7 +425,7 @@
 					}, 1500 );
 				},
 			},
-			h( 'code', { textContent: varOf( family ) } ),
+			h( 'code', { textContent: value } ),
 			glyph
 		);
 		return node;
@@ -512,7 +517,7 @@
 								[ plural( family.variants.length, 'file', 'files' ), family.source === 'google' ? 'Google Fonts' : 'Uploaded', family.enabled ? null : 'Disabled' ].filter( Boolean ).join( ' · ' )
 							),
 							family.roles.map( ( role ) => h( 'span', { class: 'etk-fonts__badge', textContent: ROLES[ role ] } ) ),
-							copyVar( family ),
+							copyVar( family.name ),
 							button( 'Edit', () => edit( index ), { attrs: { 'aria-label': `Edit ${ family.name }` } } )
 						)
 					)
@@ -539,11 +544,14 @@
 		if ( state.families.some( ( f ) => f.name !== draft.original && f.name.toLowerCase() === family.name.toLowerCase() ) ) return warn( `There's already a family called ${ family.name }.` );
 
 		// A role belongs to one family, so claiming it here takes it from the others.
-		const families = state.families.map( ( f ) => ( f.name === draft.original ? family : { ...f, roles: f.roles.filter( ( r ) => ! family.roles.includes( r ) ) } ) );
+		const index = state.families.findIndex( ( f ) => f.name === draft.original );
+		const families = state.families.map( ( f, i ) => ( i === index ? family : { ...f, roles: f.roles.filter( ( r ) => ! family.roles.includes( r ) ) } ) );
 		try {
-			await saveFamilies( families, `Saved ${ family.name }.` );
-			draft = { original: family.name, family: clone( state.families.find( ( f ) => f.name === family.name ) ) };
-			render();
+			const next = await api( 'fonts/families', 'POST', { families } );
+			// Found by position: the server can clean up the name, and a save never drops or reorders families.
+			const saved = next.families[ index ];
+			draft = { original: saved.name, family: clone( saved ) };
+			await apply( next, `Saved ${ saved.name }.` );
 		} catch ( error ) {
 			warn( errorText( error ) );
 		}
@@ -666,7 +674,7 @@
 
 		return [
 			h( 'div', { class: 'etk-fonts__crumb' }, button( 'All fonts', () => leaveFamily( 'library' ), { variant: 'ghost', iconName: 'back' } ) ),
-			pageHeader( draft.original, null, copyVar( family ) ),
+			pageHeader( draft.original, null, copyVar( draft.original ) ),
 			specimen( 'etk-fonts__specimen etk-fonts__specimen--large', scriptOf( family.google?.script, family.google?.subsets ), `font-family: "${ draft.original }", ${ family.fallback || 'sans-serif' }` ),
 			section(
 				'Family',
@@ -772,6 +780,8 @@
 	const renderSavebar = () => {
 		if ( ! savebar ) return;
 		const show = view === 'family' && dirty();
+		// Saving or discarding hides the bar under focus, so focus goes to the page title.
+		if ( ! show && savebar.contains( document.activeElement ) ) panel.querySelector( '.etk-fonts__page-title' )?.focus();
 		savebar.hidden = ! show;
 	};
 
@@ -928,8 +938,10 @@
 		const dialog = confirmDialog( { title: `Delete ${ file.name }?`, message: [ h( 'p', { textContent: 'The file is removed from the fonts folder. This can’t be undone.' } ) ], confirmLabel: 'Delete' } );
 		if ( ! ( await dialog.result ) ) return;
 		try {
-			await apply( await api( 'fonts/files/delete', 'POST', { name: file.name } ), `Deleted ${ file.name }.` );
+			const next = await api( 'fonts/files/delete', 'POST', { name: file.name } );
+			// Closed before the list re-renders, so focus is back in the list to be kept.
 			dialog.close();
+			await apply( next, `Deleted ${ file.name }.` );
 		} catch ( error ) {
 			dialog.fail( errorText( error ) );
 		}
@@ -940,7 +952,10 @@
 	/* ------------------------------------------------------------------ */
 
 	let searchTimer = 0;
+	// Each search or Load more is numbered. Only the latest one's response counts, however late the others land.
+	let searchId = 0;
 	const searchGoogle = async ( more = false ) => {
+		const id = ++searchId;
 		google.loading = true;
 		google.error = '';
 		if ( ! more ) google.results = [];
@@ -948,18 +963,22 @@
 		try {
 			const params = new URLSearchParams( { search: google.search, category: google.category, subset: google.subset, sort: google.sort, variable: google.variable ? 1 : '', offset: more ? google.results.length : 0 } );
 			const data = await api( `fonts/google?${ params }` );
+			if ( id !== searchId ) return;
 			Object.assign( google, { results: [ ...google.results, ...data.results ], total: data.total, categories: data.categories, subsets: data.subsets } );
 			loadGooglePreviews( data.results );
 		} catch ( error ) {
+			if ( id !== searchId ) return;
 			google.error = errorText( error );
 		}
 		google.loading = false;
-		// The first response brings the category and language lists.
-		if ( ! google.loaded && google.categories.length ) {
-			google.loaded = true;
-			panel?.querySelectorAll( '[data-filter]' ).forEach( ( node ) => node.replaceWith( googleFilter( node.dataset.filter ) ) );
-		}
-		renderGoogleResults();
+		keepFocus( () => {
+			// The first response brings the category and language lists.
+			if ( ! google.loaded && google.categories.length ) {
+				google.loaded = true;
+				panel?.querySelectorAll( '[data-filter]' ).forEach( ( node ) => node.replaceWith( googleFilter( node.dataset.filter ) ) );
+			}
+			renderGoogleResults();
+		} );
 	};
 
 	/**
@@ -1128,16 +1147,21 @@
 
 		const more = panel.querySelector( '.etk-fonts__more' );
 		more.hidden = google.results.length >= google.total || ! google.results.length;
-		more.disabled = google.loading;
+		// Not disabled, which would drop focus to <body> while it loads.
+		more.setAttribute( 'aria-disabled', String( google.loading ) );
 	};
 
 	/**
 	 * Choose subsets and styles, then install. Reinstalling starts from what's
 	 * installed and replaces the family's files.
 	 */
+	let lookingUp = false; // "Change styles…" finds the family first. Clicks meanwhile would open more dialogs.
 	const installDialog = async ( name, meta ) => {
 		if ( ! meta ) {
+			if ( lookingUp ) return;
+			lookingUp = true;
 			const data = await api( `fonts/google?${ new URLSearchParams( { search: name } ) }` ).catch( () => null );
+			lookingUp = false;
 			meta = data?.results.find( ( f ) => f.family.toLowerCase() === name.toLowerCase() );
 			if ( ! meta ) return warn( `Couldn't find ${ name } on Google Fonts.` );
 		}
@@ -1284,7 +1308,7 @@
 			h( 'div', { class: 'etk-fonts__toolbar' }, previewInput( reloadGooglePreviews ), weightSlider(), sizeSlider(), layoutToggle( 'google' ) ),
 			h( 'p', { class: 'etk-fonts__muted etk-fonts__google-summary', role: 'status' } ),
 			h( 'ul', { class: 'etk-fonts__cards etk-fonts__google-results', role: 'list', 'data-layout': prefs.google } ),
-			h( 'div', { class: 'etk-fonts__actions etk-fonts__actions--center' }, button( 'Load more', () => searchGoogle( true ), { attrs: { class: 'etk-fonts__btn etk-fonts__btn--secondary etk-fonts__more', hidden: true } } ) ),
+			h( 'div', { class: 'etk-fonts__actions etk-fonts__actions--center' }, button( 'Load more', () => google.loading || searchGoogle( true ), { attrs: { class: 'etk-fonts__btn etk-fonts__btn--secondary etk-fonts__more', hidden: true } } ) ),
 		];
 	};
 
@@ -1436,8 +1460,10 @@
 		} );
 		if ( ! ( await dialog.result ) ) return;
 		try {
-			await apply( await api( 'fonts/import', 'POST', data ), `Imported ${ plural( families.length, 'family', 'families' ) }.` );
+			const next = await api( 'fonts/import', 'POST', data );
+			// Closed before re-rendering, so focus is back on the import button to be kept.
 			dialog.close();
+			await apply( next, `Imported ${ plural( families.length, 'family', 'families' ) }.` );
 		} catch ( error ) {
 			dialog.fail( errorText( error ) );
 		}
@@ -1488,6 +1514,39 @@
 		panel.querySelector( '.etk-fonts__page-title' )?.focus();
 	};
 
+	/**
+	 * Run an update that rebuilds controls, then put focus back if it was in
+	 * them: on the same control if it's still there (same tag and accessible
+	 * name), else the one now in its place in its list, section or view, else
+	 * the page title. Left on <body>, Esc wouldn't close the panel and keys
+	 * would reach Etch.
+	 */
+	const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
+	const focusables = ( root ) => ( root ? [ ...root.querySelectorAll( FOCUSABLE ) ].filter( ( node ) => ! node.disabled && node.getClientRects().length ) : [] );
+	const focusKey = ( node ) => `${ node.tagName } ${ node.getAttribute( 'aria-label' ) || node.labels?.[ 0 ]?.textContent || node.textContent }`;
+	const keepFocus = ( update ) => {
+		const active = document.activeElement;
+		if ( ! main.contains( active ) ) return update();
+		const key = focusKey( active );
+		// Its place in its list, its section and the view, innermost first. A list or section
+		// is found again as the same one of its kind, counting from the top.
+		const places = [];
+		for ( const group of [ active.closest( 'ul, tbody' ), active.closest( 'section' ) ] ) {
+			if ( group ) places.push( { tag: group.tagName, at: [ ...main.querySelectorAll( group.tagName ) ].indexOf( group ), index: focusables( group ).indexOf( active ) } );
+		}
+		places.push( { index: focusables( main ).indexOf( active ) } );
+
+		update();
+		const after = focusables( main );
+		if ( document.activeElement === active && after.includes( active ) ) return;
+		let target = after.find( ( node ) => focusKey( node ) === key );
+		for ( const { tag, at, index } of places ) {
+			const nodes = tag ? focusables( main.querySelectorAll( tag )[ at ] ) : after;
+			target = target || nodes[ Math.min( index, nodes.length - 1 ) ];
+		}
+		( target || panel.querySelector( '.etk-fonts__page-title' ) )?.focus();
+	};
+
 	const render = () => {
 		if ( ! panel || panel.hidden || ! state ) return;
 		const views = { library: renderLibrary, family: renderFamily, upload: renderUpload, google: renderGoogle, 'google-font': renderGoogleFont, settings: renderSettings };
@@ -1498,11 +1557,16 @@
 			const current = b.dataset.view === ( parents[ view ] || view );
 			current ? b.setAttribute( 'aria-current', 'page' ) : b.removeAttribute( 'aria-current' );
 		} );
+		// The same view rebuilt keeps focus. A new one gives it to its title, in go().
+		const inPlace = main.dataset.view === view;
 		main.dataset.view = view;
 		prefs.size ? main.style.setProperty( '--etk-fonts-size', `${ prefs.size }px` ) : main.style.removeProperty( '--etk-fonts-size' );
-		main.replaceChildren( ...views[ view ]() );
-		renderLog();
-		renderGoogleResults();
+		const update = () => {
+			main.replaceChildren( ...views[ view ]() );
+			renderLog();
+			renderGoogleResults();
+		};
+		inPlace ? keepFocus( update ) : update();
 		renderSavebar();
 	};
 
@@ -1531,6 +1595,12 @@
 				onkeydown: ( e ) => {
 					e.stopPropagation();
 					if ( e.key === 'Escape' && ! e.target.closest( 'dialog' ) ) close();
+					// Except Cmd/Ctrl+S, which saves instead of opening the browser's Save Page. Etch only
+					// matches a shortcut when it saw the Cmd or Ctrl press too, so this calls its save directly.
+					if ( ( e.metaKey || e.ctrlKey ) && ( e.code === 'KeyS' || e.key.toLowerCase() === 's' ) ) {
+						e.preventDefault();
+						window.etch?.saveAsync?.();
+					}
 				},
 				onkeyup: ( e ) => e.stopPropagation(),
 			},
@@ -1591,9 +1661,14 @@
 	/* Boot                                                                */
 	/* ------------------------------------------------------------------ */
 
+	// Compared as the browser writes it back (<path …></path>), not as CONTROL_ICON is
+	// spelled, or every swap would look like Etch re-rendering and trigger another.
+	let freeIcon = '';
 	const useFreeIcon = () => {
 		const svg = controlButton?.querySelector( 'svg' );
-		if ( svg && svg.innerHTML !== CONTROL_ICON ) svg.innerHTML = CONTROL_ICON;
+		if ( ! svg || svg.innerHTML === freeIcon ) return;
+		svg.innerHTML = CONTROL_ICON;
+		freeIcon = svg.innerHTML;
 	};
 
 	const register = () => {
