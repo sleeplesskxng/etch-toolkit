@@ -34,6 +34,8 @@
 		// Etch's hugeicons:arrow-left-02, the back button on its own managers.
 		exit: '<path d="M8.99996 16.9998L4 11.9997L9 6.99976"/><path d="M4 12H20"/>',
 		copy: '<path d="M9 15C9 12.1716 9 10.7574 9.87868 9.87868C10.7574 9 12.1716 9 15 9H16C18.8284 9 20.2426 9 21.1213 9.87868C22 10.7574 22 12.1716 22 15V16C22 18.8284 22 20.2426 21.1213 21.1213C20.2426 22 18.8284 22 16 22H15C12.1716 22 10.7574 22 9.87868 21.1213C9 20.2426 9 18.8284 9 16V15Z"/><path d="M16.9999 9C16.9975 6.04291 16.9528 4.51121 16.092 3.46243C15.9258 3.25989 15.7401 3.07418 15.5376 2.90796C14.4312 2 12.7875 2 9.5 2C6.21252 2 4.56878 2 3.46243 2.90796C3.25989 3.07417 3.07418 3.25989 2.90796 3.46243C2 4.56878 2 6.21252 2 9.5C2 12.7875 2 14.4312 2.90796 15.5376C3.07417 15.7401 3.25989 15.9258 3.46243 16.092C4.51121 16.9528 6.04291 16.9975 9 16.9999"/>',
+		// Hugeicons free arrow-up-right-01, as Etch uses for "Open in Builder".
+		external: '<path d="M9 6.65s6.938-.542 7.915.435S17.35 15 17.35 15m-.85-7.5l-10 10"/>',
 		// Etch's hugeicons:tick-02.
 		tick: '<path d="M4.25 13.5L8.75 18L19.75 6"/>',
 		upload: '<path d="M12 4.5L12 14.5M12 4.5C11.2998 4.5 9.99153 6.4943 9.5 7M12 4.5C12.7002 4.5 14.0085 6.4943 14.5 7"/><path d="M20 16.5C20 18.982 19.482 19.5 17 19.5H7C4.518 19.5 4 18.982 4 16.5"/>',
@@ -1109,7 +1111,8 @@
 					'a',
 					{ class: 'etk-fonts__btn etk-fonts__btn--ghost', href: `https://fonts.google.com/specimen/${ font.family.replace( / /g, '+' ) }`, target: '_blank', rel: 'noopener' },
 					'View on Google Fonts',
-					h( 'span', { class: 'screen-reader-text', textContent: ' (opens in a new tab)' } )
+					h( 'span', { class: 'screen-reader-text', textContent: ' (opens in a new tab)' } ),
+					h( 'span', { html: icon( 'external' ) } )
 				),
 				addButton( font )
 			),
