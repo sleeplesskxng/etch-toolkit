@@ -788,7 +788,7 @@
 				const body = new FormData();
 				body.append( 'file', file );
 				if ( family ) body.append( 'family', family );
-				next = await upload( body );
+				next = await api( 'fonts/upload', 'POST', body );
 				entry.text = [ `Added to ${ next.uploaded.family }`, note ].filter( Boolean ).join( ', ' );
 				entry.ok = true;
 				added++;
@@ -802,14 +802,6 @@
 		if ( next ) await apply( next, `Uploaded ${ plural( added, 'file', 'files' ) }.` );
 		else warn( 'Nothing was uploaded.' );
 	};
-
-	// api() sends JSON, so uploads use fetch directly.
-	const upload = ( body ) =>
-		fetch( `${ window.etchToolkit.restUrl }fonts/upload`, { method: 'POST', headers: { 'X-WP-Nonce': window.etchToolkit.nonce }, credentials: 'same-origin', body } ).then( async ( res ) => {
-			const data = await res.json().catch( () => ( {} ) );
-			if ( ! res.ok ) throw new Error( data.message || `Upload failed (${ res.status })` );
-			return data;
-		} );
 
 	const renderLog = () => {
 		const log = panel?.querySelector( '.etk-fonts__log' );

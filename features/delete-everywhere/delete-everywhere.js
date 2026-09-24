@@ -7,7 +7,7 @@
  * the builder so no stale copy of a page or component can bring the class back.
  */
 ( () => {
-	const { restUrl, api, el, confirmDialog, reload } = window.etchToolkit || {};
+	const { restUrl, api, save, el, confirmDialog, reload } = window.etchToolkit || {};
 	if ( ! restUrl || ! confirmDialog ) return;
 
 	const BADGE = '.etch-css-selectors .etch-badges > *';
@@ -64,7 +64,12 @@
 		let dialog;
 		try {
 			// Counts reflect saved content. Unsaved uses get saved below, then stripped with the rest.
-			const usage = await api( `styles/${ styleId }/usage` );
+			// A style made since the last save isn't on the server yet, so that one saves first.
+			const usage = await api( `styles/${ styleId }/usage` ).catch( async ( err ) => {
+				if ( err.code !== 'etch_toolkit_style_not_found' ) throw err;
+				await save();
+				return api( `styles/${ styleId }/usage` );
+			} );
 			dialog = confirmDialog( {
 				title: 'Deleting a class everywhere',
 				message: usageMessage( usage ),
@@ -73,7 +78,7 @@
 			} );
 			if ( ! ( await dialog.result ) ) return;
 
-			await window.etch.saveAsync();
+			await save();
 			await api( `styles/${ styleId }/delete-everywhere`, 'POST' );
 			reload();
 		} catch ( err ) {

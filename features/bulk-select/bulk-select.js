@@ -18,7 +18,7 @@
  * text, or by the active tab when the search is empty).
  */
 ( () => {
-	const { api, el, confirmDialog, reload, classesIn, isClassSelector } = window.etchToolkit || {};
+	const { api, save, el, confirmDialog, reload, classesIn, isClassSelector } = window.etchToolkit || {};
 	if ( ! confirmDialog ) return;
 
 	const ROOT = '.style-overview-modal__left';
@@ -430,7 +430,7 @@
 		for ( const control of dialog.element.querySelectorAll( 'input, .etk-rename__reset, .etk-rename__remove' ) ) control.disabled = true;
 
 		try {
-			await window.etch.saveAsync();
+			await save();
 			await api( 'styles/rename', 'POST', { ids, map, bem: bemBox.checked, keep: keep() } );
 			reload();
 		} catch ( err ) {

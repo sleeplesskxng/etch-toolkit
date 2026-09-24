@@ -1,22 +1,98 @@
 /**
- * Etch Toolkit core: shared config, REST helper and UI for features.
- * Extends window.etchToolkit (restUrl, nonce), printed before this script.
+ * Etch Toolkit core: shared config, REST helpers and UI for features.
+ * Extends window.etchToolkit (restRoot, restUrl, ajaxUrl, nonce), printed before this script.
  */
 ( () => {
 	const toolkit = window.etchToolkit || {};
-	const { restUrl, nonce } = toolkit;
+	const { restRoot, restUrl, ajaxUrl } = toolkit;
 
-	const api = ( path, method = 'GET', body ) =>
-		fetch( `${ restUrl }${ path }`, {
+	// A REST URL from a base and a path with an optional query. new URL() keeps
+	// plain permalinks working, where the base already has one (?rest_route=…).
+	const endpoint = ( base, path ) => {
+		const [ route, query = '' ] = path.split( '?' );
+		const url = new URL( `${ base }${ route }`, window.location.href );
+		new URLSearchParams( query ).forEach( ( value, key ) => url.searchParams.append( key, value ) );
+		return url;
+	};
+
+	// A fresh REST nonce, for a builder left open longer than a nonce lasts (up to a day).
+	const refreshNonce = async () => {
+		try {
+			const res = await fetch( `${ ajaxUrl }?action=rest-nonce`, { credentials: 'same-origin', cache: 'no-store' } );
+			const nonce = res.ok ? ( await res.text() ).trim() : '';
+			if ( ! /^[a-f0-9]{10}$/.test( nonce ) ) return false;
+			toolkit.nonce = nonce;
+			return true;
+		} catch {
+			return false;
+		}
+	};
+
+	// JSON in and out. FormData bodies go as they are.
+	const request = async ( url, method = 'GET', body, retried = false ) => {
+		const form = body instanceof FormData;
+		const res = await fetch( url, {
 			method,
-			headers: { 'X-WP-Nonce': nonce, ...( body ? { 'Content-Type': 'application/json' } : {} ) },
+			headers: { 'X-WP-Nonce': toolkit.nonce, ...( body && ! form ? { 'Content-Type': 'application/json' } : {} ) },
 			credentials: 'same-origin',
-			body: body ? JSON.stringify( body ) : undefined,
-		} ).then( async ( res ) => {
-			const data = await res.json().catch( () => ( {} ) );
-			if ( ! res.ok ) throw new Error( data.message || `Request failed (${ res.status })` );
-			return data;
+			cache: 'no-store',
+			body: form ? body : body ? JSON.stringify( body ) : undefined,
 		} );
+		const data = await res.json().catch( () => ( {} ) );
+		// WordPress refuses an expired nonce before the request runs, so it's safe to send again.
+		if ( data?.code === 'rest_cookie_invalid_nonce' && ! retried ) {
+			if ( await refreshNonce() ) return request( url, method, body, true );
+			throw new Error( 'Your login has expired. Log in again in another tab, then try again.' );
+		}
+		if ( ! res.ok ) throw Object.assign( new Error( data?.message || `Request failed (${ res.status })` ), { code: data?.code, status: res.status } );
+		return data;
+	};
+
+	// The toolkit's own endpoints: api( 'fonts/google?search=x' ).
+	const api = ( path, method = 'GET', body ) => request( endpoint( restUrl, path ), method, body );
+
+	const NOT_SAVED = "Your changes didn't all save, so nothing was changed. Save, then try again.";
+
+	/**
+	 * Save the builder and make sure it landed, before a feature changes saved
+	 * data behind Etch's back and reloads.
+	 *
+	 * Etch's saveAsync() resolves without saving while a save runs and for a
+	 * second after one, and reports failures as toasts. So this waits for
+	 * onSave, which runs once a save completes (asking again after that second),
+	 * then checks the server has the builder's styles and stylesheets, which
+	 * Etch saves whole.
+	 */
+	const save = async () => {
+		const onSave = window.etchControls?.builder?.onSave;
+		if ( typeof onSave === 'function' ) {
+			await new Promise( ( resolve, reject ) => {
+				const timers = [];
+				const off = onSave( () => {
+					timers.forEach( clearTimeout );
+					off?.();
+					resolve();
+				} );
+				window.etch.saveAsync();
+				timers.push( setTimeout( () => window.etch.saveAsync(), 1500 ) );
+				timers.push(
+					setTimeout( () => {
+						off?.();
+						reject( new Error( NOT_SAVED ) );
+					}, 20000 )
+				);
+			} );
+		} else {
+			await window.etch.saveAsync();
+		}
+
+		const [ styles, sheets ] = await Promise.all( [ request( endpoint( restRoot, 'etch-api/styles' ) ), request( endpoint( restRoot, 'etch-api/stylesheets' ) ) ] );
+		const same = ( list, saved, keys ) =>
+			list.length === Object.keys( saved ).length && list.every( ( item ) => saved[ item.id ] && keys.every( ( key ) => ( item[ key ] ?? '' ) === ( saved[ item.id ][ key ] ?? '' ) ) );
+		if ( ! same( window.etch.styles.list(), styles, [ 'selector', 'css' ] ) || ! same( window.etch.stylesheets.list(), sheets, [ 'name', 'css' ] ) ) {
+			throw new Error( NOT_SAVED );
+		}
+	};
 
 	// Etch's hugeicons "delete-02", as bundled in the builder.
 	const DELETE_ICON =
@@ -160,12 +236,17 @@
 		const started = Date.now();
 		const tick = () => {
 			const navigation = window.etch?.navigation;
-			if ( navigation ) navigation.goTo( place );
-			else if ( Date.now() - started < 20000 ) setTimeout( tick, 100 );
+			if ( ! navigation ) {
+				if ( Date.now() - started < 20000 ) setTimeout( tick, 100 );
+				return;
+			}
+			try {
+				navigation.goTo( place );
+			} catch {} // A place that's gone, like a disabled Asset Manager.
 		};
 		if ( place && place !== 'builder' ) tick();
 	} catch {}
 
-	Object.assign( toolkit, { api, el, confirmDialog, reload, classesIn, isClassSelector, DELETE_ICON } );
+	Object.assign( toolkit, { api, save, el, confirmDialog, reload, classesIn, isClassSelector, DELETE_ICON } );
 	window.etchToolkit = toolkit;
 } )();

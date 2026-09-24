@@ -35,7 +35,7 @@ function etch_toolkit_rest_try( callable $callback ) {
 
 /**
  * Register the core script and styles every feature builds on:
- * `window.etchToolkit` (REST URL, nonce, api(), el(), confirmDialog()).
+ * `window.etchToolkit` (REST URLs, nonce, api(), save(), el(), confirmDialog()).
  */
 function etch_toolkit_register_core(): void {
 	if ( wp_script_is( 'etch-toolkit', 'registered' ) ) {
@@ -51,8 +51,10 @@ function etch_toolkit_register_core(): void {
 		'etch-toolkit',
 		'window.etchToolkit = ' . wp_json_encode(
 			array(
-				'restUrl' => esc_url_raw( rest_url( ETCH_TOOLKIT_REST_NAMESPACE . '/' ) ),
-				'nonce'   => wp_create_nonce( 'wp_rest' ),
+				'restRoot' => esc_url_raw( rest_url() ),
+				'restUrl'  => esc_url_raw( rest_url( ETCH_TOOLKIT_REST_NAMESPACE . '/' ) ),
+				'ajaxUrl'  => esc_url_raw( admin_url( 'admin-ajax.php' ) ),
+				'nonce'    => wp_create_nonce( 'wp_rest' ),
 			)
 		) . ';',
 		'before'
