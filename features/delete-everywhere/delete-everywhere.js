@@ -19,9 +19,24 @@
 	let target = null; // { selector, at } for the class badge last right-clicked
 	let running = false;
 
+	// The selected block's style IDs.
+	const selectedStyles = () => {
+		try {
+			const id = window.etch.blocks.getSelectedId();
+			const styles = id ? window.etch.blocks.getJson( id ).styles : null;
+			return Array.isArray( styles ) ? styles : [];
+		} catch {
+			return [];
+		}
+	};
+
+	// Styles in different collections can share a selector. Then the one on the
+	// selected block is the badge's, or failing that, the first.
 	const findClassStyle = ( selector ) => {
 		try {
-			return window.etch.styles.list( { type: 'class' } ).find( ( s ) => s.selector === selector );
+			const styles = window.etch.styles.list( { type: 'class' } ).filter( ( s ) => s.selector === selector );
+			const own = styles.length > 1 ? selectedStyles() : [];
+			return styles.find( ( s ) => own.includes( s.id ) ) ?? styles[ 0 ];
 		} catch {
 			return undefined;
 		}
@@ -35,7 +50,9 @@
 		if ( usage.elements ) {
 			const count = `${ usage.elements } ${ usage.elements === 1 ? 'element' : 'elements' }`;
 			nodes.push(
-				el( 'p', {}, [ "You're about to remove ", code( usage.selector ), ` from ${ count } and delete the style.` ] ),
+				usage.shared
+					? el( 'p', {}, [ "You're about to delete this ", code( usage.selector ), ` style, used by ${ count }.` ] )
+					: el( 'p', {}, [ "You're about to remove ", code( usage.selector ), ` from ${ count } and delete the style.` ] ),
 				el(
 					'ul',
 					{ className: 'etk-confirm__list' },
@@ -49,6 +66,30 @@
 			);
 		} else {
 			nodes.push( el( 'p', {}, [ "You're about to delete ", code( usage.selector ), ". It isn't used on any saved content." ] ) );
+		}
+
+		if ( usage.shared ) {
+			nodes.push( el( 'p', {}, [ "There's another ", code( usage.selector ), ' style, so elements keep the class and use that one.' ] ) );
+		} else if ( usage.dynamic ) {
+			const one = usage.dynamic === 1;
+			nodes.push(
+				el( 'p', {}, [
+					`${ usage.dynamic } ${ one ? 'element has a dynamic class' : 'elements have dynamic classes' } that could still become `,
+					code( usage.selector ),
+					one ? ". It's left as it is." : ". They're left as they are.",
+				] )
+			);
+		}
+
+		if ( usage.defaults ) {
+			const components = `${ usage.defaults } ${ usage.defaults === 1 ? 'component' : 'components' }`;
+			nodes.push(
+				el( 'p', {
+					textContent: usage.shared
+						? `It's also the default class in ${ components }, which will use the other style instead.`
+						: `It's also the default class in ${ components }. That goes too.`,
+				} )
+			);
 		}
 
 		nodes.push(
@@ -89,8 +130,13 @@
 		}
 	};
 
-	const closeMenu = ( menu ) =>
-		menu.dispatchEvent( new KeyboardEvent( 'keydown', { key: 'Escape', bubbles: true, cancelable: true } ) );
+	// Esc closes Etch's menu. The keyup follows, or Etch, which tracks held keys, takes
+	// Esc as still held and reads the next key pressed as Esc too, deselecting the block.
+	const closeMenu = ( menu ) => {
+		for ( const type of [ 'keydown', 'keyup' ] ) {
+			menu.dispatchEvent( new KeyboardEvent( type, { key: 'Escape', bubbles: true, cancelable: true } ) );
+		}
+	};
 
 	const addItem = ( menu ) => {
 		if ( menu.querySelector( `.${ OUR_ITEM }` ) ) return;
