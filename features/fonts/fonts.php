@@ -162,7 +162,7 @@ add_action(
 			'/fonts/files/delete'   => array(
 				'POST',
 				function ( WP_REST_Request $r ) {
-					$result = etch_toolkit_fonts_delete_file( (string) $r['name'] );
+					$result = etch_toolkit_fonts_delete_files( array_map( 'strval', (array) $r['names'] ) );
 					return is_wp_error( $result ) ? $result : etch_toolkit_fonts_state();
 				},
 			),
@@ -896,24 +896,37 @@ function etch_toolkit_fonts_add_file( string $family_name, string $file ): void 
 }
 
 /**
+ * Delete files from the fonts folder. Each is checked first, so if one can't
+ * go, none do.
+ *
+ * @param string[] $names File names.
  * @return true|WP_Error
  */
-function etch_toolkit_fonts_delete_file( string $name ) {
-	$path = etch_toolkit_fonts_path( $name );
-	if ( '' === $path || ! file_exists( $path ) ) {
-		return new WP_Error( 'etch_toolkit_font_missing', 'File not found.', array( 'status' => 404 ) );
-	}
-	if ( isset( etch_toolkit_fonts_core_files()[ $name ] ) ) {
-		return new WP_Error( 'etch_toolkit_font_in_use', sprintf( "%s belongs to WordPress's Font Library. Remove it there.", $name ), array( 'status' => 409 ) );
-	}
+function etch_toolkit_fonts_delete_files( array $names ) {
+	$used = array();
 	foreach ( etch_toolkit_fonts_families() as $family ) {
 		foreach ( $family['variants'] as $variant ) {
-			if ( $variant['file'] === $name ) {
-				return new WP_Error( 'etch_toolkit_font_in_use', sprintf( '%s is used by %s. Remove it from the family first.', $name, $family['name'] ), array( 'status' => 409 ) );
-			}
+			$used[ $variant['file'] ] = $family['name'];
 		}
 	}
-	wp_delete_file( $path );
+
+	$core  = etch_toolkit_fonts_core_files();
+	$paths = array();
+	foreach ( array_unique( $names ) as $name ) {
+		$path = etch_toolkit_fonts_path( $name );
+		if ( '' === $path || ! file_exists( $path ) ) {
+			return new WP_Error( 'etch_toolkit_font_missing', sprintf( "%s wasn't found.", $name ), array( 'status' => 404 ) );
+		}
+		if ( isset( $core[ $name ] ) ) {
+			return new WP_Error( 'etch_toolkit_font_in_use', sprintf( "%s belongs to WordPress's Font Library. Remove it there.", $name ), array( 'status' => 409 ) );
+		}
+		if ( isset( $used[ $name ] ) ) {
+			return new WP_Error( 'etch_toolkit_font_in_use', sprintf( '%s is used by %s. Remove it from the family first.', $name, $used[ $name ] ), array( 'status' => 409 ) );
+		}
+		$paths[] = $path;
+	}
+
+	array_walk( $paths, 'wp_delete_file' );
 	return true;
 }
 

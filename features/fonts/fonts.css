@@ -176,11 +176,17 @@
 
 /* The view: status, then the scrolling content. */
 .etk-fonts__body {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	min-block-size: 0;
 	min-inline-size: 0;
 	background: var(--etk-fonts-view);
+
+	/* Room to scroll the last rows out from under the bulk bar. */
+	&:has(> .etk-bulk-bar:not([hidden])) .etk-fonts__main {
+		padding-block-end: 96px;
+	}
 }
 
 .etk-fonts__content {
@@ -508,6 +514,28 @@
 	line-height: 14px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+
+	/* A Google card's variable, then whether it's variable or static. */
+	&:has(> .etk-fonts__tile-kind) {
+		display: flex;
+		gap: 6px;
+	}
+}
+
+.etk-fonts__tile-var {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.etk-fonts__tile-kind {
+	flex: none;
+	color: var(--etk-fonts-text-45);
+	font-family: var(--e-font-interface);
+
+	&::before {
+		content: "·" / "";
+		margin-inline-end: 6px;
+	}
 }
 
 .etk-fonts__tile-actions {
@@ -1057,7 +1085,7 @@
 
 /*
  * Checkboxes. Also in the shared confirm dialog, outside the panel, so these
- * use Etch's tokens directly.
+ * use Etch's tokens directly. .etk-fonts__pick is a bare one, as in the Files table.
  */
 .etk-fonts__check {
 	display: flex;
@@ -1065,53 +1093,54 @@
 	gap: var(--e-space-s, 8px);
 	cursor: pointer;
 
-	input[type="checkbox"] {
-		display: grid;
-		flex: none;
-		place-items: center;
-		inline-size: 14px;
-		block-size: 14px;
-		margin: 1px 0 0;
-		border: 1px solid var(--e-base-ultra-light, #4a4a4f);
-		border-radius: 3px;
-		background: none;
-		cursor: pointer;
-		appearance: none;
-
-		&::before {
-			content: "";
-			inline-size: 10px;
-			block-size: 10px;
-			background: var(--e-base-dark, #1d1d20);
-			mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 13l4 4 10-10'/%3E%3C/svg%3E") center / contain no-repeat;
-			scale: 0;
-		}
-
-		&:is(:checked, :indeterminate) {
-			border-color: transparent;
-			background: var(--e-primary, #57e9db);
-
-			&::before {
-				scale: 1;
-			}
-		}
-
-		&:indeterminate::before {
-			block-size: 2px;
-			inline-size: 8px;
-			border-radius: 1px;
-			mask: none;
-		}
-
-		&:focus-visible {
-			outline: none;
-			box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
-		}
-	}
-
 	> span {
 		display: flex;
 		flex-direction: column;
+	}
+}
+
+.etk-fonts__check input[type="checkbox"],
+.etk-fonts__pick {
+	display: grid;
+	flex: none;
+	place-items: center;
+	inline-size: 14px;
+	block-size: 14px;
+	margin: 1px 0 0;
+	border: 1px solid var(--e-base-ultra-light, #4a4a4f);
+	border-radius: 3px;
+	background: none;
+	cursor: pointer;
+	appearance: none;
+
+	&::before {
+		content: "";
+		inline-size: 10px;
+		block-size: 10px;
+		background: var(--e-base-dark, #1d1d20);
+		mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 13l4 4 10-10'/%3E%3C/svg%3E") center / contain no-repeat;
+		scale: 0;
+	}
+
+	&:is(:checked, :indeterminate) {
+		border-color: transparent;
+		background: var(--e-primary, #57e9db);
+
+		&::before {
+			scale: 1;
+		}
+	}
+
+	&:indeterminate::before {
+		block-size: 2px;
+		inline-size: 8px;
+		border-radius: 1px;
+		mask: none;
+	}
+
+	&:focus-visible {
+		outline: none;
+		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
 	}
 }
 
@@ -1659,15 +1688,22 @@
 	white-space: nowrap;
 }
 
+/* The file's name, then its subset and size. */
 .etk-fonts__file-meta {
-	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
 	color: var(--etk-fonts-text-50);
 	font-family: var(--e-font-code);
 	font-size: 10px;
 	font-weight: 400;
 	line-height: 12px;
-	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.etk-fonts__file-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .etk-fonts .etk-fonts__file-row .etk-fonts__btn--icon.etch-builder-button:not(:is(:hover, :focus-visible, [selected="true"])) {
@@ -1972,12 +2008,27 @@
 	thead td {
 		block-size: 32px;
 		border: 0;
-		border-start-start-radius: var(--etk-fonts-radius);
 		background: var(--etk-fonts-surface);
 	}
 
-	th:last-child {
-		border-start-start-radius: 0;
+	thead td:first-child {
+		border-start-start-radius: var(--etk-fonts-radius);
+	}
+
+	/* The checkbox, then the status icon, sharing the gap between them. */
+	.etk-fonts__files-pick {
+		inline-size: 14px;
+		padding-inline-end: 0;
+		line-height: 0;
+	}
+
+	.etk-fonts__pick {
+		margin: 0;
+
+		&:disabled {
+			opacity: 0.4;
+			cursor: default;
+		}
 	}
 
 	.etk-fonts__files-icon {
@@ -1985,16 +2036,20 @@
 		text-align: center;
 	}
 
-	th:nth-child(3) {
+	th:nth-child(4) {
 		inline-size: 210px;
 	}
 
-	th:nth-child(4) {
+	th:nth-child(5) {
 		inline-size: 64px;
 	}
 
-	th:nth-child(5) {
+	th:nth-child(6) {
 		inline-size: 140px;
+	}
+
+	tr.is-picked td {
+		background: var(--etk-fonts-selected);
 	}
 
 	td:last-child,

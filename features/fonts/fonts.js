@@ -912,6 +912,7 @@
 		return h(
 			'tr',
 			{},
+			h( 'td', { class: 'etk-fonts__files-pick' } ),
 			iconCell( entry.error ? 'alert' : entry.done ? 'check' : busy ? 'spinner' : null ),
 			h( 'td', {}, h( 'span', { class: 'etk-fonts__files-name', textContent: entry.name } ) ),
 			h(
@@ -936,43 +937,171 @@
 		);
 	};
 
-	const newFamily = ( file ) => {
-		const name = window.prompt( 'Family name', file.name.replace( /[-_].*$|\.[^.]+$/g, '' ) );
-		if ( name?.trim() ) adopt( file, name.trim() );
+	/*
+	 * Files picked for the bulk bar, by name. Files in WordPress's Font Library
+	 * can't be changed here, so they can't be picked.
+	 */
+	const picked = new Set();
+	let pickAnchor = null;
+	let bulkBar = null;
+
+	const editable = ( file ) => ! file.family || state.families.some( ( f ) => f.name === file.family );
+	const shownFiles = () => state.files.filter( ( f ) => fileFilter === 'all' || ( fileFilter === 'unused' ? ! f.family : !! f.family ) );
+	const pickable = () => shownFiles().filter( editable );
+	const pickedFiles = () => state.files.filter( ( f ) => picked.has( f.name ) );
+
+	const pickBox = ( file ) =>
+		h( 'input', {
+			type: 'checkbox',
+			class: 'etk-fonts__pick',
+			'data-file': file.name,
+			checked: picked.has( file.name ),
+			'aria-label': `Select ${ file.name }`,
+			// Shift-click sets everything from the last one clicked to this one.
+			onclick: ( e ) => {
+				const on = e.target.checked;
+				const names = pickable().map( ( f ) => f.name );
+				const from = names.indexOf( pickAnchor );
+				const to = names.indexOf( file.name );
+				const range = e.shiftKey && from >= 0 ? names.slice( Math.min( from, to ), Math.max( from, to ) + 1 ) : [ file.name ];
+				range.forEach( ( name ) => ( on ? picked.add( name ) : picked.delete( name ) ) );
+				pickAnchor = file.name;
+				syncPicks();
+			},
+		} );
+
+	// Checkboxes, rows and the bulk bar, after the selection or the list changes.
+	const syncPicks = () => {
+		const shown = view === 'library' && libTab === 'files' && state ? pickable().map( ( f ) => f.name ) : [];
+		// Only files in view stay picked.
+		[ ...picked ].forEach( ( name ) => shown.includes( name ) || picked.delete( name ) );
+		main?.querySelectorAll( '.etk-fonts__pick[data-file]' ).forEach( ( box ) => {
+			box.checked = picked.has( box.dataset.file );
+			box.closest( 'tr' ).classList.toggle( 'is-picked', box.checked );
+		} );
+		const all = main?.querySelector( '.etk-fonts__pick-all' );
+		if ( all ) {
+			all.checked = shown.length > 0 && picked.size === shown.length;
+			all.indeterminate = picked.size > 0 && picked.size < shown.length;
+			all.disabled = ! shown.length;
+		}
+		renderBulkBar( shown );
 	};
 
-	const fileMenu = ( file ) =>
-		menu(
-			iconButton( `Actions for ${ file.name }`, 'more', null ),
-			() => [
-				...state.families.map( ( family ) => ( { label: `Add to ${ family.name }`, icon: 'plus', onselect: () => adopt( file, family.name ) } ) ),
-				{ label: 'New family…', icon: 'plus', onselect: () => newFamily( file ) },
-				'-',
-				{ label: 'Delete file', icon: 'delete', danger: true, onselect: () => deleteFile( file ) },
-			]
+	const clearPicks = () => {
+		picked.clear();
+		syncPicks();
+	};
+
+	const renderBulkBar = ( shown ) => {
+		if ( ! bulkBar ) return;
+		const show = picked.size > 0;
+		// Don't strand focus on a bar that's going away.
+		if ( ! show && bulkBar.contains( document.activeElement ) ) ( main.querySelector( '.etk-fonts__pick-all:not(:disabled)' ) || panel.querySelector( '.etk-fonts__page-title' ) )?.focus();
+		bulkBar.hidden = ! show;
+		bulkBar.previousElementSibling.hidden = ! show;
+		if ( ! show ) return;
+		bulkBar.querySelector( '.etk-bulk-bar__count-badge' ).textContent = String( picked.size );
+		bulkBar.querySelector( '.etk-bulk-bar__select-all' ).hidden = picked.size >= shown.length;
+		bulkBar.querySelector( '.etk-fonts__bulk-remove' ).disabled = ! pickedFiles().some( ( f ) => f.family );
+	};
+
+	// Etch's button markup, as the Style Manager's bulk bar has it.
+	const barButton = ( label, iconName, onclick, { variant = 'transparent', className = '', size = 'm', iconSize = 14 } = {} ) =>
+		h(
+			'button',
+			{ type: 'button', class: `etch-builder-button etch-builder-button--icon-placement-before etch-builder-button--variant-${ variant } ${ className }`, style: `--button-font-size: var(--e-font-size-${ size })`, onclick },
+			h( 'div', { class: 'etk-bulk-bar__icon', html: iconName === 'delete' ? DELETE_ICON : icon( iconName, iconSize ) } ),
+			label ? [ ' ', label ] : null
 		);
+
+	// The Style Manager's bulk bar, for the Files tab. Built once, then shown and hidden.
+	const buildBulkBar = () => {
+		const clearButton = barButton( null, 'close', clearPicks, { variant: 'icon', className: 'etk-bulk-bar__clear', size: 's', iconSize: 12 } );
+		clearButton.setAttribute( 'aria-label', 'Clear selection' );
+		clearButton.title = 'Clear selection';
+		const selectAll = h( 'button', {
+			type: 'button',
+			class: 'etk-bulk-bar__select-all',
+			textContent: 'Select All',
+			onclick: () => {
+				pickable().forEach( ( f ) => picked.add( f.name ) );
+				// It hides once everything is picked. Keep focus in the bar.
+				if ( document.activeElement === selectAll ) bulkBar.querySelector( '.etk-bulk-bar__actions button:not(:disabled)' )?.focus();
+				syncPicks();
+			},
+		} );
+		const add = menu(
+			barButton( 'Add to family', 'plus', null ),
+			() => [
+				...state.families.map( ( family ) => ( { label: family.name, onselect: () => moveFiles( pickedFiles(), family.name ) } ) ),
+				state.families.length ? '-' : null,
+				{ label: 'New family…', icon: 'plus', onselect: () => newFamily( pickedFiles() ) },
+			],
+			{ label: 'Add to family', align: 'start' }
+		);
+		bulkBar = h(
+			'div',
+			{ class: 'etk-bulk-bar etk-fonts__bulk', hidden: true, role: 'group', 'aria-label': 'Bulk file actions' },
+			h(
+				'div',
+				{ class: 'etk-bulk-bar__left' },
+				clearButton,
+				h( 'div', { class: 'etk-bulk-bar__count', role: 'status' }, h( 'span', { class: 'etk-bulk-bar__count-badge' } ), ' ', h( 'span', { class: 'etk-bulk-bar__count-label', textContent: 'Selected' } ) ),
+				selectAll
+			),
+			h( 'div', { class: 'etk-bulk-bar__divider' } ),
+			h(
+				'div',
+				{ class: 'etk-bulk-bar__actions' },
+				add,
+				barButton( 'Remove from family', 'close', () => moveFiles( pickedFiles().filter( ( f ) => f.family ), null ), { className: 'etk-fonts__bulk-remove' } ),
+				barButton( h( 'span', { textContent: 'Delete' } ), 'delete', () => deleteFiles( pickedFiles() ), { className: 'etk-bulk-bar__delete' } )
+			)
+		);
+		return [ h( 'div', { class: 'etk-bulk-bar-scrim', hidden: true } ), bulkBar ];
+	};
+
+	const newFamily = ( files ) => {
+		const name = window.prompt( 'Family name', files[ 0 ].name.replace( /[-_].*$|\.[^.]+$/g, '' ) );
+		if ( name?.trim() ) moveFiles( files, name.trim() );
+	};
+
+	const fileMenu = ( file ) => {
+		const index = state.families.findIndex( ( f ) => f.name === file.family );
+		return menu( iconButton( `Actions for ${ file.name }`, 'more', null ), () => [
+			index >= 0 ? { label: `Edit ${ file.family }`, onselect: () => edit( index ) } : null,
+			index >= 0 ? '-' : null,
+			...state.families.filter( ( f ) => f.name !== file.family ).map( ( family ) => ( { label: `${ file.family ? 'Move' : 'Add' } to ${ family.name }`, icon: 'plus', onselect: () => moveFiles( [ file ], family.name ) } ) ),
+			{ label: 'New family…', icon: 'plus', onselect: () => newFamily( [ file ] ) },
+			file.family ? { label: `Remove from ${ file.family }`, icon: 'close', onselect: () => moveFiles( [ file ], null ) } : null,
+			'-',
+			{ label: 'Delete file', icon: 'delete', danger: true, onselect: () => deleteFiles( [ file ] ) },
+		] );
+	};
 
 	const fileRow = ( file ) => {
 		const done = uploadLog.find( ( e ) => e.done && e.file === file.name );
 		const unused = ! file.family;
+		const own = editable( file );
 		return h(
 			'tr',
-			{ class: unused ? 'is-unused' : null },
+			{ class: [ unused ? 'is-unused' : '', picked.has( file.name ) ? 'is-picked' : '' ].join( ' ' ).trim() || null },
+			h( 'td', { class: 'etk-fonts__files-pick' }, own ? pickBox( file ) : null ),
 			iconCell( done ? 'check' : null ),
 			h( 'td', {}, h( 'span', { class: 'etk-fonts__files-name', textContent: file.name } ) ),
 			h( 'td', {}, done ? h( 'span', { class: 'etk-fonts__muted', textContent: done.text } ) : unused ? badge( 'Unused', 'warning' ) : h( 'span', { class: 'etk-fonts__files-quiet', textContent: 'In use' } ) ),
 			h( 'td', { class: 'etk-fonts__num etk-fonts__muted', textContent: size( file.size ) } ),
 			h( 'td', { class: unused ? 'etk-fonts__files-none' : null, textContent: file.family || 'No family' } ),
-			h( 'td', {}, unused ? fileMenu( file ) : null )
+			h( 'td', {}, own ? fileMenu( file ) : null )
 		);
 	};
 
 	const FILES_EMPTY = { all: 'The fonts folder is empty.', family: 'No files are in a family yet.', unused: 'Every file is in a family.' };
 	const fileRows = () => {
 		const pending = fileFilter === 'all' ? uploadLog.filter( ( e ) => ! e.done || ! state.files.some( ( f ) => f.name === e.file ) ) : [];
-		const files = state.files.filter( ( f ) => fileFilter === 'all' || ( fileFilter === 'unused' ? ! f.family : !! f.family ) );
-		const rows = [ ...pending.map( logRow ), ...files.map( fileRow ) ];
-		return rows.length ? rows : [ h( 'tr', {}, h( 'td', { colspan: '6', class: 'etk-fonts__files-empty etk-fonts__muted', textContent: FILES_EMPTY[ fileFilter ] } ) ) ];
+		const rows = [ ...pending.map( logRow ), ...shownFiles().map( fileRow ) ];
+		return rows.length ? rows : [ h( 'tr', {}, h( 'td', { colspan: '7', class: 'etk-fonts__files-empty etk-fonts__muted', textContent: FILES_EMPTY[ fileFilter ] } ) ) ];
 	};
 
 	const renderFiles = () => {
@@ -1028,7 +1157,30 @@
 					h(
 						'table',
 						{ class: 'etk-fonts__table etk-fonts__files-table', 'aria-label': 'Font files' },
-						h( 'thead', {}, h( 'tr', {}, h( 'td', { class: 'etk-fonts__files-icon', 'aria-hidden': 'true' } ), th( 'File' ), th( 'Status' ), th( 'Size', 'etk-fonts__num' ), th( 'Family' ), h( 'th', { scope: 'col' }, h( 'span', { class: 'screen-reader-text', textContent: 'Actions' } ) ) ) ),
+						h(
+							'thead',
+							{},
+							h(
+								'tr',
+								{},
+								h(
+									'td',
+									{ class: 'etk-fonts__files-pick' },
+									h( 'input', {
+										type: 'checkbox',
+										class: 'etk-fonts__pick etk-fonts__pick-all',
+										'aria-label': 'Select all files',
+										onclick: ( e ) => {
+											const on = e.target.checked;
+											pickable().forEach( ( f ) => ( on ? picked.add( f.name ) : picked.delete( f.name ) ) );
+											syncPicks();
+										},
+									} )
+								),
+								h( 'td', { class: 'etk-fonts__files-icon', 'aria-hidden': 'true' } ), th( 'File' ), th( 'Status' ), th( 'Size', 'etk-fonts__num' ), th( 'Family' ),
+								h( 'th', { scope: 'col' }, h( 'span', { class: 'screen-reader-text', textContent: 'Actions' } ) )
+							)
+						),
 						h( 'tbody', { class: 'etk-fonts__files-body' }, fileRows() )
 					)
 				)
@@ -1107,9 +1259,8 @@
 		try {
 			await saveFamilies( state.families.filter( ( f ) => f !== family ) );
 			if ( alsoFiles ) {
-				for ( const variant of family.variants ) {
-					if ( state.files.some( ( f ) => f.name === variant.file && ! f.family ) ) await api( 'fonts/files/delete', 'POST', { name: variant.file } ).then( ( next ) => ( state = next ) );
-				}
+				const names = family.variants.map( ( v ) => v.file ).filter( ( name ) => state.files.some( ( f ) => f.name === name && ! f.family ) );
+				if ( names.length ) state = await api( 'fonts/files/delete', 'POST', { names } );
 			}
 			dialog.close();
 			draft = null;
@@ -1322,7 +1473,7 @@
 		const fileRow = ( variant, i ) => {
 			const file = state.files.find( ( f ) => f.name === variant.file );
 			const title = `${ weightLabel( variant.weight ) }${ variant.style === 'italic' ? ' Italic' : '' }`;
-			const meta = [ variant.subset || null, file ? size( file.size ) : null ].filter( Boolean ).join( ' · ' ) || variant.file;
+			const extra = [ variant.subset || null, file ? size( file.size ) : null ].filter( Boolean ).join( ' · ' );
 			const open = editingFile === variant.file;
 			const weights = variant.weight.includes( ' ' ) ? [ variant.weight, ...WEIGHTS ] : WEIGHTS;
 			return h(
@@ -1332,7 +1483,12 @@
 					'div',
 					{ class: 'etk-fonts__file-main' },
 					h( 'span', { class: 'etk-fonts__file-glyph', 'aria-hidden': 'true', style: `font-family: ${ face }; font-weight: ${ variantWeight( variant.weight ) }; font-style: ${ variant.style }`, textContent: 'Ag' } ),
-					h( 'div', { class: 'etk-fonts__file-text' }, h( 'span', { class: 'etk-fonts__file-title', textContent: title } ), h( 'span', { class: 'etk-fonts__file-meta', textContent: meta } ) ),
+					h(
+						'div',
+						{ class: 'etk-fonts__file-text' },
+						h( 'span', { class: 'etk-fonts__file-title', textContent: title } ),
+						h( 'span', { class: 'etk-fonts__file-meta' }, h( 'span', { class: 'etk-fonts__file-name', textContent: variant.file } ), extra ? h( 'span', { textContent: extra } ) : null )
+					),
 					menu( iconButton( `Actions for ${ variant.file }`, 'more', null ), [
 						{
 							label: open ? 'Done editing' : 'Change weight and style',
@@ -1467,29 +1623,67 @@
 	// Uploads show as rows in the Files tab's table, updated in place.
 	const renderLog = () => {
 		const body = panel?.querySelector( '.etk-fonts__files-body' );
-		if ( body ) keepFocus( () => body.replaceChildren( ...fileRows() ) );
+		if ( ! body ) return;
+		keepFocus( () => body.replaceChildren( ...fileRows() ) );
+		syncPicks();
 	};
 
-	const adopt = async ( file, familyName ) => {
+	/**
+	 * Take files out of whatever family has them, then put them in the named
+	 * family, made if it's new. With no name they're only taken out. A file
+	 * moving between families keeps its weight, style and subset.
+	 */
+	const moveFiles = async ( files, target ) => {
+		if ( ! files.length ) return;
+		const names = new Set( files.map( ( f ) => f.name ) );
+		const kept = new Map();
 		const families = clone( state.families );
-		let family = families.find( ( f ) => f.name === familyName );
-		if ( ! family ) {
-			family = { name: familyName, source: 'upload', variants: [], fallback: '', display: 'swap', preload: false, enabled: true, roles: [] };
+		for ( const family of families ) {
+			family.variants = family.variants.filter( ( v ) => ! ( names.has( v.file ) && kept.set( v.file, v ) ) );
+		}
+		let family = target && families.find( ( f ) => f.name.toLowerCase() === target.toLowerCase() );
+		if ( target && ! family ) {
+			family = { name: target, source: 'upload', variants: [], fallback: '', display: 'swap', preload: false, enabled: true, roles: [] };
 			families.push( family );
 		}
-		family.variants.push( { file: file.name, weight: file.weight, style: file.style } );
-		await saveFamilies( families, `Added ${ file.name } to ${ familyName }.` ).catch( ( error ) => warn( errorText( error ) ) );
+		family?.variants.push( ...files.map( ( f ) => kept.get( f.name ) || { file: f.name, weight: f.weight, style: f.style } ) );
+
+		const what = files.length === 1 ? files[ 0 ].name : plural( files.length, 'file', 'files' );
+		const message = family ? `${ kept.size ? 'Moved' : 'Added' } ${ what } to ${ family.name }.` : `Removed ${ what } from ${ files.length === 1 ? files[ 0 ].family : 'their families' }.`;
+		try {
+			await saveFamilies( families, message );
+			files.forEach( ( f ) => picked.delete( f.name ) );
+			syncPicks();
+		} catch ( error ) {
+			warn( errorText( error ) );
+		}
 	};
 
-	const deleteFile = async ( file ) => {
-		const dialog = confirmDialog( { title: `Delete ${ file.name }?`, message: [ h( 'p', { textContent: 'The file is removed from the fonts folder. This can’t be undone.' } ) ], confirmLabel: 'Delete' } );
+	// Delete files from the fonts folder, taking them out of their families first.
+	const deleteFiles = async ( files ) => {
+		if ( ! files.length ) return;
+		const one = files.length === 1;
+		const inUse = files.filter( ( f ) => f.family );
+		const dialog = confirmDialog( {
+			title: one ? `Delete ${ files[ 0 ].name }?` : `Delete ${ files.length } files?`,
+			message: [
+				h( 'p', { textContent: `${ one ? 'The file is' : 'They’re' } removed from the fonts folder. This can’t be undone.` } ),
+				inUse.length ? h( 'p', { textContent: one ? `It’s taken out of ${ inUse[ 0 ].family } too.` : 'Files in a family are taken out of it too.' } ) : null,
+			].filter( Boolean ),
+			confirmLabel: 'Delete',
+		} );
 		if ( ! ( await dialog.result ) ) return;
+
+		const names = new Set( files.map( ( f ) => f.name ) );
+		let next = null;
 		try {
-			const next = await api( 'fonts/files/delete', 'POST', { name: file.name } );
+			if ( inUse.length ) next = await api( 'fonts/families', 'POST', { families: state.families.map( ( f ) => ( { ...f, variants: f.variants.filter( ( v ) => ! names.has( v.file ) ) } ) ) } );
+			next = await api( 'fonts/files/delete', 'POST', { names: [ ...names ] } );
 			// Closed before the list re-renders, so focus is back in the list to be kept.
 			dialog.close();
-			await apply( next, `Deleted ${ file.name }.` );
+			await apply( next, one ? `Deleted ${ files[ 0 ].name }.` : `Deleted ${ plural( files.length, 'file', 'files' ) }.` );
 		} catch ( error ) {
+			if ( next ) await apply( next );
 			dialog.fail( errorText( error ) );
 		}
 	};
@@ -1708,7 +1902,12 @@
 					h(
 						'div',
 						{ class: 'etk-fonts__tile-meta' },
-						h( 'div', { class: 'etk-fonts__tile-title' }, h( 'h3', { class: 'etk-fonts__tile-name', textContent: font.family } ), h( 'span', { class: 'etk-fonts__tile-sub', textContent: googleVar( font.family ) } ) ),
+						h(
+							'div',
+							{ class: 'etk-fonts__tile-title' },
+							h( 'h3', { class: 'etk-fonts__tile-name', textContent: font.family } ),
+							h( 'span', { class: 'etk-fonts__tile-sub' }, h( 'span', { class: 'etk-fonts__tile-var', textContent: googleVar( font.family ) } ), h( 'span', { class: 'etk-fonts__tile-kind', textContent: font.wght?.min ? 'Variable' : 'Static only' } ) )
+						),
 						h( 'div', { class: 'etk-fonts__tile-actions' }, iconButton( `View ${ font.family }`, 'chevron-right', open, { title: 'View', attrs: { class: 'etk-fonts__card-view', 'data-family': font.family } } ), addButton( font ) )
 					)
 				);
@@ -2381,6 +2580,7 @@
 		};
 		inPlace ? keepFocus( update ) : update();
 		renderSavebar();
+		syncPicks();
 	};
 
 	const build = () => {
@@ -2399,7 +2599,7 @@
 					if ( e.key === 'Escape' && ! e.target.closest( 'dialog' ) ) {
 						// Or the Escape would also cancel the unsaved-changes dialog close() may open.
 						e.preventDefault();
-						close();
+						picked.size ? clearPicks() : close();
 					}
 					// Except Cmd/Ctrl+S, which saves instead of opening the browser's Save Page. Etch only
 					// matches a shortcut when it saw the Cmd or Ctrl press too, so this calls its save directly.
@@ -2421,7 +2621,7 @@
 					NAV.map( ( key ) => h( 'button', { type: 'button', class: 'etk-fonts__nav-item', 'data-view': key, textContent: VIEWS[ key ], onclick: () => ( view === 'family' ? leaveFamily( key ) : go( key ) ) } ) )
 				)
 			),
-			h( 'div', { class: 'etk-fonts__body' }, status, h( 'div', { class: 'etk-fonts__content' }, main ) )
+			h( 'div', { class: 'etk-fonts__body' }, status, h( 'div', { class: 'etk-fonts__content' }, main ), buildBulkBar() )
 		);
 		document.body.append( panel );
 	};
