@@ -1636,36 +1636,18 @@
 			)
 		);
 
-		// Automatic.css roles: a switch each, and under it the family that has the role now, unless it's this one.
-		const roleStrip = ( role ) => {
+		// A switch per role. Under it, the family that has the role now, unless it's this one.
+		const roleOwner = ( role ) => {
 			const other = takenBy( role );
-			if ( ! other && saved?.roles.includes( role ) ) return null;
-			return h(
-				'div',
-				{ class: `etk-fonts__role-owner${ other ? '' : ' is-unset' }` },
-				other ? null : h( 'span', { class: 'etk-fonts__role-glyph', 'aria-hidden': 'true', textContent: 'Ag' } ),
-				h( 'span', { class: 'etk-fonts__role-name', style: other ? `font-family: "${ other.name }", ${ other.fallback || 'sans-serif' }` : null, textContent: other ? other.name : 'Nothing set' } ),
-				h( 'span', { class: 'etk-fonts__role-current', textContent: 'Current' } )
-			);
+			if ( other ) return `Currently using: ${ other.name }`;
+			return saved?.roles.includes( role ) ? null : 'Currently using: nothing';
 		};
 		const rolesSection = section(
 			{ title: state.acss ? 'Automatic.css' : 'Typography tokens', variant: 'panel' },
 			state.acss ? null : h( 'p', { class: 'etk-fonts__help', textContent: 'Adds --heading-font-family or --text-font-family and applies it to headings or the body.' } ),
-			...Object.entries( ROLES ).map( ( [ role, label ] ) => {
-				const strip = roleStrip( role );
-				const other = takenBy( role );
-				const help = other ? `${ other.name } has this now` : strip ? 'Nothing has this now' : null;
-				const row = toggle( `Use for ${ label.toLowerCase() }`, family.roles.includes( role ), ( value ) => update( { roles: value ? [ ...family.roles, role ] : family.roles.filter( ( r ) => r !== role ) } ) );
-				// The strip shows who has it. Screen readers hear it with the switch.
-				if ( strip ) {
-					const input = row.querySelector( 'input' );
-					const id = `${ input.id }-owner`;
-					row.append( h( 'span', { class: 'screen-reader-text', id, textContent: help } ) );
-					input.setAttribute( 'aria-describedby', id );
-					strip.setAttribute( 'aria-hidden', 'true' );
-				}
-				return h( 'div', { class: 'etk-fonts__role' }, row, strip );
-			} )
+			...Object.entries( ROLES ).map( ( [ role, label ] ) =>
+				toggle( `Use for ${ label.toLowerCase() }`, family.roles.includes( role ), ( value ) => update( { roles: value ? [ ...family.roles, role ] : family.roles.filter( ( r ) => r !== role ) } ), roleOwner( role ) )
+			)
 		);
 		rolesSection.classList.add( 'etk-fonts__section--roles' );
 

@@ -1569,67 +1569,6 @@
 	}
 }
 
-.etk-fonts__role {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-}
-
-/* Who has the role now, when it isn't this family. Dashed when nobody does. */
-.etk-fonts__role-owner {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	block-size: 30px;
-	padding-inline: 10px;
-	border: 1px solid transparent;
-	border-radius: var(--etk-fonts-radius);
-	background: var(--etk-fonts-field);
-
-	&.is-unset {
-		padding-inline-start: 4px;
-		border-style: dashed;
-		border-color: var(--etk-fonts-line-strong);
-		background: none;
-	}
-}
-
-.etk-fonts__role-glyph {
-	display: grid;
-	flex: none;
-	place-items: center;
-	inline-size: 24px;
-	block-size: 24px;
-	color: var(--etk-fonts-text-25);
-	font-size: 14px;
-	font-weight: 400;
-	line-height: 18px;
-}
-
-.etk-fonts__role-name {
-	flex: 1;
-	overflow: hidden;
-	color: var(--etk-fonts-text-70);
-	font-size: var(--e-font-size-l, 13px);
-	font-weight: 400;
-	line-height: 16px;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-
-	.is-unset & {
-		color: var(--etk-fonts-text-40);
-		font-size: var(--e-font-size-m, 12px);
-	}
-}
-
-.etk-fonts__role-current {
-	flex: none;
-	color: var(--etk-fonts-text-40);
-	font-size: 10px;
-	font-weight: 500;
-	line-height: 14px;
-}
-
 /* Files: one row each, then the Google styles link. */
 .etk-fonts__section--files {
 	flex: 1;
