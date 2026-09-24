@@ -940,8 +940,8 @@
 					h(
 						'div',
 						{ class: 'etk-fonts__actions' },
-						button( 'View', () => openGoogleFont( font ), { attrs: { class: 'etk-fonts__btn etk-fonts__btn--secondary etk-fonts__card-view', 'data-family': font.family, 'aria-label': `View ${ font.family }` } } ),
-						addButton( font )
+						addButton( font ),
+						button( 'View', () => openGoogleFont( font ), { attrs: { class: 'etk-fonts__btn etk-fonts__btn--ghost etk-fonts__card-view', 'data-family': font.family, 'aria-label': `View ${ font.family }` } } )
 					)
 				);
 			} )

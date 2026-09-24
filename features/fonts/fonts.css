@@ -238,6 +238,12 @@
 	text-decoration: none;
 	color: var(--etk-fonts-muted);
 	padding-inline: 6px;
+
+	/* Text buttons brighten on hover rather than filling. */
+	&:hover:not(:disabled) {
+		background: none;
+		color: var(--e-foreground-color);
+	}
 }
 
 .etk-fonts__btn--danger {
