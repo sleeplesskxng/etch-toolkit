@@ -23,7 +23,13 @@ WordPress skills from [WordPress/agent-skills](https://github.com/WordPress/agen
 Sites update through [plugin-update-checker](https://github.com/YahnisElsts/plugin-update-checker), bundled in `lib/`. It offers the latest non-prerelease GitHub release. It's skipped when the plugin folder has a `.git` directory, so this dev copy never updates itself.
 
 1. Bump `Version` in the plugin header and `ETCH_TOOLKIT_VERSION` together.
-2. Commit and push, then publish a release whose tag matches: `gh release create v<version> --generate-notes`. The release notes show in the update details.
+2. Commit and push, then publish a release whose tag matches, with an installable zip attached. The release notes show in the update details.
+
+   ```bash
+   git tag v<version> && git push origin v<version>
+   git archive --format=zip --prefix=etch-toolkit/ -o etch-toolkit.zip v<version>
+   gh release create v<version> etch-toolkit.zip --generate-notes && rm etch-toolkit.zip
+   ```
 
 `lib/plugin-update-checker` is vendored. Don't edit it. Upgrade by replacing the folder with a newer release. Same for `lib/woff2`, the WOFF2 converter the fonts feature runs in the browser.
 
