@@ -42,6 +42,9 @@ add_action(
  * Component instances reference styles in their class properties, by ID, and
  * a component's class properties can default to styles. Each counts as a use.
  *
+ * A dynamic class name counts as every class it could be: btn--{props.variant}
+ * as .btn--primary, and {item.on ? 'is-on' : ''} as .is-on.
+ *
  * @return array<string, int> Selector => number of blocks using it. Selectors
  *                            with nothing to count, like `.card > p`, are left
  *                            out unless a block references them by ID.
@@ -66,6 +69,7 @@ function etch_toolkit_style_usage_counts(): array {
 		}
 	}
 
+	$dynamic = array(); // Dynamic class name => the class names it could be, worked out once each.
 	foreach ( etch_toolkit_contents() as $content ) {
 		if ( ! preg_match( '/"(?:styles|attributes|className)"/', $content ) ) {
 			continue;
@@ -73,8 +77,8 @@ function etch_toolkit_style_usage_counts(): array {
 		$unused = 0;
 		etch_toolkit_edit_block_attrs(
 			$content,
-			function ( $attrs, $name ) use ( $selectors, $simple, $targets, &$counts ) {
-				etch_toolkit_count_block_styles( $attrs, $name, $selectors, $simple, $targets, $counts );
+			function ( $attrs, $name ) use ( $selectors, $simple, $targets, &$counts, &$dynamic ) {
+				etch_toolkit_count_block_styles( $attrs, $name, $selectors, $simple, $targets, $counts, $dynamic );
 				return false;
 			},
 			$unused
@@ -142,8 +146,9 @@ function etch_toolkit_style_usage_targets( string $selector ): array {
  * @param array<string, array>  $simple    "class:card" or "id:main" => selectors.
  * @param array<string, array>  $targets   Selector => class lists, from etch_toolkit_style_usage_targets().
  * @param array<string, int>    $counts    Running totals, by reference.
+ * @param array<string, array>  $dynamic   Dynamic class name => the class names it could be, filled in as they come up.
  */
-function etch_toolkit_count_block_styles( object $attrs, string $name, array $selectors, array $simple, array $targets, array &$counts ): void {
+function etch_toolkit_count_block_styles( object $attrs, string $name, array $selectors, array $simple, array $targets, array &$counts, array &$dynamic = array() ): void {
 	$used = array();
 
 	// Styles referenced by ID: the block's own, and a component instance's class properties.
@@ -162,6 +167,13 @@ function etch_toolkit_count_block_styles( object $attrs, string $name, array $se
 		$used += $simple[ 'id:' . trim( $id ) ] ?? array();
 	}
 	$classes = array_flip( etch_toolkit_block_classes( $attrs ) );
+	// A dynamic class name like btn--{props.variant} could be any class that fits.
+	foreach ( etch_toolkit_block_classes( $attrs, true ) as $token ) {
+		if ( ! isset( $dynamic[ $token ] ) ) {
+			$dynamic[ $token ] = etch_toolkit_dynamic_class_uses( $token, $simple, $targets );
+		}
+		$classes += $dynamic[ $token ];
+	}
 	foreach ( array_keys( $classes ) as $class ) {
 		$used += $simple[ 'class:' . $class ] ?? array();
 	}
@@ -180,6 +192,29 @@ function etch_toolkit_count_block_styles( object $attrs, string $name, array $se
 	foreach ( array_keys( $used ) as $selector ) {
 		$counts[ $selector ] = ( $counts[ $selector ] ?? 0 ) + 1;
 	}
+}
+
+/**
+ * The class names selectors count that a dynamic class name could be.
+ *
+ * @param string               $token   Dynamic class name, like btn--{props.variant}.
+ * @param array<string, array> $simple  "class:card" or "id:main" => selectors.
+ * @param array<string, array> $targets Selector => class lists, from etch_toolkit_style_usage_targets().
+ * @return array<string, true> Class name => true.
+ */
+function etch_toolkit_dynamic_class_uses( string $token, array $simple, array $targets ): array {
+	$names = array();
+	foreach ( array_keys( $simple ) as $key ) {
+		if ( str_starts_with( (string) $key, 'class:' ) ) {
+			$names[ substr( (string) $key, 6 ) ] = true;
+		}
+	}
+	foreach ( $targets as $parts ) {
+		foreach ( $parts as $part ) {
+			$names += array_fill_keys( $part, true );
+		}
+	}
+	return array_filter( $names, fn( $class ) => etch_toolkit_dynamic_class_matches( $token, (string) $class ), ARRAY_FILTER_USE_KEY );
 }
 
 /**

@@ -30,18 +30,32 @@
 		[ 'class', 'id', 'custom' ].includes( style.type ) && style.selector.trim() !== ':root';
 
 	let counts = null; // { selector: number } | null
-	let request = null;
+	let request = 0; // Number of the usage request in flight, 0 for none.
+	let requests = 0;
+	let failed = false; // The last request failed. The Unused tab offers to try again.
 	let frame = 0;
 	let unusedOn = false;
 	let selecting = false; // Driving Etch's search to open a style.
 
+	// Only the latest request counts, so a late answer from an earlier open can't
+	// replace a newer one.
 	const fetchCounts = () => {
-		request = api( 'style-usage' )
+		const id = ( request = ++requests );
+		failed = false;
+		api( 'style-usage' )
 			.then( ( data ) => {
-				counts = data.counts || {};
-				schedule();
+				if ( id === request ) counts = data.counts || {};
 			} )
-			.catch( ( err ) => console.warn( '[Etch Toolkit] Style usage request failed:', err ) );
+			.catch( ( err ) => {
+				if ( id !== request ) return;
+				failed = true;
+				console.warn( '[Etch Toolkit] Style usage request failed:', err );
+			} )
+			.finally( () => {
+				if ( id !== request ) return;
+				request = 0;
+				schedule();
+			} );
 	};
 
 	// Counted selectors => uses, in the Style Manager's order. Several styles can
@@ -147,6 +161,16 @@
 		// One tab stop, on whichever tab looks active.
 		for ( const trigger of wrapper.querySelectorAll( `:scope > ${ TRIGGER }` ) ) {
 			trigger.tabIndex = trigger === tab ? ( unusedOn ? 0 : -1 ) : ! unusedOn && trigger.dataset.state === 'active' ? 0 : -1;
+			if ( trigger === tab ) continue;
+
+			// And one selected tab. Etch's active one gives it up while Unused is on.
+			if ( unusedOn && trigger.getAttribute( 'aria-selected' ) === 'true' ) {
+				trigger.setAttribute( 'aria-selected', 'false' );
+				trigger.dataset.etkUnselected = '';
+			} else if ( ! unusedOn && 'etkUnselected' in trigger.dataset ) {
+				trigger.setAttribute( 'aria-selected', String( trigger.dataset.state === 'active' ) );
+				delete trigger.dataset.etkUnselected;
+			}
 		}
 	};
 
@@ -159,17 +183,28 @@
 
 		if ( list?.parentElement !== host ) {
 			list?.remove();
-			list = el( 'div', { className: UNUSED } );
+			list = el( 'div', { className: UNUSED, tabIndex: -1 } );
 			list.setAttribute( 'role', 'tabpanel' );
 			list.setAttribute( 'aria-label', 'Unused selectors' );
 			host.append( list );
 		}
 
 		const selectors = counts ? [ ...countsBySelector() ].filter( ( [ , n ] ) => n === 0 ).map( ( [ s ] ) => s ) : null;
-		const key = JSON.stringify( selectors );
+		const key = failed ? 'failed' : JSON.stringify( selectors );
 		if ( list.dataset.key !== key ) {
 			list.dataset.key = key;
-			if ( ! selectors || ! selectors.length ) {
+			if ( failed ) {
+				const retry = el( 'button', { type: 'button', className: `${ UNUSED }__retry`, textContent: 'Try again' } );
+				retry.addEventListener( 'click', () => {
+					// The button goes away, so focus waits on the list.
+					list.focus();
+					fetchCounts();
+					schedule();
+				} );
+				const error = el( 'p', { className: `${ UNUSED }__empty` }, [ "Couldn't check which selectors are used. ", retry ] );
+				error.setAttribute( 'role', 'alert' );
+				list.replaceChildren( error );
+			} else if ( ! selectors || ! selectors.length ) {
 				list.replaceChildren(
 					el( 'p', { className: `${ UNUSED }__empty`, textContent: selectors ? 'No unused selectors.' : 'Checking usage…' } )
 				);
@@ -236,10 +271,12 @@
 	const update = () => {
 		frame = 0;
 
-		// Style Manager closed: drop the cache so the next open picks up saved changes.
+		// Style Manager closed: drop the cache so the next open picks up saved changes,
+		// and any answer still on its way.
 		if ( ! document.querySelector( MODAL ) ) {
 			counts = null;
-			request = null;
+			request = 0;
+			failed = false;
 			unusedOn = false;
 			return;
 		}
@@ -248,7 +285,7 @@
 		if ( ! tabs ) unusedOn = false; // Another mode, like Variables.
 		else renderTab( tabs );
 
-		if ( ! counts && ! request ) fetchCounts();
+		if ( ! counts && ! request && ! failed ) fetchCounts();
 
 		const list = document.querySelector( LIST );
 		renderList( list ?? document.querySelector( `${ LEFT } .etch-css-selectors` ) );

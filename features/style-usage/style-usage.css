@@ -121,3 +121,15 @@
 	padding: 0.5em;
 	color: var(--e-foreground-color-muted);
 }
+
+/* "Try again", as a link in the error line. */
+.etk-unused__retry {
+	padding: 0;
+	border: none;
+	background: none;
+	color: var(--e-text-color);
+	font: inherit;
+	text-decoration: underline;
+	text-underline-offset: 2px;
+	cursor: pointer;
+}
