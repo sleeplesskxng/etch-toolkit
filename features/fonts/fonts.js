@@ -941,7 +941,7 @@
 					? h( 'span', { class: entry.error ? 'etk-fonts__files-error' : 'etk-fonts__muted', textContent: entry.text } )
 					: h( 'span', { class: 'etk-fonts__files-progress' }, busy ? h( 'span', { class: 'etk-fonts__progress' } ) : null, h( 'span', { class: 'etk-fonts__muted', textContent: STAGES[ entry.stage ] } ) )
 			),
-			h( 'td', { class: 'etk-fonts__num etk-fonts__muted', textContent: size( entry.size ) } ),
+			h( 'td', { textContent: size( entry.size ) } ),
 			h( 'td', { class: entry.family ? null : 'etk-fonts__files-none', textContent: entry.family || '—' } ),
 			h(
 				'td',
@@ -1190,8 +1190,8 @@
 			iconCell( done ? 'check' : null ),
 			h( 'td', {}, h( 'span', { class: 'etk-fonts__files-name', textContent: file.name } ) ),
 			own ? weightCell( file ) : h( 'td', { class: 'etk-fonts__files-none', textContent: '—' } ),
-			h( 'td', {}, done ? h( 'span', { class: 'etk-fonts__muted', textContent: done.text } ) : unused ? badge( 'Unused', 'warning' ) : h( 'span', { class: 'etk-fonts__files-quiet', textContent: 'In use' } ) ),
-			h( 'td', { class: 'etk-fonts__num etk-fonts__muted', textContent: size( file.size ) } ),
+			h( 'td', {}, done ? h( 'span', { class: 'etk-fonts__muted', textContent: done.text } ) : h( 'span', { class: `etk-fonts__files-status etk-fonts__files-status--${ unused ? 'warning' : 'success' }`, textContent: unused ? 'Unused' : 'In use' } ) ),
+			h( 'td', { textContent: size( file.size ) } ),
 			h( 'td', { class: unused ? 'etk-fonts__files-none' : null, textContent: file.family || 'No family' } ),
 			h( 'td', {}, own ? fileMenu( file ) : null )
 		);
@@ -1244,7 +1244,7 @@
 				render();
 			},
 		} );
-		const th = ( text, className ) => h( 'th', { scope: 'col', class: className, textContent: text } );
+		const th = ( text ) => h( 'th', { scope: 'col', textContent: text } );
 		return dropTarget(
 			tabPanel(
 				'library',
@@ -1277,7 +1277,7 @@
 										},
 									} )
 								),
-								h( 'td', { class: 'etk-fonts__files-icon', 'aria-hidden': 'true' } ), th( 'File' ), th( 'Weight · Style' ), th( 'Status' ), th( 'Size', 'etk-fonts__num' ), th( 'Family' ),
+								h( 'td', { class: 'etk-fonts__files-icon', 'aria-hidden': 'true' } ), th( 'File' ), th( 'Weight · Style' ), th( 'Status' ), th( 'Size' ), th( 'Family' ),
 								h( 'th', { scope: 'col' }, h( 'span', { class: 'screen-reader-text', textContent: 'Actions' } ) )
 							)
 						),

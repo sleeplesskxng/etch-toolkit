@@ -598,14 +598,14 @@
 	}
 }
 
-/* Tables: a header strip, then 46px rows with soft dividers. */
+/* Tables, after Etch's content hub: a 35px header strip, then 46px rows with soft dividers. */
 .etk-fonts__table {
 	inline-size: 100%;
 	border-collapse: separate;
 	border-spacing: 0;
 
 	th {
-		block-size: 32px;
+		block-size: 35px;
 		padding: 0 8px;
 		background: var(--etk-fonts-surface);
 		font-weight: 500;
@@ -634,11 +634,6 @@
 	th:last-child {
 		inline-size: 1%;
 		text-align: end;
-	}
-
-	.etk-fonts__num {
-		text-align: end;
-		font-variant-numeric: tabular-nums;
 	}
 }
 
@@ -1998,7 +1993,7 @@
 	}
 
 	thead td {
-		block-size: 32px;
+		block-size: 35px;
 		border: 0;
 		background: var(--etk-fonts-surface);
 	}
@@ -2044,6 +2039,11 @@
 		inline-size: 140px;
 	}
 
+	/* Content-box cells, so 45px plus the divider. */
+	tbody td {
+		block-size: 45px;
+	}
+
 	tr.is-picked td {
 		background: var(--etk-fonts-selected);
 	}
@@ -2063,8 +2063,11 @@
 		overflow: visible;
 	}
 
-	.etk-fonts__icon-btn {
+	/* Bordered like the content hub's row actions. */
+	.etk-fonts__icon-btn.etch-builder-button {
 		vertical-align: middle;
+		border: 1px solid color-mix(in oklch, white 10%, transparent);
+		background: color-mix(in oklch, white 10%, transparent);
 	}
 }
 
@@ -2072,7 +2075,6 @@
 	display: block;
 	overflow: hidden;
 	color: var(--etk-fonts-text);
-	font-family: var(--e-font-code);
 	font-size: var(--e-font-size-m, 12px);
 	font-weight: 400;
 	line-height: 16px;
@@ -2121,8 +2123,23 @@
 	color: var(--etk-fonts-text-45);
 }
 
-.etk-fonts__files-quiet {
-	color: var(--etk-fonts-text-45);
+/* Etch's post status badge. */
+.etk-fonts__files-status {
+	display: inline-block;
+	padding: 6px;
+	border-radius: 3px;
+	font-size: var(--e-font-size-m, 12px);
+	line-height: 9px;
+}
+
+.etk-fonts__files-status--success {
+	background: var(--e-success-dark, #32433a);
+	color: var(--e-success, #67d992);
+}
+
+.etk-fonts__files-status--warning {
+	background: var(--e-warning-dark, #4c4233);
+	color: var(--e-warning, #f2c960);
 }
 
 .etk-fonts__files-none {
