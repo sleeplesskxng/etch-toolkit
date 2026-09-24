@@ -395,6 +395,11 @@
 			background-color: var(--etch-secondary-btn);
 			border-color: var(--etch-secondary-btn);
 		}
+
+		/* Etch dims disabled buttons for its other variants, not this one. */
+		&:disabled {
+			opacity: 0.3;
+		}
 	}
 }
 

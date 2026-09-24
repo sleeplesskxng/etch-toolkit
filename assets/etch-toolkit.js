@@ -25,6 +25,25 @@
 		'<path d="M3 5.5H8M21 5.5H16M16 5.5L14.7597 2.60608C14.6022 2.2384 14.2406 2 13.8406 2H10.1594C9.75937 2 9.39783 2.2384 9.24025 2.60608L8 5.5M16 5.5H8"/>' +
 		'<path d="M9.5 16.5L9.5 10.5"/><path d="M14.5 16.5L14.5 10.5"/></svg>';
 
+	// A class selector's name, escapes included. Etch writes class names with CSS.escape()
+	// when special character support is on. Mirrors ETCH_TOOLKIT_CLASS_PATTERN in includes/helpers.php.
+	const CLASS_IN_CSS = /\.((?:-?(?:[_a-zA-Z]|[^\0-\x7F]|\\(?:[0-9a-fA-F]{1,6}\s?|[^\n\r\f0-9a-fA-F]))|--)(?:[\w-]|[^\0-\x7F]|\\(?:[0-9a-fA-F]{1,6}\s?|[^\n\r\f0-9a-fA-F]))*)/gu;
+	const ONE_CLASS = new RegExp( `^${ CLASS_IN_CSS.source }$`, 'u' );
+
+	// `md\:flex` => "md:flex", `\31 col` => "1col". An escape that isn't a character reads as U+FFFD.
+	const unescapeCss = ( name ) =>
+		name.replace( /\\(?:([0-9a-fA-F]{1,6})\s?|([^]))/gu, ( match, hex, char ) => {
+			if ( char ) return char;
+			const code = parseInt( hex, 16 );
+			return String.fromCodePoint( code && code <= 0x10ffff && ( code < 0xd800 || code > 0xdfff ) ? code : 0xfffd );
+		} );
+
+	// The class names in a selector or CSS, unescaped, in order.
+	const classesIn = ( css ) => [ ...css.matchAll( CLASS_IN_CSS ) ].map( ( match ) => unescapeCss( match[ 1 ] ) );
+
+	// A selector that is one class and nothing else, like `.card` or `.md\:flex`.
+	const isClassSelector = ( selector ) => ONE_CLASS.test( selector.trim() );
+
 	const el = ( tag, props = {}, children = [] ) => {
 		const node = Object.assign( document.createElement( tag ), props );
 		node.append( ...children );
@@ -147,6 +166,6 @@
 		if ( place && place !== 'builder' ) tick();
 	} catch {}
 
-	Object.assign( toolkit, { api, el, confirmDialog, reload, DELETE_ICON } );
+	Object.assign( toolkit, { api, el, confirmDialog, reload, classesIn, isClassSelector, DELETE_ICON } );
 	window.etchToolkit = toolkit;
 } )();

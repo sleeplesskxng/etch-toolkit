@@ -18,7 +18,7 @@
  * text, or by the active tab when the search is empty).
  */
 ( () => {
-	const { api, el, confirmDialog, reload } = window.etchToolkit || {};
+	const { api, el, confirmDialog, reload, classesIn, isClassSelector } = window.etchToolkit || {};
 	if ( ! confirmDialog ) return;
 
 	const ROOT = '.style-overview-modal__left';
@@ -161,7 +161,7 @@
 
 	// Selectors beyond a plain class that change along with it, e.g. ".card:hover .card__title".
 	const renderSelectors = ( section, list, plan ) => {
-		const rows = plan.styles.filter( ( s ) => ! /^\.-?[_a-zA-Z][\w-]*$/.test( s.from ) && s.from !== s.to );
+		const rows = plan.styles.filter( ( s ) => ! isClassSelector( s.from ) && s.from !== s.to );
 		section.hidden = ! rows.length;
 		section.querySelector( '.etk-bem__count' ).textContent = `(${ rows.length })`;
 		list.replaceChildren(
@@ -205,7 +205,7 @@
 	const bulkRename = async () => {
 		const styles = allStyles().filter( ( s ) => selected.has( s.id ) );
 		const ids = styles.map( ( s ) => s.id );
-		const names = [ ...new Set( styles.flatMap( ( s ) => [ ...s.selector.matchAll( /\.(-?[_a-zA-Z][\w-]*)/g ) ].map( ( m ) => m[ 1 ] ) ) ) ];
+		const names = [ ...new Set( styles.flatMap( ( s ) => classesIn( s.selector ) ) ) ];
 		if ( ! names.length ) return;
 
 		const field = ( id, label, value ) => {
@@ -331,7 +331,8 @@
 			for ( const row of rows ) {
 				if ( row.removed ) continue;
 				const value = row.input.value.trim();
-				const ok = CLASS_NAME.test( value );
+				// An unchanged name is left as it is, even one with special characters like "md:flex".
+				const ok = value === row.name || CLASS_NAME.test( value );
 				setRowError( row, ok ? '' : value ? "Letters, numbers, - and _ only, and it can't start with a number." : 'Enter a class name.' );
 				if ( ! ok ) invalid = true;
 				else if ( value !== row.name ) map[ row.name ] = value;
@@ -423,7 +424,10 @@
 		refresh();
 
 		if ( ! ( await dialog.result ) ) return;
-		for ( const input of dialog.element.querySelectorAll( 'input, .etk-rename__reset' ) ) input.disabled = true;
+		// Drop a preview still on its way, and freeze the rows.
+		clearTimeout( timer );
+		seq++;
+		for ( const control of dialog.element.querySelectorAll( 'input, .etk-rename__reset, .etk-rename__remove' ) ) control.disabled = true;
 
 		try {
 			await window.etch.saveAsync();
@@ -509,7 +513,7 @@
 			el( 'div', { className: 'etk-bulk-bar__left' }, [ clearButton, count, selectAll ] ),
 			el( 'div', { className: 'etk-bulk-bar__divider' } ),
 			el( 'div', { className: 'etk-bulk-bar__actions' }, [
-				etchButton( { variant: 'transparent', iconName: 'rename', label: 'Rename…', onClick: bulkRename } ),
+				etchButton( { variant: 'transparent', iconName: 'rename', label: 'Rename…', className: 'etk-bulk-bar__rename', onClick: bulkRename } ),
 				etchButton( {
 					variant: 'transparent',
 					iconName: 'delete',
@@ -555,6 +559,14 @@
 		if ( badge.textContent !== text ) badge.textContent = text;
 
 		setHidden( bar.querySelector( '.etk-bulk-bar__select-all' ), visibleOrder( root ).every( ( id ) => selected.has( id ) ) );
+
+		// Rename works on class names, which a selection of only #id styles doesn't have.
+		const rename = bar.querySelector( '.etk-bulk-bar__rename' );
+		const renamable = allStyles().some( ( s ) => selected.has( s.id ) && classesIn( s.selector ).length );
+		if ( rename.disabled === renamable ) {
+			rename.disabled = ! renamable;
+			rename.title = renamable ? '' : 'Only class names can be renamed';
+		}
 	};
 
 	const update = () => {

@@ -27,7 +27,7 @@ add_action(
 	'rest_api_init',
 	function () {
 		$args = array(
-			'ids'     => array(
+			'ids'  => array(
 				'type'     => 'array',
 				'required' => true,
 				'items'    => array(
@@ -35,16 +35,16 @@ add_action(
 					'pattern' => '^[A-Za-z0-9_-]+$',
 				),
 			),
-			'map'     => array(
+			'map'  => array(
 				'type'                 => 'object',
 				'required'             => true,
 				'additionalProperties' => array( 'type' => 'string' ),
 			),
-			'bem'     => array(
+			'bem'  => array(
 				'type'    => 'boolean',
 				'default' => false,
 			),
-			'keep'    => array(
+			'keep' => array(
 				'type'    => 'array',
 				'default' => array(),
 				'items'   => array( 'type' => 'string' ),
@@ -57,7 +57,7 @@ add_action(
 			array(
 				'methods'             => 'POST',
 				'args'                => $args,
-				'callback'            => fn( WP_REST_Request $r ) => rest_ensure_response( etch_toolkit_rename_public( etch_toolkit_rename_plan( $r['ids'], $r['map'], $r['bem'], $r['keep'] ) ) ),
+				'callback'            => fn( WP_REST_Request $r ) => etch_toolkit_rest_try( fn() => rest_ensure_response( etch_toolkit_rename_public( etch_toolkit_rename_plan( $r['ids'], $r['map'], $r['bem'], $r['keep'] ) ) ) ),
 				'permission_callback' => 'etch_toolkit_can_manage',
 			)
 		);
@@ -68,39 +68,46 @@ add_action(
 			array(
 				'methods'             => 'POST',
 				'args'                => $args,
-				'callback'            => fn( WP_REST_Request $r ) => etch_toolkit_rename_apply( $r['ids'], $r['map'], $r['bem'], $r['keep'] ),
+				'callback'            => fn( WP_REST_Request $r ) => etch_toolkit_rest_try( fn() => etch_toolkit_rename_apply( $r['ids'], $r['map'], $r['bem'], $r['keep'] ) ),
 				'permission_callback' => 'etch_toolkit_can_manage',
 			)
 		);
 	}
 );
 
-const ETCH_TOOLKIT_CLASS_PATTERN = '/\.(-?[_a-zA-Z][_a-zA-Z0-9-]*)/';
-
 /**
- * Replace class names in a selector or CSS text using an old => new map.
- * The pattern takes the longest class name at each dot, so `.card` never
- * matches inside `.card__title`.
+ * Rename class names in a selector or CSS, matched unescaped. The pattern
+ * takes the longest name at each dot, so `.card` never matches inside
+ * `.card__title` or `.card\:hover`.
  *
- * @param array<string, string> $map Old class name => new class name.
+ * @param array<string, string> $map Old class name => new class name, unescaped. New
+ *                                   names are plain identifiers, so they need no escaping.
+ * @throws RuntimeException When the CSS can't be read.
  */
 function etch_toolkit_rename_classes_in( string $text, array $map ): string {
-	if ( ! $map ) {
+	if ( ! $map || ! str_contains( $text, '.' ) ) {
 		return $text;
 	}
-	return preg_replace_callback(
+	$renamed = preg_replace_callback(
 		ETCH_TOOLKIT_CLASS_PATTERN,
-		fn( $m ) => isset( $map[ $m[1] ] ) ? '.' . $map[ $m[1] ] : $m[0],
+		function ( $m ) use ( $map ) {
+			$name = etch_toolkit_css_unescape( $m[1] );
+			return isset( $map[ $name ] ) ? '.' . $map[ $name ] : $m[0];
+		},
 		$text
 	);
+	if ( null === $renamed ) {
+		throw new RuntimeException( 'Some CSS could not be read: ' . preg_last_error_msg() );
+	}
+	return $renamed;
 }
 
 /**
  * Work out everything a rename would change, without changing anything.
  *
  * @param string[]              $ids       Selected style IDs.
- * @param array<string, string> $requested Old class name => new class name. Names
- *                                         not in the selected selectors are ignored.
+ * @param array<string, string> $requested Old class name => new class name, unescaped.
+ *                                         Names not in the selected selectors are ignored.
  * @param bool                  $bem       Also rename BEM children and modifiers of renamed classes.
  * @param string[]              $keep      Class names to leave alone, even as BEM children.
  * @return array{
@@ -115,36 +122,37 @@ function etch_toolkit_rename_classes_in( string $text, array $map ): string {
  *     rowErrors: array<string, string>,
  *     newStyles: array<string, array<string, mixed>>,
  *     newStylesheets: array<string, array<string, mixed>>,
- *     newContent: array<int, string>
+ *     newContent: array<int, string>,
+ *     oldContent: array<int, string>
  * }
  */
 function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = false, array $keep = array() ): array {
-	$styles      = get_option( 'etch_styles', array() );
-	$stylesheets = get_option( 'etch_global_stylesheets', array() );
-	$ids         = array_flip( $ids );
+	$styles       = (array) get_option( 'etch_styles', array() );
+	$stylesheets  = (array) get_option( 'etch_global_stylesheets', array() );
+	$ids          = array_flip( $ids );
+	$has_selector = fn( $style ) => is_array( $style ) && is_string( $style['selector'] ?? null );
 
 	// 1. Class names to rename: the requested ones that appear in the selected selectors.
 	$map = array();
 	foreach ( array_intersect_key( $styles, $ids ) as $style ) {
-		if ( 'element' === ( $style['type'] ?? '' ) || ! empty( $style['readonly'] ) ) {
+		if ( ! $has_selector( $style ) || 'element' === ( $style['type'] ?? '' ) || ! empty( $style['readonly'] ) ) {
 			continue;
 		}
-		preg_match_all( ETCH_TOOLKIT_CLASS_PATTERN, $style['selector'], $found );
-		foreach ( $found[1] as $name ) {
+		foreach ( etch_toolkit_css_classes( $style['selector'] ) as $name ) {
 			if ( isset( $requested[ $name ] ) && (string) $requested[ $name ] !== $name ) {
 				$map[ $name ] = (string) $requested[ $name ];
 			}
 		}
 	}
 
-	// Load content once. Normalize WordPress's - escaping of "--" so the quick contains-check works.
+	// Load content once, trashed posts too, so restoring one doesn't bring an old name back.
 	$contents = array();
 	if ( $map ) {
-		foreach ( etch_toolkit_content_post_ids() as $post_id ) {
+		foreach ( etch_toolkit_content_post_ids( true ) as $post_id ) {
 			$content = (string) get_post_field( 'post_content', $post_id, 'raw' );
-			$plain   = str_replace( '-', '-', $content );
+			$plain   = etch_toolkit_plain_content( $content );
 			foreach ( array_keys( $map ) as $old ) {
-				if ( str_contains( $plain, $old ) ) {
+				if ( str_contains( $plain, (string) $old ) ) {
 					$contents[ $post_id ] = $content;
 					break;
 				}
@@ -158,8 +166,10 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 	// `also` reports those without a style, since styled ones show up in `styles`.
 	$styled = array();
 	foreach ( $styles as $style ) {
-		if ( 'class' === ( $style['type'] ?? '' ) ) {
-			$styled[ ltrim( $style['selector'], '.' ) ] = true;
+		if ( $has_selector( $style ) && 'class' === ( $style['type'] ?? '' ) ) {
+			foreach ( etch_toolkit_css_classes( $style['selector'] ) as $name ) {
+				$styled[ $name ] = true;
+			}
 		}
 	}
 	$also      = array();
@@ -167,12 +177,13 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 	$bem_map   = array();
 	$keep      = array_flip( $keep );
 	foreach ( etch_toolkit_rename_class_universe( $styles, $stylesheets, $contents ) as $name ) {
+		$name = (string) $name;
 		if ( isset( $map[ $name ] ) || isset( $keep[ $name ] ) ) {
 			continue;
 		}
 		foreach ( $map as $old => $new ) {
 			if ( str_starts_with( $name, $old . '__' ) || str_starts_with( $name, $old . '--' ) ) {
-				$bem_map[ $name ] = $new . substr( $name, strlen( $old ) );
+				$bem_map[ $name ] = $new . substr( $name, strlen( (string) $old ) );
 				$bem_found[]      = array(
 					'from'   => $name,
 					'to'     => $bem_map[ $name ],
@@ -208,51 +219,62 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 	$changes    = array();
 	$new_styles = $styles;
 	foreach ( $styles as $id => $style ) {
-		if ( ! empty( $style['readonly'] ) ) {
+		if ( ! $has_selector( $style ) || ! empty( $style['readonly'] ) ) {
 			continue;
 		}
-		$selector = etch_toolkit_rename_classes_in( $style['selector'], $map );
-		$css      = etch_toolkit_rename_classes_in( $style['css'] ?? '', $map );
-		if ( $selector === $style['selector'] && $css === ( $style['css'] ?? '' ) ) {
+		$css          = is_string( $style['css'] ?? null ) ? $style['css'] : '';
+		$new_selector = etch_toolkit_rename_classes_in( $style['selector'], $map );
+		$new_css      = etch_toolkit_rename_classes_in( $css, $map );
+		if ( $new_selector === $style['selector'] && $new_css === $css ) {
 			continue;
 		}
-		$new_styles[ $id ]['selector'] = $selector;
-		$new_styles[ $id ]['css']      = $css;
-		$changes[]                     = array(
+		$new_styles[ $id ]['selector'] = $new_selector;
+		$new_styles[ $id ]['css']      = $new_css;
+		$changes[ $id ]                = array(
 			'id'         => (string) $id,
 			'from'       => $style['selector'],
-			'to'         => $selector,
+			'to'         => $new_selector,
 			'selected'   => isset( $ids[ $id ] ),
-			'cssChanged' => $css !== ( $style['css'] ?? '' ),
+			'cssChanged' => $new_css !== $css,
 		);
 	}
 
-	// Two styles in one collection can't end up with the same selector.
-	$seen = array();
-	foreach ( $new_styles as $style ) {
-		$key = ( $style['collection'] ?? 'default' ) . '|' . $style['selector'];
-		if ( isset( $seen[ $key ] ) ) {
-			$errors[] = sprintf( '"%s" would exist twice. Rename or delete the existing one first.', $style['selector'] );
-			$old      = $targets[ ltrim( $style['selector'], '.' ) ] ?? null;
-			if ( $old && ! isset( $row_errors[ $old ] ) ) {
-				$row_errors[ $old ] = sprintf( '%s already exists.', $style['selector'] );
+	// Two styles in one collection can't end up with the same selector. Only renamed
+	// ones are checked, so a duplicate that's already there doesn't block every rename.
+	$groups = array();
+	foreach ( $new_styles as $id => $style ) {
+		if ( $has_selector( $style ) ) {
+			$groups[ ( $style['collection'] ?? 'default' ) . '|' . $style['selector'] ][] = $id;
+		}
+	}
+	foreach ( $groups as $group ) {
+		if ( count( $group ) < 2 || ! array_intersect_key( $changes, array_flip( $group ) ) ) {
+			continue;
+		}
+		$selector = $new_styles[ $group[0] ]['selector'];
+		$errors[] = sprintf( '"%s" would exist twice. Rename or delete the existing one first.', $selector );
+		foreach ( etch_toolkit_css_classes( $selector ) as $class ) {
+			$old = $targets[ $class ] ?? null;
+			if ( null !== $old ) {
+				$row_errors[ $old ] = $row_errors[ $old ] ?? sprintf( '%s already exists.', $selector );
+				break;
 			}
 		}
-		$seen[ $key ] = true;
 	}
 
 	// 3. Global stylesheets.
 	$changed_sheets  = array();
 	$new_stylesheets = $stylesheets;
-	foreach ( (array) $stylesheets as $key => $sheet ) {
-		$css = etch_toolkit_rename_classes_in( $sheet['css'] ?? '', $map );
-		if ( $css !== ( $sheet['css'] ?? '' ) ) {
-			$new_stylesheets[ $key ]['css'] = $css;
-			$changed_sheets[]               = $sheet['name'] ?? (string) $key;
+	foreach ( $stylesheets as $key => $sheet ) {
+		$css     = is_string( $sheet['css'] ?? null ) ? $sheet['css'] : '';
+		$new_css = etch_toolkit_rename_classes_in( $css, $map );
+		if ( $new_css !== $css ) {
+			$new_stylesheets[ $key ]['css'] = $new_css;
+			$changed_sheets[]               = (string) ( $sheet['name'] ?? $key );
 		}
 	}
 
-	// 4. Element class attributes across all content.
+	// 4. Element class names across all content.
 	$posts       = array();
 	$elements    = 0;
 	$new_content = array();
@@ -260,18 +282,7 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 		$count   = 0;
 		$content = etch_toolkit_edit_block_attrs(
 			$content,
-			function ( $attrs ) use ( $map ) {
-				if ( ! isset( $attrs->attributes->class ) || ! is_string( $attrs->attributes->class ) ) {
-					return false;
-				}
-				$tokens  = preg_split( '/\s+/', trim( $attrs->attributes->class ), -1, PREG_SPLIT_NO_EMPTY );
-				$renamed = array_map( fn( $t ) => $map[ $t ] ?? $t, $tokens );
-				if ( $renamed === $tokens ) {
-					return false;
-				}
-				$attrs->attributes->class = implode( ' ', $renamed );
-				return true;
-			},
+			fn( $attrs ) => etch_toolkit_edit_block_classes( $attrs, fn( $class ) => (string) ( $map[ $class ] ?? $class ) ),
 			$count
 		);
 
@@ -286,7 +297,7 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 		'classMap'       => (object) $map,
 		'bem'            => $bem_found,
 		'also'           => $also,
-		'styles'         => $changes,
+		'styles'         => array_values( $changes ),
 		'stylesheets'    => $changed_sheets,
 		'posts'          => $posts,
 		'elements'       => $elements,
@@ -296,6 +307,7 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 		'newStyles'      => $new_styles,
 		'newStylesheets' => $new_stylesheets,
 		'newContent'     => $new_content,
+		'oldContent'     => array_intersect_key( $contents, $new_content ),
 	);
 }
 
@@ -312,11 +324,10 @@ function etch_toolkit_rename_apply( array $ids, array $map, bool $bem = false, a
 		return new WP_Error( 'etch_toolkit_rename_empty', 'Nothing to rename.', array( 'status' => 400 ) );
 	}
 
-	foreach ( $plan['newContent'] as $post_id => $content ) {
-		$result = etch_toolkit_update_content( $post_id, $content );
-		if ( is_wp_error( $result ) ) {
-			return $result;
-		}
+	// Content first, all or nothing, so a failed save leaves the styles untouched too.
+	$saved = etch_toolkit_update_contents( $plan['newContent'], $plan['oldContent'] );
+	if ( is_wp_error( $saved ) ) {
+		return $saved;
 	}
 	update_option( 'etch_styles', $plan['newStyles'] );
 	if ( $plan['stylesheets'] ) {
@@ -327,15 +338,15 @@ function etch_toolkit_rename_apply( array $ids, array $map, bool $bem = false, a
 }
 
 /**
- * The plan minus the internal "new*" payloads.
+ * The plan minus the internal "new*" and "old*" payloads.
  */
 function etch_toolkit_rename_public( array $plan ): array {
-	return array_diff_key( $plan, array_flip( array( 'newStyles', 'newStylesheets', 'newContent' ) ) );
+	return array_diff_key( $plan, array_flip( array( 'newStyles', 'newStylesheets', 'newContent', 'oldContent' ) ) );
 }
 
 /**
- * Every class name referenced anywhere: style selectors and CSS, global
- * stylesheets, and element class attributes in the given content.
+ * Every class name referenced anywhere, unescaped: style selectors and CSS,
+ * global stylesheets, and element class names in the given content.
  *
  * @param array<string, array<string, mixed>> $styles      etch_styles.
  * @param array<string, array<string, mixed>> $stylesheets etch_global_stylesheets.
@@ -345,13 +356,18 @@ function etch_toolkit_rename_public( array $plan ): array {
 function etch_toolkit_rename_class_universe( array $styles, array $stylesheets, array $contents ): array {
 	$names = array();
 
-	$css = array_merge(
-		array_map( fn( $s ) => ( $s['selector'] ?? '' ) . ' ' . ( $s['css'] ?? '' ), $styles ),
-		array_map( fn( $s ) => $s['css'] ?? '', $stylesheets )
-	);
+	$css = array();
+	foreach ( $styles as $style ) {
+		$css[] = $style['selector'] ?? '';
+		$css[] = $style['css'] ?? '';
+	}
+	foreach ( $stylesheets as $sheet ) {
+		$css[] = $sheet['css'] ?? '';
+	}
 	foreach ( $css as $text ) {
-		preg_match_all( ETCH_TOOLKIT_CLASS_PATTERN, $text, $found );
-		array_push( $names, ...$found[1] );
+		if ( is_string( $text ) ) {
+			array_push( $names, ...etch_toolkit_css_classes( $text ) );
+		}
 	}
 
 	foreach ( $contents as $content ) {
@@ -359,9 +375,7 @@ function etch_toolkit_rename_class_universe( array $styles, array $stylesheets, 
 		etch_toolkit_edit_block_attrs(
 			$content,
 			function ( $attrs ) use ( &$names ) {
-				if ( isset( $attrs->attributes->class ) && is_string( $attrs->attributes->class ) ) {
-					array_push( $names, ...preg_split( '/\s+/', trim( $attrs->attributes->class ), -1, PREG_SPLIT_NO_EMPTY ) );
-				}
+				array_push( $names, ...etch_toolkit_block_classes( $attrs ) );
 				return false;
 			},
 			$unused
