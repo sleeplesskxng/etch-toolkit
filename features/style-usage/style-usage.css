@@ -52,3 +52,72 @@
 	clip-path: inset(50%);
 	white-space: nowrap;
 }
+
+/* ---- Unused tab ---- */
+
+/* While Unused is on, Etch's own active tab drops back to its inactive look. */
+.css-input-tabs__wrapper.etk-unused-on > .css-input-tabs__trigger[data-state='active']:not(.etk-unused-tab) {
+	color: color-mix(in lab, var(--e-foreground-color-muted), transparent 10%);
+	font-weight: 600;
+}
+
+/* Covers Etch's list, which stays mounted underneath to open styles. */
+.virtual-list:has(> .etk-unused) {
+	position: relative;
+
+	& > :not(.etk-unused) {
+		visibility: hidden;
+	}
+
+	& > .etk-unused {
+		position: absolute;
+		inset: 0;
+	}
+}
+
+.etk-unused {
+	overflow-y: auto;
+	padding: var(--e-panel-padding);
+	scrollbar-width: thin;
+}
+
+.etk-unused__items {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+/* Same look as Etch's .list-item > .main-button rows. */
+.etk-unused__button {
+	display: block;
+	inline-size: 100%;
+	padding: 0.5em calc(0.5em + var(--e-space-s, 8px) / 2);
+	border: none;
+	border-radius: var(--e-border-radius, 4px);
+	background: none;
+	color: var(--e-text-color);
+	font-family: var(--e-font-code, monospace);
+	line-height: 1.2;
+	text-align: start;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	overflow: hidden;
+	opacity: 0.85;
+	cursor: pointer;
+
+	&:hover,
+	&:focus-visible,
+	&[aria-current='true'] {
+		background-color: var(--e-base-light);
+		opacity: 1;
+	}
+}
+
+.etk-unused__empty {
+	margin: 0;
+	padding: 0.5em;
+	color: var(--e-foreground-color-muted);
+}
