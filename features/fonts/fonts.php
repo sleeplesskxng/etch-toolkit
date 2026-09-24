@@ -198,7 +198,7 @@ add_action(
 				array(
 					'methods'             => $method,
 					'callback'            => function ( WP_REST_Request $r ) use ( $callback ) {
-						$result = $callback( $r );
+						$result = etch_toolkit_rest_try( fn() => $callback( $r ) );
 						return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
 					},
 					'permission_callback' => 'etch_toolkit_can_manage',
@@ -238,9 +238,33 @@ function etch_toolkit_fonts_path( string $name ): string {
 
 /**
  * Root-relative URL for a font file, so the stylesheet survives a domain change.
+ * A fonts folder on another host, like a CDN, keeps its full URL.
  */
 function etch_toolkit_fonts_file_url( string $name ): string {
-	return wp_make_link_relative( etch_toolkit_fonts_dir()['url'] . rawurlencode( $name ) );
+	$url = etch_toolkit_fonts_dir()['url'] . rawurlencode( $name );
+	return wp_parse_url( $url, PHP_URL_HOST ) === wp_parse_url( home_url(), PHP_URL_HOST ) ? wp_make_link_relative( $url ) : $url;
+}
+
+/**
+ * Files in the fonts folder that WordPress's own Font Library uses (Site
+ * Editor, Styles, Typography). They share the folder, so they're never
+ * reused for an upload, deleted or offered here.
+ *
+ * @return array<string, true> File name => true.
+ */
+function etch_toolkit_fonts_core_files(): array {
+	$dir   = wp_normalize_path( etch_toolkit_fonts_dir()['path'] );
+	$base  = trailingslashit( wp_get_font_dir()['basedir'] );
+	$files = array();
+	foreach ( get_posts( array( 'post_type' => 'wp_font_face', 'post_status' => 'any', 'numberposts' => -1, 'fields' => 'ids', 'no_found_rows' => true ) ) as $id ) {
+		foreach ( get_post_meta( $id, '_wp_font_face_file' ) as $file ) {
+			$path = wp_normalize_path( $base . $file );
+			if ( dirname( $path ) . '/' === $dir ) {
+				$files[ basename( $path ) ] = true;
+			}
+		}
+	}
+	return $files;
 }
 
 /**
@@ -301,9 +325,26 @@ function etch_toolkit_fonts_sanitize_name( string $name ): string {
 	return trim( (string) preg_replace( '/["\'{};\\\\\/()<>]/', '', sanitize_text_field( $name ) ) );
 }
 
+/**
+ * A font stack like `"Segoe UI", Arial, sans-serif`. A name that isn't quoted
+ * whole gets quotes, since one stray quote or a name like 3Dumb would make the
+ * browser drop the whole font-family.
+ */
 function etch_toolkit_fonts_sanitize_stack( string $stack ): string {
-	$stack = preg_replace( '/[^A-Za-z0-9 ,\'"_-]/', '', sanitize_text_field( $stack ) );
-	return trim( (string) preg_replace( '/\s+/', ' ', (string) $stack ), " ,\t\n" );
+	$names = array();
+	foreach ( explode( ',', (string) preg_replace( '/[^A-Za-z0-9 ,\'"_-]/', '', sanitize_text_field( $stack ) ) ) as $name ) {
+		$name = trim( (string) preg_replace( '/\s+/', ' ', $name ) );
+		if ( ! preg_match( '/^(["\'])[^"\']+\1$/', $name ) ) {
+			$name = trim( str_replace( array( '"', "'" ), '', $name ) );
+			if ( '' !== $name && ! preg_match( '/^-?[_a-zA-Z][\w-]*(?: -?[_a-zA-Z][\w-]*)*$/', $name ) ) {
+				$name = '"' . $name . '"';
+			}
+		}
+		if ( '' !== $name ) {
+			$names[] = $name;
+		}
+	}
+	return implode( ', ', $names );
 }
 
 /**
@@ -627,7 +668,7 @@ function etch_toolkit_fonts_files( array $families ): array {
 		return array();
 	}
 
-	$used = array();
+	$used = array_fill_keys( array_keys( etch_toolkit_fonts_core_files() ), 'WordPress Font Library' );
 	foreach ( $families as $family ) {
 		foreach ( $family['variants'] as $variant ) {
 			$used[ $variant['file'] ] = $family['name'];
@@ -653,15 +694,15 @@ function etch_toolkit_fonts_files( array $families ): array {
 }
 
 /**
- * Do these bytes start with the signature for this font format?
+ * Do these bytes look like a whole font file in this format?
  */
 function etch_toolkit_fonts_is_font( string $bytes, string $ext ): bool {
 	$signature = substr( $bytes, 0, 4 );
 	switch ( $ext ) {
 		case 'woff2':
-			return 'wOF2' === $signature;
 		case 'woff':
-			return 'wOFF' === $signature;
+			// The header also carries the file's length, which catches a file cut short.
+			return ( 'woff2' === $ext ? 'wOF2' : 'wOFF' ) === $signature && strlen( $bytes ) >= 12 && unpack( 'N', substr( $bytes, 8, 4 ) )[1] === strlen( $bytes );
 		case 'ttf':
 			return "\x00\x01\x00\x00" === $signature || 'true' === $signature;
 		case 'otf':
@@ -679,6 +720,10 @@ function etch_toolkit_fonts_is_font( string $bytes, string $ext ): bool {
 function etch_toolkit_fonts_write( string $name, string $bytes ) {
 	$ext  = strtolower( pathinfo( $name, PATHINFO_EXTENSION ) );
 	$name = sanitize_file_name( $name );
+	// ".woff2" sanitizes to "woff2", which has no extension left.
+	if ( strtolower( pathinfo( $name, PATHINFO_EXTENSION ) ) !== $ext ) {
+		$name = "font.{$ext}";
+	}
 
 	if ( ! isset( ETCH_TOOLKIT_FONTS_FORMATS[ $ext ] ) ) {
 		return new WP_Error( 'etch_toolkit_font_type', 'Only WOFF2, WOFF, TTF and OTF files are allowed.', array( 'status' => 400 ) );
@@ -695,10 +740,11 @@ function etch_toolkit_fonts_write( string $name, string $bytes ) {
 		return new WP_Error( 'etch_toolkit_font_dir', 'Could not create the fonts folder.', array( 'status' => 500 ) );
 	}
 
-	// Reuse a byte-identical file under any name.
+	// Reuse a byte-identical file under any name, unless WordPress's Font Library owns it.
 	$hash = md5( $bytes );
+	$core = etch_toolkit_fonts_core_files();
 	foreach ( glob( $dir . '*.' . $ext ) ?: array() as $existing ) {
-		if ( filesize( $existing ) === strlen( $bytes ) && md5_file( $existing ) === $hash ) {
+		if ( ! isset( $core[ basename( $existing ) ] ) && filesize( $existing ) === strlen( $bytes ) && md5_file( $existing ) === $hash ) {
 			return basename( $existing );
 		}
 	}
@@ -803,6 +849,9 @@ function etch_toolkit_fonts_delete_file( string $name ) {
 	if ( '' === $path || ! file_exists( $path ) ) {
 		return new WP_Error( 'etch_toolkit_font_missing', 'File not found.', array( 'status' => 404 ) );
 	}
+	if ( isset( etch_toolkit_fonts_core_files()[ $name ] ) ) {
+		return new WP_Error( 'etch_toolkit_font_in_use', sprintf( "%s belongs to WordPress's Font Library. Remove it there.", $name ), array( 'status' => 409 ) );
+	}
 	foreach ( etch_toolkit_fonts_families() as $family ) {
 		foreach ( $family['variants'] as $variant ) {
 			if ( $variant['file'] === $name ) {
@@ -822,17 +871,24 @@ function etch_toolkit_fonts_delete_file( string $name ) {
  * Families plus their font files, base64-encoded, as one JSON document.
  *
  * @param string[] $names Families to export. Empty exports all.
+ * @return array|WP_Error
  */
-function etch_toolkit_fonts_export( array $names = array() ): array {
+function etch_toolkit_fonts_export( array $names = array() ) {
 	$families = etch_toolkit_fonts_families();
 	if ( $names ) {
 		$families = array_values( array_filter( $families, fn( $f ) => in_array( $f['name'], $names, true ) ) );
 	}
-	$files    = array();
+	$files = array();
+	$total = 0;
 	foreach ( $families as $family ) {
 		foreach ( $family['variants'] as $variant ) {
 			$path = etch_toolkit_fonts_path( $variant['file'] );
-			if ( file_exists( $path ) ) {
+			if ( file_exists( $path ) && ! isset( $files[ $variant['file'] ] ) ) {
+				// An export import can't take is no use, and could run out of memory.
+				$total += (int) filesize( $path );
+				if ( $total > ETCH_TOOLKIT_FONTS_MAX_IMPORT ) {
+					return new WP_Error( 'etch_toolkit_font_export', 'Those families hold more than 50 MB of fonts, more than an import takes. Export fewer at a time.', array( 'status' => 400 ) );
+				}
 				$files[ $variant['file'] ] = base64_encode( (string) file_get_contents( $path ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 			}
 		}

@@ -160,7 +160,7 @@ function etch_toolkit_fonts_google_install( string $family, array $subsets, bool
 		return new WP_Error( 'etch_toolkit_google_family', sprintf( '%s is not a Google font.', $family ), array( 'status' => 404 ) );
 	}
 
-	$subsets = array_values( array_intersect( array_map( 'sanitize_key', $subsets ), $meta['subsets'] ) ) ?: array( 'latin' );
+	$subsets = array_values( array_intersect( array_map( 'sanitize_key', $subsets ), $meta['subsets'] ) ) ?: array_slice( $meta['subsets'], 0, 1 );
 	$cuts    = array_values( array_intersect( array_map( 'strval', $cuts ), $meta['cuts'] ) ) ?: $meta['cuts'];
 	$axis    = $variable ? $meta['wght'] : array();
 
@@ -190,38 +190,44 @@ function etch_toolkit_fonts_google_install( string $family, array $subsets, bool
 		return new WP_Error( 'etch_toolkit_google_css', sprintf( 'Google Fonts did not return %s.', $meta['family'] ), array( 'status' => 502 ) );
 	}
 
-	// One @font-face per subset, each after a comment naming it: /* latin */.
+	// Each @font-face follows a comment naming its subset, /* latin */, except in fonts
+	// Google serves as one file per style, or in slices, like Japanese (a hundred or so
+	// per style). Slices aren't downloaded, and the add dialog doesn't offer them.
+	preg_match_all( '/(?:\/\*\s*([\w-]+)\s*\*\/\s*)?@font-face\s*\{([^}]*)\}/', $css, $blocks, PREG_SET_ORDER );
+	$face    = fn( $body ) => ( preg_match( '/font-style:\s*italic/', $body ) ? 'italic' : 'normal' ) . ( preg_match( '/font-weight:\s*(\d+(?:\s+\d+)?)/', $body, $m ) ? $m[1] : '400' );
+	$wanted  = array();
+	$unnamed = array();
+	foreach ( $blocks as $block ) {
+		$subset = sanitize_key( $block[1] );
+		if ( '' === $subset ) {
+			$unnamed[ $face( $block[2] ) ][] = $block[2];
+		} elseif ( in_array( $subset, $subsets, true ) ) {
+			$wanted[] = array( $subset, $block[2] );
+		}
+	}
+	$missing = array_values( array_diff( $subsets, array_column( $wanted, 0 ) ) );
+	if ( ( $missing || ! $wanted ) && $unnamed && 1 === max( array_map( 'count', $unnamed ) ) ) {
+		foreach ( $unnamed as $bodies ) {
+			$wanted[] = array( $missing[0] ?? 'all', $bodies[0] );
+		}
+		$missing = array();
+	}
+	if ( $missing || ! $wanted ) {
+		return new WP_Error( 'etch_toolkit_google_subset', sprintf( "Google Fonts doesn't serve %s as files to download.", $missing ? implode( ', ', $missing ) . ' of ' . $meta['family'] : $meta['family'] ), array( 'status' => 400 ) );
+	}
+
+	// All or nothing: the family only changes once every file is here and whole.
 	$slug     = sanitize_file_name( strtolower( str_replace( ' ', '-', $meta['family'] ) ) );
 	$variants = array();
-	$chunks   = preg_split( '/\/\*\s*([\w-]+)\s*\*\//', $css, -1, PREG_SPLIT_DELIM_CAPTURE );
-	for ( $i = 1; $i < count( $chunks ) - 1; $i += 2 ) {
-		$subset = sanitize_key( $chunks[ $i ] );
-		$block  = $chunks[ $i + 1 ];
-		if ( ! in_array( $subset, $subsets, true ) || ! preg_match( '/url\((https:\/\/fonts\.gstatic\.com\/[^)]+\.woff2)\)/', $block, $url ) ) {
-			continue;
-		}
-		$style  = preg_match( '/font-style:\s*italic/', $block ) ? 'italic' : 'normal';
-		$weight = preg_match( '/font-weight:\s*(\d+(?:\s+\d+)?)/', $block, $m ) ? etch_toolkit_fonts_sanitize_weight( $m[1] ) : '400';
+	foreach ( $wanted as [ $subset, $body ] ) {
+		$style  = preg_match( '/font-style:\s*italic/', $body ) ? 'italic' : 'normal';
+		$weight = preg_match( '/font-weight:\s*(\d+(?:\s+\d+)?)/', $body, $m ) ? etch_toolkit_fonts_sanitize_weight( $m[1] ) : '400';
 		$file   = $slug . '-' . ( $axis ? 'variable' : $weight ) . ( 'italic' === $style ? 'i' : '' ) . '-' . $subset . '.woff2';
 		$path   = etch_toolkit_fonts_path( $file );
-
-		if ( '' === $path ) {
-			continue;
-		}
-		if ( ! file_exists( $path ) ) {
-			wp_mkdir_p( dirname( $path ) );
-			$download = wp_remote_get(
-				$url[1],
-				array(
-					'timeout'  => 30,
-					'stream'   => true,
-					'filename' => $path,
-				)
-			);
-			if ( is_wp_error( $download ) || 200 !== wp_remote_retrieve_response_code( $download ) ) {
-				wp_delete_file( $path );
-				continue;
-			}
+		// An earlier download is reused if it's whole.
+		$have = '' !== $path && is_file( $path ) && etch_toolkit_fonts_is_font( (string) file_get_contents( $path ), 'woff2' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		if ( ! $have && ( '' === $path || ! preg_match( '/url\((https:\/\/fonts\.gstatic\.com\/[^)]+\.woff2)\)/', $body, $url ) || ! etch_toolkit_fonts_download( $url[1], $path ) ) ) {
+			return new WP_Error( 'etch_toolkit_google_download', sprintf( 'Could not download all of %s, so nothing changed. Try again.', $meta['family'] ), array( 'status' => 502 ) );
 		}
 
 		$variants[] = array(
@@ -229,13 +235,10 @@ function etch_toolkit_fonts_google_install( string $family, array $subsets, bool
 			'weight' => $weight,
 			'style'  => $style,
 			'subset' => $subset,
-			'range'  => preg_match( '/unicode-range:\s*([^;}]+)/', $block, $m ) ? $m[1] : '',
+			'range'  => preg_match( '/unicode-range:\s*([^;}]+)/', $body, $m ) ? $m[1] : '',
 		);
 	}
 
-	if ( ! $variants ) {
-		return new WP_Error( 'etch_toolkit_google_download', sprintf( 'Could not download %s.', $meta['family'] ), array( 'status' => 502 ) );
-	}
 	usort( $variants, fn( $a, $b ) => array( $a['style'], (int) $a['weight'] ) <=> array( $b['style'], (int) $b['weight'] ) );
 
 	$entry = array(
@@ -264,6 +267,31 @@ function etch_toolkit_fonts_google_install( string $family, array $subsets, bool
 	etch_toolkit_fonts_save( $families );
 
 	return true;
+}
+
+/**
+ * Download a font file from Google into the fonts folder, keeping it only if
+ * it's a whole WOFF2. It's written under a temporary name first, so a page
+ * never loads half a file.
+ */
+function etch_toolkit_fonts_download( string $url, string $path ): bool {
+	$partial = $path . '.part';
+	wp_mkdir_p( dirname( $path ) );
+	$response = wp_remote_get(
+		$url,
+		array(
+			'timeout'  => 30,
+			'stream'   => true,
+			'filename' => $partial,
+		)
+	);
+	$ok = ! is_wp_error( $response ) && 200 === wp_remote_retrieve_response_code( $response )
+		&& etch_toolkit_fonts_is_font( (string) file_get_contents( $partial ), 'woff2' ) // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		&& rename( $partial, $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+	if ( ! $ok ) {
+		wp_delete_file( $partial );
+	}
+	return $ok;
 }
 
 /**

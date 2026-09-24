@@ -58,6 +58,8 @@
 		thai: [ 'thai', 'สวัสดีชาวโลก' ],
 		tibt: [ 'tibetan', 'བཀྲ་ཤིས་བདེ་ལེགས།' ],
 	};
+	// Subsets Google serves in many small slices per style, which aren't downloaded here.
+	const SLICED = { japanese: 'Japanese', korean: 'Korean', 'chinese-simplified': 'Chinese', 'chinese-traditional': 'Chinese', 'chinese-hongkong': 'Chinese', emoji: 'Emoji' };
 	const VIEWS = { library: 'Library', upload: 'Upload', google: 'Google Fonts', settings: 'Settings' };
 
 	// Hugeicons strokes, 24px grid, like Etch's own.
@@ -232,6 +234,15 @@
 	let jobId = 0;
 	const jobs = new Map();
 
+	// Fail every waiting job and start a fresh worker next time. The upload then
+	// carries on with the original file.
+	const failJobs = ( message ) => {
+		for ( const job of jobs.values() ) job.reject( new Error( message ) );
+		jobs.clear();
+		worker?.terminate();
+		worker = null;
+	};
+
 	const convertToWoff2 = ( buffer ) => {
 		if ( ! worker ) {
 			worker = new Worker( config.workerUrl );
@@ -241,10 +252,16 @@
 				jobs.delete( data.id );
 				data.type === 'done' ? job.resolve( data.buffer ) : job.reject( new Error( data.error ) );
 			};
+			// A worker that can't load never answers.
+			worker.onerror = () => failJobs( 'The converter didn’t load.' );
 		}
 		return new Promise( ( resolve, reject ) => {
 			const id = ++jobId;
-			jobs.set( id, { resolve, reject } );
+			const timer = window.setTimeout( () => failJobs( 'Converting took too long.' ), 60000 );
+			jobs.set( id, {
+				resolve: ( result ) => ( window.clearTimeout( timer ), resolve( result ) ),
+				reject: ( error ) => ( window.clearTimeout( timer ), reject( error ) ),
+			} );
 			worker.postMessage( { id, type: 'convert', buffer }, [ buffer ] );
 		} );
 	};
@@ -1128,14 +1145,19 @@
 		const current = installed( meta.family );
 		const hasItalic = meta.cuts.some( ( c ) => c.endsWith( 'i' ) );
 		const canVary = !! meta.wght?.min;
+		const offered = meta.subsets.filter( ( s ) => ! SLICED[ s ] );
+		const sliced = [ ...new Set( meta.subsets.filter( ( s ) => SLICED[ s ] ).map( ( s ) => SLICED[ s ] ) ) ];
+		// A font with no subsets at all comes as one file. One with only sliced subsets can't be added.
+		const addable = offered.length > 0 || ! sliced.length;
 		const choice = {
-			subsets: new Set( current?.google?.subsets || [ 'latin', SCRIPTS[ meta.script ]?.[ 0 ] ].filter( ( s ) => meta.subsets.includes( s ) ) ),
+			subsets: new Set( ( current?.google?.subsets || [ 'latin', SCRIPTS[ meta.script ]?.[ 0 ] ] ).filter( ( s ) => offered.includes( s ) ) ),
 			variable: current ? !! current.google?.variable : canVary,
 			italic: current ? current.variants.some( ( v ) => v.style === 'italic' ) : false,
 			cuts: new Set( current && ! current.google?.variable ? current.variants.map( ( v ) => v.weight + ( v.style === 'italic' ? 'i' : '' ) ) : [ '400', '700' ].filter( ( c ) => meta.cuts.includes( c ) ) ),
 		};
-		if ( ! choice.subsets.size ) choice.subsets.add( meta.subsets[ 0 ] );
+		if ( ! choice.subsets.size && offered.length ) choice.subsets.add( offered[ 0 ] );
 		if ( ! choice.cuts.size ) choice.cuts.add( meta.cuts[ 0 ] );
+		const ready = () => addable && ( ! offered.length || choice.subsets.size > 0 ) && ( choice.variable || choice.cuts.size > 0 );
 
 		const cutsBox = h( 'fieldset', { class: 'etk-fonts__fieldset' } );
 		const renderCuts = () => {
@@ -1151,7 +1173,7 @@
 							meta.cuts.map( ( cut ) =>
 								check( `${ weightLabel( cut.replace( 'i', '' ) ) }${ cut.endsWith( 'i' ) ? ' Italic' : '' }`, choice.cuts.has( cut ), ( value ) => {
 									value ? choice.cuts.add( cut ) : choice.cuts.delete( cut );
-									dialog.setConfirmEnabled( choice.cuts.size > 0 && choice.subsets.size > 0 );
+									dialog.setConfirmEnabled( ready() );
 								} )
 							)
 					  )
@@ -1163,26 +1185,34 @@
 			title: current ? `Change ${ meta.family } styles` : `Add ${ meta.family }`,
 			message: [
 				h( 'p', { class: 'etk-fonts__dialog-specimen', style: `font-family: "${ meta.family }"`, textContent: meta.family } ),
-				h(
-					'fieldset',
-					{ class: 'etk-fonts__fieldset' },
-					h( 'legend', { textContent: 'Subsets' } ),
-					h(
-						'div',
-						{ class: 'etk-fonts__cuts' },
-						meta.subsets.map( ( subset ) =>
-							check( subset, choice.subsets.has( subset ), ( value ) => {
-								value ? choice.subsets.add( subset ) : choice.subsets.delete( subset );
-								dialog.setConfirmEnabled( choice.subsets.size > 0 && ( choice.variable || choice.cuts.size > 0 ) );
-							} )
-						)
-					)
-				),
+				offered.length
+					? h(
+							'fieldset',
+							{ class: 'etk-fonts__fieldset' },
+							h( 'legend', { textContent: 'Subsets' } ),
+							h(
+								'div',
+								{ class: 'etk-fonts__cuts' },
+								offered.map( ( subset ) =>
+									check( subset, choice.subsets.has( subset ), ( value ) => {
+										value ? choice.subsets.add( subset ) : choice.subsets.delete( subset );
+										dialog.setConfirmEnabled( ready() );
+									} )
+								)
+							)
+					  )
+					: null,
+				sliced.length
+					? h( 'p', {
+							class: 'etk-fonts__help',
+							textContent: `${ addable ? `${ sliced.join( ' and ' ) } ${ sliced.length > 1 ? 'aren’t' : 'isn’t' } offered` : `${ meta.family } can’t be added` }. Google serves ${ sliced.join( ' and ' ) } in many small files per style, which aren’t downloaded here.`,
+					  } )
+					: null,
 				canVary
 					? check( 'Variable font', choice.variable, ( value ) => {
 							choice.variable = value;
 							renderCuts();
-							dialog.setConfirmEnabled( choice.subsets.size > 0 && ( value || choice.cuts.size > 0 ) );
+							dialog.setConfirmEnabled( ready() );
 					  }, 'Fewer files, every weight in between.' )
 					: null,
 				cutsBox,
@@ -1193,6 +1223,7 @@
 			variant: 'primary',
 			form: true,
 		} );
+		dialog.setConfirmEnabled( ready() );
 		if ( ! ( await dialog.result ) ) return;
 
 		const cuts = choice.variable ? ( choice.italic ? meta.cuts : meta.cuts.filter( ( c ) => ! c.endsWith( 'i' ) ) ) : [ ...choice.cuts ];
@@ -1340,7 +1371,8 @@
 			const data = await api( `fonts/export?${ params }` );
 			const url = URL.createObjectURL( new Blob( [ JSON.stringify( data ) ], { type: 'application/json' } ) );
 			h( 'a', { href: url, download: `fonts-${ location.hostname }.json` } ).click();
-			URL.revokeObjectURL( url );
+			// Revoking straight away can cancel the download in some browsers.
+			window.setTimeout( () => URL.revokeObjectURL( url ), 60000 );
 			dialog.close();
 			announce( `Exported ${ plural( data.families.length, 'family', 'families' ) }.` );
 		} catch ( error ) {
@@ -1524,6 +1556,10 @@
 		if ( ! state ) {
 			main.replaceChildren( h( 'p', { class: 'etk-fonts__muted', textContent: 'Loading fonts…' } ) );
 			await load();
+		}
+		if ( ! state ) {
+			main.replaceChildren( h( 'div', { class: 'etk-fonts__empty' }, h( 'p', { textContent: 'Your fonts didn’t load.' } ), button( 'Try again', open ) ) );
+			return;
 		}
 		render();
 		panel.querySelector( '.etk-fonts__page-title' )?.focus();
