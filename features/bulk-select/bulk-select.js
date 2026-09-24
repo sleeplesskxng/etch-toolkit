@@ -16,6 +16,9 @@
  * renders the rows in view. Range selection rebuilds the list's full order the
  * same way Etch does (skip :root and element styles, then filter by search
  * text, or by the active tab when the search is empty).
+ *
+ * Style usage's Unused tab shows its own list over Etch's. Its rows get
+ * checkboxes too, and Select All and ranges follow what it lists.
  */
 ( () => {
 	const { api, save, el, confirmDialog, reload, classesIn, isClassSelector } = window.etchToolkit || {};
@@ -26,6 +29,9 @@
 	const ACTIVE_TAB = '.css-input-tabs__trigger[data-state="active"]';
 	const LIST = '.virtual-list';
 	const ROW = '.list-item';
+	const UNUSED = '.etk-unused'; // Style usage's Unused tab.
+	const ROWS = `${ LIST } ${ ROW }, ${ UNUSED } li`;
+	const ROW_BUTTON = `${ ROW } > .main-button, ${ UNUSED }__button`;
 	const CHECK = 'etk-select';
 	const SCREEN = '#full-screen'; // Etch's full-screen view, where the bar floats.
 
@@ -60,20 +66,28 @@
 	};
 
 	// The list's full order as Etch computes it, including rows scrolled out of view.
+	// With the Unused tab on, what it lists instead.
 	const visibleOrder = ( root ) => {
-		const search = root.querySelector( SEARCH )?.value.trim().toLowerCase() ?? '';
+		const unused = root.querySelector( UNUSED );
+		if ( unused ) {
+			const shown = new Set( [ ...unused.querySelectorAll( `${ UNUSED }__button` ) ].map( ( b ) => b.textContent ) );
+			return listable( allStyles() )
+				.filter( ( s ) => shown.has( s.selector.trim() ) )
+				.map( ( s ) => s.id );
+		}
+		const search = root.querySelector( SEARCH )?.value.toLowerCase() ?? '';
 		const tab = root.querySelector( ACTIVE_TAB )?.textContent.trim().toLowerCase() || 'all';
 		return listable( allStyles() )
 			.filter( ( s ) => ( search ? s.selector.toLowerCase().includes( search ) : tab === 'all' || s.type === tab ) )
 			.map( ( s ) => s.id );
 	};
 
-	const rowSelector = ( row ) => row.querySelector( '.main-button > span:not(.etk-usage)' )?.textContent.trim() ?? '';
+	const rowSelector = ( row ) => row.querySelector( `.main-button > span:not(.etk-usage), ${ UNUSED }__button` )?.textContent.trim() ?? '';
 
 	// Selector => first style ID with it (the Style Manager lists all collections together).
 	const idsBySelector = () => {
 		const map = new Map();
-		for ( const s of listable( allStyles() ) ) if ( ! map.has( s.selector ) ) map.set( s.selector, s.id );
+		for ( const s of listable( allStyles() ) ) if ( ! map.has( s.selector.trim() ) ) map.set( s.selector.trim(), s.id );
 		return map;
 	};
 
@@ -586,7 +600,7 @@
 
 		root.classList.toggle( 'etk-selecting', selected.size > 0 );
 		const ids = idsBySelector();
-		root.querySelectorAll( `${ LIST } ${ ROW }` ).forEach( ( row ) => renderCheckbox( row, ids ) );
+		root.querySelectorAll( ROWS ).forEach( ( row ) => renderCheckbox( row, ids ) );
 		renderBar( root );
 	};
 
@@ -601,9 +615,9 @@
 	document.addEventListener(
 		'click',
 		( event ) => {
-			const button = event.target.closest?.( `${ ROOT } ${ ROW } > .main-button` );
 			const root = getRoot();
-			if ( ! button || ! root ) return;
+			const button = root && event.target.closest?.( ROW_BUTTON );
+			if ( ! button || ! root.contains( button ) ) return;
 
 			const id = idsBySelector().get( rowSelector( button.parentElement ) );
 			if ( ! id ) return;

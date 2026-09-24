@@ -1,8 +1,14 @@
 /* ---- Row checkboxes ---- */
 
 /* Reserve the checkbox's space on every row so text doesn't shift when it appears. */
-.style-overview-modal__left .list-item:has(> .etk-select) > .main-button {
+.style-overview-modal__left .list-item:has(> .etk-select) > .main-button,
+.etk-unused li:has(> .etk-select) > .etk-unused__button {
 	padding-inline-start: 26px;
+}
+
+/* Rows in style usage's Unused tab. */
+.etk-unused li {
+	position: relative;
 }
 
 .etk-select {
@@ -20,6 +26,7 @@
 	transition: opacity 0.1s ease;
 
 	.list-item:hover > &,
+	.etk-unused li:hover > &,
 	&:focus-visible,
 	&:checked,
 	.etk-selecting & {
@@ -27,7 +34,8 @@
 	}
 }
 
-.style-overview-modal__left .list-item.etk-row--checked {
+.style-overview-modal__left .list-item.etk-row--checked,
+.etk-unused li.etk-row--checked > .etk-unused__button {
 	background-color: var(--e-base-light);
 	opacity: 1;
 }
