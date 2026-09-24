@@ -31,6 +31,8 @@
 	const ICONS = {
 		close: '<path d="M5 5L19 19"/><path d="M19 5L5 19"/>',
 		back: '<path d="M15 6L9 12L15 18"/>',
+		// Etch's hugeicons:arrow-left-02, the back button on its own managers.
+		exit: '<path d="M8.99996 16.9998L4 11.9997L9 6.99976"/><path d="M4 12H20"/>',
 		copy: '<path d="M9 15C9 12.1716 9 10.7574 9.87868 9.87868C10.7574 9 12.1716 9 15 9H16C18.8284 9 20.2426 9 21.1213 9.87868C22 10.7574 22 12.1716 22 15V16C22 18.8284 22 20.2426 21.1213 21.1213C20.2426 22 18.8284 22 16 22H15C12.1716 22 10.7574 22 9.87868 21.1213C9 20.2426 9 18.8284 9 16V15Z"/><path d="M16.9999 9C16.9975 6.04291 16.9528 4.51121 16.092 3.46243C15.9258 3.25989 15.7401 3.07418 15.5376 2.90796C14.4312 2 12.7875 2 9.5 2C6.21252 2 4.56878 2 3.46243 2.90796C3.25989 3.07417 3.07418 3.25989 2.90796 3.46243C2 4.56878 2 6.21252 2 9.5C2 12.7875 2 14.4312 2.90796 15.5376C3.07417 15.7401 3.25989 15.9258 3.46243 16.092C4.51121 16.9528 6.04291 16.9975 9 16.9999"/>',
 		upload: '<path d="M12 4.5L12 14.5M12 4.5C11.2998 4.5 9.99153 6.4943 9.5 7M12 4.5C12.7002 4.5 14.0085 6.4943 14.5 7"/><path d="M20 16.5C20 18.982 19.482 19.5 17 19.5H7C4.518 19.5 4 18.982 4 16.5"/>',
 	};
@@ -1095,7 +1097,7 @@
 				onkeyup: ( e ) => e.stopPropagation(),
 			},
 			// Etch's manager header: a back button to the builder, then the title.
-			h( 'header', { class: 'etk-fonts__header' }, iconButton( 'Back to the builder', 'back', () => close() ), h( 'h1', { id: 'etk-fonts-title', class: 'etk-fonts__title', textContent: 'Fonts' } ), status ),
+			h( 'header', { class: 'etk-fonts__header' }, iconButton( 'Back to the builder', 'exit', () => close() ), h( 'h1', { id: 'etk-fonts-title', class: 'etk-fonts__title', textContent: 'Fonts' } ), status ),
 			h(
 				'nav',
 				{ class: 'etk-fonts__nav', 'aria-label': 'Fonts' },
