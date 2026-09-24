@@ -1,0 +1,5 @@
+/* The cloned item doesn't get bits-ui's data-highlighted, so mirror it on keyboard focus. */
+.right-click-menu__item.etk-delete-everywhere:focus {
+	color: var(--etch-danger);
+	background-color: var(--etch-danger-trans);
+}

@@ -1,0 +1,54 @@
+/* Footprint of Etch's delete button: ghost button, 14px icon, 1em side padding at --e-font-size-m. */
+.style-overview-modal__left .list-item {
+	--etk-usage-inline-size: calc(14px + 2 * var(--e-font-size-m, 12px));
+}
+
+/* Leave room for the count so long selectors ellipsize before it. */
+.style-overview-modal__left .list-item:has(.etk-usage) > .main-button {
+	padding-inline-end: calc(var(--etk-usage-inline-size) + 10px);
+}
+
+/*
+ * Same box as Etch's .hover-children-wrapper (right: 5px, top/bottom: 3px),
+ * so the count sits exactly where the delete button appears on hover.
+ * The button isn't positioned, so .list-item is the containing block and
+ * the button's overflow: hidden doesn't clip it.
+ */
+.etk-usage {
+	position: absolute;
+	inset-block: 3px;
+	inset-inline-end: 5px;
+	box-sizing: border-box;
+	min-inline-size: var(--etk-usage-inline-size);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding-inline: 0.5em;
+	border-radius: var(--e-border-radius, 4px);
+	background-color: var(--e-base-ultra-light, rgb(128 128 128 / 0.15));
+	font-family: var(--e-font-code, monospace);
+	font-size: var(--e-font-size-m, 12px);
+	line-height: 1;
+	font-variant-numeric: tabular-nums;
+	opacity: 0.8;
+	pointer-events: none;
+
+	&.etk-usage--unused {
+		color: var(--e-danger, #d33);
+		opacity: 1;
+	}
+
+	/* Etch shows the delete button on hover. Hand the spot over to it. */
+	.list-item:hover & {
+		visibility: hidden;
+	}
+}
+
+.etk-sr {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}

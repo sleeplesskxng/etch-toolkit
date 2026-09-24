@@ -1,0 +1,268 @@
+/* Confirm dialog, copied from Etch's confirm-dialog (svelte-149ug3g) onto a native <dialog>. */
+.etk-confirm {
+	/* Etch's builder injects `* { margin: 0 }`, which kills the native dialog's auto-centering. */
+	position: fixed;
+	inset: 0;
+	margin: auto;
+	inline-size: fit-content;
+	block-size: fit-content;
+	max-inline-size: calc(100vw - 32px);
+	max-block-size: calc(100dvh - 32px);
+	padding: 0;
+	border: 0;
+	background: none;
+	overflow: visible;
+	/* Appended to <body>, outside Etch's UI container that sets the font. */
+	font-family: var(--etch-font-interface, var(--e-font-interface));
+
+	&::backdrop {
+		background-color: rgb(39 39 43 / 0.4);
+	}
+}
+
+.etk-confirm__panel {
+	min-inline-size: min(400px, calc(100vw - 32px));
+	/* Etch's tokens top out at 12px, too tight for this panel, so it gets its own scale. */
+	--etk-pad: 24px;
+	--etk-gap: 20px;
+	--etk-gap-inner: 12px;
+
+	max-inline-size: 440px;
+	display: flex;
+	flex-direction: column;
+	gap: var(--etk-gap);
+	padding: var(--etk-pad);
+	background-color: var(--etch-neutral);
+	border: 1px solid var(--etch-border-color);
+	border-radius: 18px;
+	box-shadow:
+		0 1px 3px 0 rgb(0 0 0 / 0.15),
+		0 6px 12px 0 rgb(0 0 0 / 0.08),
+		0 18px 24px 0 rgb(0 0 0 / 0.1);
+}
+
+.etk-confirm__header {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--etch-space-sm);
+
+	&.etk-confirm__header--danger {
+		color: var(--etch-danger);
+	}
+}
+
+.etk-confirm__title {
+	margin: 0;
+	font-size: var(--etch-font-size-l);
+	font-weight: 600;
+	line-height: 1;
+	color: var(--e-foreground-color);
+}
+
+.etk-confirm__message {
+	font-size: var(--etch-font-size-m);
+	color: var(--etch-text-color);
+	opacity: var(--etch-opacity-high);
+	line-height: 1.5;
+	text-align: center;
+	font-weight: 400;
+	display: flex;
+	flex-direction: column;
+	gap: var(--etk-gap-inner);
+
+	p {
+		margin: 0;
+	}
+
+	code {
+		font-family: var(--e-font-code);
+		font-weight: 600;
+	}
+}
+
+.etk-confirm__list {
+	max-block-size: 160px;
+	overflow-y: auto;
+	margin: 0;
+	padding: var(--etch-space-md) var(--etk-gap-inner);
+	list-style: none;
+	text-align: start;
+	border: 1px solid var(--etch-border-color);
+	border-radius: var(--etch-radius-lg);
+
+	li {
+		display: flex;
+		justify-content: space-between;
+		gap: var(--etk-gap-inner);
+		padding-block: var(--etch-space-xs);
+	}
+}
+
+.etk-confirm__meta {
+	flex-shrink: 0;
+	opacity: 0.7;
+}
+
+.etk-confirm__actions {
+	display: flex;
+	gap: var(--etch-space-md);
+	margin-block-start: var(--etch-space-xs);
+}
+
+.etk-confirm__btn {
+	all: unset;
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--etch-space-xs);
+	padding: var(--etch-space-lg) var(--etch-space-xl);
+	font-size: var(--etch-font-size-m);
+	font-weight: 500;
+	line-height: 1;
+	border-radius: var(--etch-radius-lg);
+	cursor: pointer;
+	user-select: none;
+	transition: background-color 0.15s ease;
+
+	&:disabled {
+		cursor: not-allowed;
+		opacity: 0.5;
+	}
+
+	.etk-confirm[aria-busy='true'] &:disabled {
+		cursor: progress;
+		opacity: 0.7;
+	}
+}
+
+.etk-confirm__btn--cancel {
+	background-color: var(--etch-neutral-semi-dark);
+	color: var(--e-foreground-color);
+
+	&:hover:not(:disabled) {
+		background-color: var(--etch-neutral-medium);
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--etch-primary);
+		outline-offset: 2px;
+	}
+}
+
+.etk-confirm__btn--danger {
+	background-color: var(--etch-danger-trans-20);
+	color: var(--etch-text);
+	border: 1px solid var(--etch-danger);
+
+	.etk-confirm__icon {
+		color: var(--etch-danger);
+	}
+
+	&:hover:not(:disabled) {
+		background-color: var(--etch-danger-trans-40);
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--etch-danger);
+		outline-offset: 2px;
+	}
+}
+
+.etk-confirm__icon {
+	flex-shrink: 0;
+}
+
+.etk-confirm__btn--primary {
+	background-color: var(--etch-primary);
+	color: var(--etch-text);
+
+	&:hover:not(:disabled) {
+		background-color: var(--etch-primary-hover);
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--etch-primary);
+		outline-offset: 2px;
+	}
+}
+
+/* ---- Form dialogs ---- */
+
+.etk-confirm--form {
+	.etk-confirm__panel {
+		inline-size: 480px;
+		max-inline-size: calc(100vw - 32px);
+	}
+
+	.etk-confirm__message {
+		text-align: start;
+	}
+}
+
+.etk-fields {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: var(--etk-gap-inner);
+}
+
+.etk-field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--etch-space-xs);
+	min-inline-size: 0;
+
+	label {
+		font-size: var(--etch-font-size-s, 11px);
+		color: var(--e-foreground-color);
+		opacity: 0.8;
+	}
+
+	input {
+		box-sizing: border-box;
+		inline-size: 100%;
+		padding: var(--etch-space-md) var(--etch-space-lg);
+		border: 1px solid var(--etch-border-color);
+		border-radius: var(--etch-radius-lg);
+		background-color: var(--etch-neutral-semi-dark);
+		color: var(--e-foreground-color);
+		font-family: var(--e-font-code);
+		font-size: var(--etch-font-size-m);
+
+		&:focus-visible {
+			outline: 2px solid var(--etch-primary);
+			outline-offset: 0;
+		}
+
+		&[aria-invalid='true'] {
+			border-color: var(--etch-danger);
+		}
+	}
+}
+
+.etk-preview__summary {
+	color: var(--e-foreground-color);
+}
+
+.etk-preview__list li {
+	justify-content: flex-start;
+	flex-wrap: wrap;
+	gap: 0.75ch;
+}
+
+.etk-preview__arrow {
+	opacity: 0.5;
+}
+
+.etk-preview__also {
+	font-size: var(--etch-font-size-s, 11px);
+	opacity: 0.8;
+}
+
+.etk-preview__errors {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	color: var(--etch-danger);
+}
