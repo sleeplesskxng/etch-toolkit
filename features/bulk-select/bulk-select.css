@@ -32,6 +32,170 @@
 	opacity: 1;
 }
 
+/* ---- Rename ---- */
+
+.etk-confirm:has(.etk-rename) {
+	.etk-confirm__panel {
+		inline-size: 760px;
+		max-inline-size: calc(100vw - 32px);
+	}
+
+	.etk-confirm__list {
+		max-block-size: 240px;
+	}
+}
+
+.etk-rename {
+	display: flex;
+	flex-direction: column;
+	gap: var(--etk-gap-inner);
+
+	[hidden] {
+		display: none;
+	}
+}
+
+.etk-confirm__message > .etk-preview__errors:empty {
+	display: none;
+}
+
+.etk-field--wide {
+	grid-column: 1 / -1;
+}
+
+/* Bulk action: radios styled as a segmented control. */
+.etk-seg {
+	display: flex;
+	gap: 2px;
+	inline-size: fit-content;
+	margin: 0;
+	padding: 3px;
+	border: 0;
+	border-radius: var(--etch-radius-lg);
+	background-color: var(--etch-neutral-ultra-dark);
+
+	label {
+		padding: 6px 10px;
+		border-radius: 6px;
+		font-size: var(--etch-font-size-m);
+		font-weight: 500;
+		color: var(--e-foreground-color);
+		opacity: 0.6;
+		cursor: pointer;
+
+		&:hover {
+			opacity: 1;
+		}
+
+		&:has(input:checked) {
+			background-color: var(--etch-neutral-semi-dark);
+			opacity: 1;
+		}
+
+		&:has(input:focus-visible) {
+			outline: 2px solid var(--etch-primary);
+		}
+	}
+}
+
+.etk-seg__legend,
+.etk-seg input {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.etk-rename__rows {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	max-block-size: min(480px, 50dvh);
+	overflow-y: auto;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.etk-rename__row {
+	display: grid;
+	grid-template-columns: minmax(0, 16rem) auto 1fr 28px 28px;
+	align-items: center;
+	gap: 4px 10px;
+
+	input {
+		box-sizing: border-box;
+		inline-size: 100%;
+		padding: 8px 12px;
+		border: 1px solid var(--etch-border-color);
+		border-radius: var(--etch-radius-lg);
+		background-color: var(--etch-neutral-semi-dark);
+		color: var(--e-foreground-color);
+		font-family: var(--e-font-code);
+		font-size: var(--etch-font-size-l);
+
+		&:focus-visible {
+			outline: 2px solid var(--etch-primary);
+			outline-offset: 0;
+		}
+
+		&[aria-invalid='true'] {
+			border-color: var(--etch-danger);
+		}
+	}
+}
+
+.etk-rename__old {
+	overflow: hidden;
+	font-family: var(--e-font-code);
+	font-size: var(--etch-font-size-l);
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	opacity: 0.6;
+}
+
+.etk-rename__reset,
+.etk-rename__remove {
+	all: unset;
+	grid-column: 4;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	inline-size: 28px;
+	block-size: 28px;
+	border-radius: 6px;
+	background-color: var(--etch-neutral-dark);
+	color: var(--e-foreground-color);
+	cursor: pointer;
+
+	&:hover {
+		background-color: var(--etch-neutral-medium);
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--etch-primary);
+	}
+}
+
+.etk-rename__remove {
+	grid-column: 5;
+	background-color: transparent;
+	opacity: 0.6;
+
+	&:hover,
+	&:focus-visible {
+		opacity: 1;
+	}
+}
+
+.etk-rename__error {
+	grid-column: 3 / -1;
+	font-size: var(--etch-font-size-s, 11px);
+	color: var(--etch-danger);
+}
+
 /* ---- Rename: BEM option ---- */
 
 .etk-bem {
@@ -54,6 +218,11 @@
 	input {
 		margin: 0;
 		accent-color: var(--e-primary, var(--etch-primary));
+	}
+
+	/* The selectors heading, which has nothing to toggle. */
+	&:is(p) {
+		cursor: default;
 	}
 }
 

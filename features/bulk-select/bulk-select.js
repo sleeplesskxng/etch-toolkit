@@ -6,8 +6,10 @@
  * - A floating action bar, a copy of the Asset Manager's bulk bar: Clear,
  *   count, Select all, Rename, Delete.
  *
- * Rename is find/replace inside class names. The server previews and applies
- * it, renaming each changed class everywhere: every style's selector and CSS,
+ * Rename lists each class name in the selection with its new name. A bulk
+ * action (replace, add prefix, add suffix) fills them in, and any can be
+ * edited by hand. The server previews and applies the old => new map,
+ * renaming each changed class everywhere: every style's selector and CSS,
  * global stylesheets, and element class attributes across the site.
  *
  * Selection is kept here by style ID, because Etch's list is virtual and only
@@ -16,7 +18,7 @@
  * text, or by the active tab when the search is empty).
  */
 ( () => {
-	const { api, el, confirmDialog } = window.etchToolkit || {};
+	const { api, el, confirmDialog, reload } = window.etchToolkit || {};
 	if ( ! confirmDialog ) return;
 
 	const ROOT = '.style-overview-modal__left';
@@ -143,50 +145,34 @@
 
 	const plural = ( n, word ) => `${ n } ${ word }${ n === 1 ? '' : 's' }`;
 
-	const renderRenamePreview = ( container, summary, plan, find ) => {
-		if ( ! plan.styles.length ) {
-			summary.textContent = `None of the selected class names contain "${ find }".`;
-			container.replaceChildren();
-			return;
-		}
+	const classes = ( n ) => `${ n } class${ n === 1 ? '' : 'es' }`;
+	const CLASS_NAME = /^-?[_a-zA-Z][\w-]*$/;
+	const REMOVE_ICON = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">${ ICONS.clear }</svg>`;
+	const RESET_ICON =
+		'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 4v5h5"/></svg>';
 
+	// What the rename touches, e.g. "Updates 5 styles, 38 elements on 12 pages."
+	const renameSummary = ( plan ) => {
 		const parts = [ plural( plan.styles.length, 'style' ) ];
 		if ( plan.elements ) parts.push( `${ plural( plan.elements, 'element' ) } on ${ plural( plan.posts.length, 'page' ) }` );
 		if ( plan.stylesheets.length ) parts.push( plural( plan.stylesheets.length, 'global stylesheet' ) );
-		summary.textContent = `This updates ${ parts.join( ', ' ) }.`;
+		return `Updates ${ parts.join( ', ' ) }.`;
+	};
 
-		const nodes = [];
-		if ( plan.errors.length ) {
-			nodes.push( el( 'ul', { className: 'etk-preview__errors' }, plan.errors.map( ( e ) => el( 'li', { textContent: e } ) ) ) );
-		}
-
-		// Selected styles first, then others that reference a renamed class.
-		const rows = [ ...plan.styles ].sort( ( a, b ) => b.selected - a.selected );
-		const bemSelectors = new Set( plan.bem.map( ( b ) => `.${ b.from }` ) );
-		nodes.push(
-			el(
-				'ul',
-				{ className: 'etk-confirm__list etk-preview__list' },
-				rows.map( ( c ) =>
-					el(
-						'li',
-						{},
-						c.from === c.to
-							? [ el( 'code', { textContent: c.from } ), el( 'span', { className: 'etk-preview__also', textContent: 'CSS updated' } ) ]
-							: [
-									el( 'code', { textContent: c.from } ),
-									el( 'span', { className: 'etk-preview__arrow', textContent: '→' } ),
-									el( 'code', { textContent: c.to } ),
-									...( c.selected
-										? []
-										: [ el( 'span', { className: 'etk-preview__also', textContent: bemSelectors.has( c.from ) ? 'child/modifier' : 'related' } ) ] ),
-							  ]
-					)
-				)
+	// Selectors beyond a plain class that change along with it, e.g. ".card:hover .card__title".
+	const renderSelectors = ( section, list, plan ) => {
+		const rows = plan.styles.filter( ( s ) => ! /^\.-?[_a-zA-Z][\w-]*$/.test( s.from ) && s.from !== s.to );
+		section.hidden = ! rows.length;
+		section.querySelector( '.etk-bem__count' ).textContent = `(${ rows.length })`;
+		list.replaceChildren(
+			...rows.map( ( s ) =>
+				el( 'li', {}, [
+					el( 'code', { textContent: s.from } ),
+					el( 'span', { className: 'etk-preview__arrow', textContent: '→' } ),
+					el( 'code', { textContent: s.to } ),
+				] )
 			)
 		);
-
-		container.replaceChildren( ...nodes );
 	};
 
 	// The BEM option, with a count, and the list of what it renames (shown when checked).
@@ -213,20 +199,74 @@
 		);
 	};
 
+	// One row per class name in the selection. A bulk action (replace, prefix, suffix)
+	// fills every row, and any row can be edited by hand. Edited rows keep their value
+	// until reset. Removed rows are left alone, even as BEM children of a renamed class.
 	const bulkRename = async () => {
 		const styles = allStyles().filter( ( s ) => selected.has( s.id ) );
-		if ( ! styles.length ) return;
 		const ids = styles.map( ( s ) => s.id );
-
-		// Start from the first class name in the selection, e.g. "feature-card".
-		const start = styles.map( ( s ) => s.selector.match( /\.(-?[_a-zA-Z][\w-]*)/ )?.[ 1 ] ).find( Boolean ) ?? '';
+		const names = [ ...new Set( styles.flatMap( ( s ) => [ ...s.selector.matchAll( /\.(-?[_a-zA-Z][\w-]*)/g ) ].map( ( m ) => m[ 1 ] ) ) ) ];
+		if ( ! names.length ) return;
 
 		const field = ( id, label, value ) => {
 			const input = el( 'input', { id, type: 'text', value, spellcheck: false, autocomplete: 'off' } );
 			return [ el( 'div', { className: 'etk-field' }, [ el( 'label', { htmlFor: id, textContent: label } ), input ] ), input ];
 		};
-		const [ findField, find ] = field( 'etk-rename-find', 'Find', start );
-		const [ replaceField, replace ] = field( 'etk-rename-replace', 'Replace with', start );
+		const [ findField, find ] = field( 'etk-rename-find', 'Find', names[ 0 ] );
+		const [ replaceField, replace ] = field( 'etk-rename-replace', 'Replace with', names[ 0 ] );
+		const [ affixField, affix ] = field( 'etk-rename-affix', 'Prefix', '' );
+		affixField.classList.add( 'etk-field--wide' );
+		affixField.hidden = true;
+
+		const MODES = { replace: 'Replace', prefix: 'Add prefix', suffix: 'Add suffix' };
+		const modes = el( 'fieldset', { className: 'etk-seg' }, [
+			el( 'legend', { className: 'etk-seg__legend', textContent: 'Rename by' } ),
+			...Object.entries( MODES ).map( ( [ value, label ] ) =>
+				el( 'label', {}, [ el( 'input', { type: 'radio', name: 'etk-rename-mode', value, checked: value === 'replace' } ), label ] )
+			),
+		] );
+		const mode = () => modes.querySelector( 'input:checked' ).value;
+
+		// The name a row gets from the bulk action.
+		const auto = ( name ) => {
+			const value = affix.value.trim();
+			if ( mode() === 'prefix' ) return value + name;
+			if ( mode() === 'suffix' ) return name + value;
+			const f = find.value.trim();
+			return f ? name.split( f ).join( replace.value.trim() ) : name;
+		};
+
+		const rows = names.map( ( name, i ) => {
+			const id = `etk-rename-row-${ i }`;
+			const input = el( 'input', { id, type: 'text', value: name, spellcheck: false, autocomplete: 'off' } );
+			const reset = el( 'button', { type: 'button', className: 'etk-rename__reset', hidden: true, innerHTML: RESET_ICON } );
+			reset.setAttribute( 'aria-label', `Reset .${ name }` );
+			const remove = el( 'button', { type: 'button', className: 'etk-rename__remove', innerHTML: REMOVE_ICON } );
+			remove.setAttribute( 'aria-label', `Don't rename .${ name }` );
+			remove.title = "Don't rename";
+			const error = el( 'p', { className: 'etk-rename__error', id: `${ id }-error`, hidden: true } );
+			const li = el( 'li', { className: 'etk-rename__row' }, [
+				el( 'label', { className: 'etk-rename__old', htmlFor: id, textContent: `.${ name }` } ),
+				el( 'span', { className: 'etk-preview__arrow', textContent: '→', ariaHidden: 'true' } ),
+				input,
+				reset,
+				remove,
+				error,
+			] );
+			return { name, input, reset, remove, error, li, edited: false, removed: false };
+		} );
+
+		const setRowError = ( row, message ) => {
+			if ( row.error.textContent !== message ) row.error.textContent = message;
+			row.error.hidden = ! message;
+			row.input.setAttribute( 'aria-invalid', String( !! message ) );
+			if ( message ) row.input.setAttribute( 'aria-describedby', row.error.id );
+			else row.input.removeAttribute( 'aria-describedby' );
+		};
+
+		const fill = () => {
+			for ( const row of rows ) if ( ! row.edited && ! row.removed ) row.input.value = auto( row.name );
+		};
 
 		const bemBox = el( 'input', { type: 'checkbox', id: 'etk-rename-bem' } );
 		const bemList = el( 'ul', { className: 'etk-confirm__list etk-preview__list etk-bem__list', id: 'etk-rename-bem-list' } );
@@ -239,12 +279,18 @@
 			bemList,
 		] );
 
+		const selectorList = el( 'ul', { className: 'etk-confirm__list etk-preview__list' } );
+		const selectors = el( 'div', { className: 'etk-bem', hidden: true }, [
+			el( 'p', { className: 'etk-bem__label' }, [ 'Also updates these selectors ', el( 'span', { className: 'etk-bem__count' } ) ] ),
+			selectorList,
+		] );
+
+		const errors = el( 'ul', { className: 'etk-preview__errors' } );
 		const summary = el( 'p', { className: 'etk-preview__summary' } );
 		summary.setAttribute( 'aria-live', 'polite' );
-		const details = el( 'div', { className: 'etk-confirm__message' } );
 
 		const dialog = confirmDialog( {
-			title: `Renaming ${ plural( styles.length, 'style' ) }`,
+			title: `Rename ${ classes( names.length ) }`,
 			variant: 'primary',
 			form: true,
 			confirmLabel: 'Rename',
@@ -252,10 +298,15 @@
 			failTitle: 'Rename failed',
 			initialFocus: replace,
 			message: [
-				el( 'div', { className: 'etk-fields' }, [ findField, replaceField ] ),
-				summary,
-				details,
+				el( 'div', { className: 'etk-rename' }, [
+					modes,
+					el( 'div', { className: 'etk-fields' }, [ findField, replaceField, affixField ] ),
+					el( 'ul', { className: 'etk-rename__rows' }, rows.map( ( r ) => r.li ) ),
+				] ),
+				errors,
 				bemOption,
+				selectors,
+				summary,
 				el( 'p', {
 					className: 'etk-preview__also',
 					textContent: "Class names are updated on every element across the site. Your changes will be saved and the builder will reload. This can't be undone.",
@@ -267,33 +318,55 @@
 		let seq = 0;
 		let timer = 0;
 		let ready = false;
+		let map = {};
+		const keep = () => rows.filter( ( r ) => r.removed ).map( ( r ) => r.name );
 
 		const refresh = () => {
 			clearTimeout( timer );
 			ready = false;
 			dialog.setConfirmEnabled( false );
 
-			const f = find.value.trim();
-			const r = replace.value.trim();
-			const fOk = /^[\w-]+$/.test( f );
-			const rOk = /^[\w-]*$/.test( r );
-			find.setAttribute( 'aria-invalid', String( ! fOk ) );
-			replace.setAttribute( 'aria-invalid', String( ! rOk ) );
+			map = {};
+			let invalid = false;
+			for ( const row of rows ) {
+				if ( row.removed ) continue;
+				const value = row.input.value.trim();
+				const ok = CLASS_NAME.test( value );
+				setRowError( row, ok ? '' : value ? "Letters, numbers, - and _ only, and it can't start with a number." : 'Enter a class name.' );
+				if ( ! ok ) invalid = true;
+				else if ( value !== row.name ) map[ row.name ] = value;
+			}
 
-			if ( ! fOk || ! rOk || f === r ) {
-				summary.textContent = f === r ? 'Type a new name to see what changes.' : 'Use letters, numbers, hyphens and underscores only.';
-				details.replaceChildren();
-				bemOption.hidden = true;
+			const count = Object.keys( map ).length;
+			dialog.setConfirmLabel( count ? `Rename ${ classes( count ) }` : 'Rename' );
+			errors.replaceChildren();
+			if ( invalid || ! count ) {
+				summary.textContent = invalid
+					? ''
+					: rows.every( ( r ) => r.removed )
+					? 'Nothing left to rename.'
+					: 'Pick an action or edit a name to see what changes.';
+				bemOption.hidden = selectors.hidden = true;
 				return;
 			}
 
 			const mine = ++seq;
+			const request = map;
 			timer = setTimeout( async () => {
 				try {
-					const plan = await api( 'styles/rename/preview', 'POST', { ids, find: f, replace: r, bem: bemBox.checked } );
+					const plan = await api( 'styles/rename/preview', 'POST', { ids, map: request, bem: bemBox.checked, keep: keep() } );
 					if ( mine !== seq ) return; // A newer keystroke is in flight.
 					renderBemOption( bemOption, bemList, plan );
-					renderRenamePreview( details, summary, plan, f );
+					renderSelectors( selectors, selectorList, plan );
+					// Counts BEM children too, when they're on.
+					const total = Object.keys( plan.classMap ).length;
+					dialog.setConfirmLabel( total ? `Rename ${ classes( total ) }` : 'Rename' );
+					for ( const row of rows ) setRowError( row, plan.rowErrors[ row.name ] ?? '' );
+					// Errors a row can't show, like a clash from a BEM child.
+					if ( ! Object.keys( plan.rowErrors ).length ) {
+						errors.replaceChildren( ...plan.errors.map( ( e ) => el( 'li', { textContent: e } ) ) );
+					}
+					summary.textContent = plan.styles.length ? renameSummary( plan ) : 'Nothing to rename.';
 					ready = plan.styles.length > 0 && ! plan.errors.length;
 					dialog.setConfirmEnabled( ready );
 				} catch ( err ) {
@@ -302,27 +375,60 @@
 			}, 250 );
 		};
 
-		for ( const input of [ find, replace ] ) {
-			input.addEventListener( 'input', refresh );
-			input.addEventListener( 'keydown', ( event ) => {
-				if ( event.key === 'Enter' && ready ) {
-					event.preventDefault();
-					dialog.confirm();
-				}
+		modes.addEventListener( 'change', () => {
+			const m = mode();
+			findField.hidden = replaceField.hidden = m !== 'replace';
+			affixField.hidden = m === 'replace';
+			affixField.querySelector( 'label' ).textContent = m === 'suffix' ? 'Suffix' : 'Prefix';
+			fill();
+			refresh();
+		} );
+		for ( const input of [ find, replace, affix ] ) {
+			input.addEventListener( 'input', () => {
+				fill();
+				refresh();
+			} );
+		}
+		for ( const row of rows ) {
+			row.input.addEventListener( 'input', () => {
+				row.edited = row.input.value !== auto( row.name );
+				row.reset.hidden = ! row.edited;
+				refresh();
+			} );
+			row.remove.addEventListener( 'click', () => {
+				// Focus the next row's remove button, or the previous one, or the action field.
+				const live = rows.filter( ( r ) => ! r.removed );
+				const i = live.indexOf( row );
+				const next = live[ i + 1 ] ?? live[ i - 1 ];
+				row.removed = true;
+				row.li.remove();
+				( next?.remove ?? ( mode() === 'replace' ? replace : affix ) ).focus();
+				refresh();
+			} );
+			row.reset.addEventListener( 'click', () => {
+				row.edited = false;
+				row.reset.hidden = true;
+				row.input.value = auto( row.name );
+				row.input.focus();
+				refresh();
 			} );
 		}
 		bemBox.addEventListener( 'change', refresh );
+		dialog.element.addEventListener( 'keydown', ( event ) => {
+			if ( event.key === 'Enter' && event.target.matches( 'input[type="text"]' ) && ready ) {
+				event.preventDefault();
+				dialog.confirm();
+			}
+		} );
 		refresh();
 
 		if ( ! ( await dialog.result ) ) return;
-		find.disabled = true;
-		replace.disabled = true;
-		bemBox.disabled = true;
+		for ( const input of dialog.element.querySelectorAll( 'input, .etk-rename__reset' ) ) input.disabled = true;
 
 		try {
 			await window.etch.saveAsync();
-			await api( 'styles/rename', 'POST', { ids, find: find.value.trim(), replace: replace.value.trim(), bem: bemBox.checked } );
-			window.location.reload();
+			await api( 'styles/rename', 'POST', { ids, map, bem: bemBox.checked, keep: keep() } );
+			reload();
 		} catch ( err ) {
 			dialog.fail( err.message );
 		}

@@ -4,10 +4,11 @@
  * Style Manager, with a floating bar (a copy of the Asset Manager's) for bulk
  * Delete and Rename.
  *
- * Rename is find/replace inside the class names of the selected styles. Each
- * class name that changes is renamed everywhere it's referenced: every style's
- * selector and CSS, Etch's global stylesheets, and the class attribute of
- * every element across the site.
+ * Rename takes an old => new map for the class names in the selected styles
+ * (the builder fills it from find/replace, a prefix or a suffix, plus any
+ * names edited by hand). Each class name that changes is renamed everywhere
+ * it's referenced: every style's selector and CSS, Etch's global stylesheets,
+ * and the class attribute of every element across the site.
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -34,19 +35,19 @@ add_action(
 					'pattern' => '^[A-Za-z0-9_-]+$',
 				),
 			),
-			'find'    => array(
-				'type'     => 'string',
-				'required' => true,
-				'pattern'  => '^[A-Za-z0-9_-]+$',
-			),
-			'replace' => array(
-				'type'     => 'string',
-				'required' => true,
-				'pattern'  => '^[A-Za-z0-9_-]*$',
+			'map'     => array(
+				'type'                 => 'object',
+				'required'             => true,
+				'additionalProperties' => array( 'type' => 'string' ),
 			),
 			'bem'     => array(
 				'type'    => 'boolean',
 				'default' => false,
+			),
+			'keep'    => array(
+				'type'    => 'array',
+				'default' => array(),
+				'items'   => array( 'type' => 'string' ),
 			),
 		);
 
@@ -56,7 +57,7 @@ add_action(
 			array(
 				'methods'             => 'POST',
 				'args'                => $args,
-				'callback'            => fn( WP_REST_Request $r ) => rest_ensure_response( etch_toolkit_rename_public( etch_toolkit_rename_plan( $r['ids'], $r['find'], $r['replace'], $r['bem'] ) ) ),
+				'callback'            => fn( WP_REST_Request $r ) => rest_ensure_response( etch_toolkit_rename_public( etch_toolkit_rename_plan( $r['ids'], $r['map'], $r['bem'], $r['keep'] ) ) ),
 				'permission_callback' => 'etch_toolkit_can_manage',
 			)
 		);
@@ -67,7 +68,7 @@ add_action(
 			array(
 				'methods'             => 'POST',
 				'args'                => $args,
-				'callback'            => fn( WP_REST_Request $r ) => etch_toolkit_rename_apply( $r['ids'], $r['find'], $r['replace'], $r['bem'] ),
+				'callback'            => fn( WP_REST_Request $r ) => etch_toolkit_rename_apply( $r['ids'], $r['map'], $r['bem'], $r['keep'] ),
 				'permission_callback' => 'etch_toolkit_can_manage',
 			)
 		);
@@ -97,10 +98,11 @@ function etch_toolkit_rename_classes_in( string $text, array $map ): string {
 /**
  * Work out everything a rename would change, without changing anything.
  *
- * @param string[] $ids     Selected style IDs.
- * @param string   $find    Text to find inside class names.
- * @param string   $replace Replacement text.
- * @param bool     $bem     Also rename BEM children and modifiers of renamed classes.
+ * @param string[]              $ids       Selected style IDs.
+ * @param array<string, string> $requested Old class name => new class name. Names
+ *                                         not in the selected selectors are ignored.
+ * @param bool                  $bem       Also rename BEM children and modifiers of renamed classes.
+ * @param string[]              $keep      Class names to leave alone, even as BEM children.
  * @return array{
  *     classMap: array<string, string>,
  *     bem: array<int, array{from: string, to: string, styled: bool}>,
@@ -110,17 +112,18 @@ function etch_toolkit_rename_classes_in( string $text, array $map ): string {
  *     posts: array<int, array{id: int, title: string, type: string, elements: int}>,
  *     elements: int,
  *     errors: string[],
+ *     rowErrors: array<string, string>,
  *     newStyles: array<string, array<string, mixed>>,
  *     newStylesheets: array<string, array<string, mixed>>,
  *     newContent: array<int, string>
  * }
  */
-function etch_toolkit_rename_plan( array $ids, string $find, string $replace, bool $bem = false ): array {
+function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = false, array $keep = array() ): array {
 	$styles      = get_option( 'etch_styles', array() );
 	$stylesheets = get_option( 'etch_global_stylesheets', array() );
 	$ids         = array_flip( $ids );
 
-	// 1. Class names to rename: those in the selected selectors that contain $find.
+	// 1. Class names to rename: the requested ones that appear in the selected selectors.
 	$map = array();
 	foreach ( array_intersect_key( $styles, $ids ) as $style ) {
 		if ( 'element' === ( $style['type'] ?? '' ) || ! empty( $style['readonly'] ) ) {
@@ -128,12 +131,11 @@ function etch_toolkit_rename_plan( array $ids, string $find, string $replace, bo
 		}
 		preg_match_all( ETCH_TOOLKIT_CLASS_PATTERN, $style['selector'], $found );
 		foreach ( $found[1] as $name ) {
-			if ( str_contains( $name, $find ) ) {
-				$map[ $name ] = str_replace( $find, $replace, $name );
+			if ( isset( $requested[ $name ] ) && (string) $requested[ $name ] !== $name ) {
+				$map[ $name ] = (string) $requested[ $name ];
 			}
 		}
 	}
-	$map = array_filter( $map, fn( $new, $old ) => $new !== $old, ARRAY_FILTER_USE_BOTH );
 
 	// Load content once. Normalize WordPress's - escaping of "--" so the quick contains-check works.
 	$contents = array();
@@ -163,8 +165,9 @@ function etch_toolkit_rename_plan( array $ids, string $find, string $replace, bo
 	$also      = array();
 	$bem_found = array();
 	$bem_map   = array();
+	$keep      = array_flip( $keep );
 	foreach ( etch_toolkit_rename_class_universe( $styles, $stylesheets, $contents ) as $name ) {
-		if ( isset( $map[ $name ] ) ) {
+		if ( isset( $map[ $name ] ) || isset( $keep[ $name ] ) ) {
 			continue;
 		}
 		foreach ( $map as $old => $new ) {
@@ -186,11 +189,19 @@ function etch_toolkit_rename_plan( array $ids, string $find, string $replace, bo
 		$map += $bem_map;
 	}
 
-	$errors = array();
+	// Errors keyed by the class name that causes them, so the builder can flag that row.
+	$errors     = array();
+	$row_errors = array();
+	$targets    = array();
 	foreach ( $map as $old => $new ) {
 		if ( ! preg_match( '/^-?[_a-zA-Z][_a-zA-Z0-9-]*$/', $new ) ) {
-			$errors[] = sprintf( '".%s" would become ".%s", which isn\'t a valid class name.', $old, $new );
+			$errors[]           = sprintf( '".%s" would become ".%s", which isn\'t a valid class name.', $old, $new );
+			$row_errors[ $old ] = 'Not a valid class name.';
+		} elseif ( isset( $targets[ $new ] ) ) {
+			$errors[]           = sprintf( '".%s" and ".%s" would both become ".%s".', $targets[ $new ], $old, $new );
+			$row_errors[ $old ] = sprintf( 'Same name as .%s.', $targets[ $new ] );
 		}
+		$targets[ $new ] = $old;
 	}
 
 	// 2. Styles: every selector and CSS body that references a renamed class.
@@ -222,6 +233,10 @@ function etch_toolkit_rename_plan( array $ids, string $find, string $replace, bo
 		$key = ( $style['collection'] ?? 'default' ) . '|' . $style['selector'];
 		if ( isset( $seen[ $key ] ) ) {
 			$errors[] = sprintf( '"%s" would exist twice. Rename or delete the existing one first.', $style['selector'] );
+			$old      = $targets[ ltrim( $style['selector'], '.' ) ] ?? null;
+			if ( $old && ! isset( $row_errors[ $old ] ) ) {
+				$row_errors[ $old ] = sprintf( '%s already exists.', $style['selector'] );
+			}
 		}
 		$seen[ $key ] = true;
 	}
@@ -276,6 +291,7 @@ function etch_toolkit_rename_plan( array $ids, string $find, string $replace, bo
 		'posts'          => $posts,
 		'elements'       => $elements,
 		'errors'         => array_values( array_unique( $errors ) ),
+		'rowErrors'      => (object) $row_errors,
 		// Used by apply, stripped from the preview response.
 		'newStyles'      => $new_styles,
 		'newStylesheets' => $new_stylesheets,
@@ -286,8 +302,8 @@ function etch_toolkit_rename_plan( array $ids, string $find, string $replace, bo
 /**
  * @return WP_REST_Response|WP_Error
  */
-function etch_toolkit_rename_apply( array $ids, string $find, string $replace, bool $bem = false ) {
-	$plan = etch_toolkit_rename_plan( $ids, $find, $replace, $bem );
+function etch_toolkit_rename_apply( array $ids, array $map, bool $bem = false, array $keep = array() ) {
+	$plan = etch_toolkit_rename_plan( $ids, $map, $bem, $keep );
 
 	if ( $plan['errors'] ) {
 		return new WP_Error( 'etch_toolkit_rename_invalid', implode( ' ', $plan['errors'] ), array( 'status' => 400 ) );
