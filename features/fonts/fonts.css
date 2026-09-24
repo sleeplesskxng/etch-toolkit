@@ -259,10 +259,11 @@
 	border-block-end: 1px solid var(--etk-fonts-line);
 }
 
-/* Only a title for screen readers: nothing to lay out. */
-.etk-fonts__page-header--bare,
-.etk-fonts__page-header--bare > * {
-	display: contents;
+/* Only a title for screen readers: out of the flow, so it adds no gap. */
+.etk-fonts__page-header--bare {
+	position: absolute;
+	padding: 0;
+	border: 0;
 }
 
 .etk-fonts__page-lead {
@@ -303,6 +304,10 @@
 	.etk-fonts__page-title {
 		font-size: var(--e-font-size-l, 13px);
 		line-height: 16px;
+	}
+
+	.etk-fonts__badge {
+		padding: 2px 6px;
 	}
 }
 
@@ -348,16 +353,12 @@
 	line-height: 16px;
 }
 
-.etk-fonts__mono,
 .etk-fonts__code {
+	color: var(--etk-fonts-code);
 	font-family: var(--e-font-code);
 	font-size: var(--e-font-size-s, 11px);
 	font-weight: 400;
 	line-height: 14px;
-}
-
-.etk-fonts__code {
-	color: var(--etk-fonts-code);
 }
 
 /* ------------------------------------------------------------------ */
@@ -587,27 +588,6 @@
 
 .etk-fonts__actions--center {
 	justify-content: center;
-}
-
-.etk-fonts__toolbar {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--e-space-s, 8px);
-
-	.etk-fonts__input {
-		flex: 1 1 160px;
-	}
-
-	.etk-fonts__input[type="search"],
-	.etk-fonts__input[type="text"] {
-		flex: 3 1 260px;
-	}
-}
-
-.etk-fonts__grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-	gap: var(--e-space-m, 12px);
 }
 
 /* ------------------------------------------------------------------ */
@@ -879,6 +859,11 @@
 	}
 }
 
+/* A little taller in the inspector. */
+.etk-fonts__inspector .etk-fonts__seg label {
+	padding-block: 5px;
+}
+
 .etk-fonts__tab[aria-selected="true"],
 .etk-fonts__seg label:has(input:checked) {
 	background: var(--etk-fonts-selected);
@@ -904,7 +889,7 @@
 /* Fields                                                              */
 /* ------------------------------------------------------------------ */
 
-/* Filled by default. --outline for a bordered box on the view, --md and --lg for taller. */
+/* Filled by default. --md for 32px tall. */
 .etk-fonts__input {
 	block-size: 28px;
 	min-inline-size: 0;
@@ -926,16 +911,6 @@
 .etk-fonts__input--md {
 	block-size: 32px;
 	padding-inline: 10px;
-}
-
-.etk-fonts__input--lg {
-	block-size: 36px;
-	padding-inline: 12px;
-}
-
-.etk-fonts__input--outline {
-	border-color: var(--etk-fonts-line);
-	background-color: var(--etk-fonts-surface);
 }
 
 .etk-fonts__input--mono {
@@ -1084,12 +1059,6 @@
  * Checkboxes. Also in the shared confirm dialog, outside the panel, so these
  * use Etch's tokens directly.
  */
-.etk-fonts__checks {
-	display: flex;
-	flex-direction: column;
-	gap: var(--e-space-s, 8px);
-}
-
 .etk-fonts__check {
 	display: flex;
 	align-items: flex-start;
@@ -1144,12 +1113,6 @@
 		display: flex;
 		flex-direction: column;
 	}
-}
-
-.etk-fonts__check--all {
-	padding-block-end: var(--e-space-s, 8px);
-	border-block-end: 1px solid var(--e-border-color, #36363a);
-	font-weight: 600;
 }
 
 .etk-fonts__fieldset {
@@ -1315,25 +1278,10 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* Views, until they're rebuilt on the pieces above                    */
+/* Views                                                               */
 /* ------------------------------------------------------------------ */
 
-/* Library (legacy specimens, still used by Google Fonts) */
-
-.etk-fonts__specimen {
-	overflow: hidden;
-	font-size: var(--etk-fonts-size, 32px);
-	font-weight: 400;
-	line-height: 1.25;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-}
-
-.etk-fonts__family-name {
-	font-size: var(--e-font-size-m, 12px);
-	font-weight: 600;
-}
-
+/* Shown when the fonts don't load. */
 .etk-fonts__empty {
 	display: flex;
 	flex-direction: column;
@@ -1346,36 +1294,11 @@
 	text-align: center;
 }
 
-/* Family editor */
-
-.etk-fonts__crumb {
-	margin-block-end: -12px;
-}
-
-.etk-fonts__file {
-	font-family: var(--e-font-code);
-	font-size: var(--e-font-size-s, 11px);
-	word-break: break-all;
-}
-
-.etk-fonts__slider {
-	display: flex;
-	flex: 1 1 280px;
-	align-items: center;
-	gap: var(--e-space-m, 12px);
-
-	output {
-		min-inline-size: 12ch;
-		font-variant-numeric: tabular-nums;
-	}
-}
-
 /*
- * Weight slider: a native range input with its track and thumb restyled,
- * and nine notches underneath. --v is the current step (1-9), --t each
- * notch's step. The thumb travels one thumb-width less than the track, so
- * the fill and the notches are inset by half a thumb to line up with it.
- * --ring is the background it sits on.
+ * Sliders: a native range input with its track and thumb restyled. --v is
+ * the current step (1-9). The thumb travels one thumb-width less than the
+ * track, so the fill is inset by half a thumb to line up with it. --ring is
+ * the background it sits on.
  */
 .etk-range {
 	--thumb: 14px;
@@ -1383,7 +1306,6 @@
 	--fill: var(--e-primary, #57e9db);
 	--rail: var(--etk-fonts-selected, var(--e-base-light, #36363a));
 	--ring: var(--etk-fonts-view, var(--e-base, #27272b));
-	--etk-range-notch: var(--e-foreground-color-muted, #8b8b93);
 	--pos: calc(var(--thumb) / 2 + (100% - var(--thumb)) * (var(--v) - 1) / 8);
 
 	position: relative;
@@ -1477,33 +1399,6 @@
 	}
 }
 
-/* Notches: lit up to the current weight, brightest at it. */
-.etk-range__notches {
-	position: absolute;
-	inset: 21px calc(var(--thumb) / 2) auto;
-	block-size: 5px;
-	pointer-events: none;
-
-	span {
-		/* 1 for notches at or before the current step, 0 after it. */
-		--on: clamp(0, var(--v) - var(--t) + 1, 1);
-		--here: clamp(0, 1 - (var(--v) - var(--t)) * (var(--v) - var(--t)), 1);
-
-		position: absolute;
-		inset-inline-start: calc((var(--t) - 1) / 8 * 100%);
-		inline-size: 2px;
-		block-size: calc(3px + 2px * var(--here));
-		border-radius: 1px;
-		/* Primary up to the handle, gray ahead of it. */
-		background: color-mix(in srgb, var(--fill) calc(var(--on) * 100%), var(--etk-range-notch, #8b8b93));
-		opacity: calc(0.55 + 0.45 * var(--here));
-		translate: -50% 0;
-		transition:
-			background-color var(--e-transition, 0.15s ease-in-out),
-			block-size var(--e-transition, 0.15s ease-in-out);
-	}
-}
-
 /* Dialogs: the shared confirm dialog sits outside the panel. */
 
 .etk-confirm .etk-fonts__fieldset,
@@ -1540,16 +1435,6 @@
 }
 
 /* === View: Family === */
-
-/* The badges beside the family's name in the bar. */
-.etk-fonts__family-badges {
-	display: flex;
-	gap: 6px;
-
-	.etk-fonts__badge {
-		padding: 2px 6px;
-	}
-}
 
 /* The waterfall: each size in its gutter, then a line set at it. */
 .etk-fonts__waterfall {
@@ -1853,6 +1738,7 @@
 
 /* Families */
 
+/* Role badges, on a card and beside the family's name in the bar. */
 .etk-fonts__family-badges {
 	display: flex;
 	flex-wrap: wrap;
@@ -2248,12 +2134,6 @@
 
 /* === Views: Google + Settings === */
 
-/* A bare header still leaves a gap in a flex column. Take it out of the flow. */
-:is(.etk-fonts__gresults, .etk-fonts__settings) > .etk-fonts__page-header--bare {
-	display: block;
-	position: absolute;
-}
-
 /* Google Fonts: filters on the left, results on the right. */
 .etk-fonts__gfilters {
 	display: flex;
@@ -2395,10 +2275,6 @@
 		inline-size: 64px;
 		min-inline-size: 0;
 		block-size: 18px;
-	}
-
-	.etk-range__notches {
-		display: none;
 	}
 }
 

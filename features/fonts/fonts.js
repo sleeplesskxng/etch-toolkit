@@ -661,7 +661,8 @@
 	 * A family's CSS variable, with a copy button that shows a tick for a moment.
 	 * Takes the saved name, so a family renamed in the editor shows its variable
 	 * as it is until it's saved. Variants: chip (inline), field (a full-width
-	 * field, as in the inspector) and icon (the copy button alone).
+	 * field, as in the inspector) and icon (the copy button alone). Shows the
+	 * bare name, --font-x, and copies it wrapped, var(--font-x).
 	 */
 	const copyVar = ( name, { variant = 'chip' } = {} ) => {
 		const value = varOf( name );
@@ -695,7 +696,7 @@
 					}, 1500 );
 				},
 			},
-			iconOnly ? null : h( 'code', { textContent: value } ),
+			iconOnly ? null : h( 'code', { textContent: state.vars[ name ] } ),
 			glyph
 		);
 		return node;
@@ -1572,12 +1573,12 @@
 	};
 
 	/**
-	 * A native range input, styled, with nine notches: one per step from min.
-	 * CSS reads --v (1-9) for the fill and notches. boxed puts it in a bordered
-	 * value box, the label first and the value last, as in the Google toolbar.
+	 * A native range input of nine steps from min, styled, in a bordered value
+	 * box: the label first and the value last, as in the Google toolbar. CSS
+	 * reads --v (1-9) for the fill.
 	 */
-	const notchedSlider = ( { name, label, min, step, value, text, spoken, onchange, boxed = false } ) => {
-		const output = h( 'output', { class: boxed ? 'etk-fonts__valuebox-value' : 'etk-fonts__muted', textContent: text( value ) } );
+	const valueSlider = ( { name, label, min, step, value, text, spoken, onchange } ) => {
+		const output = h( 'output', { class: 'etk-fonts__valuebox-value', textContent: text( value ) } );
 		const range = h(
 			'span',
 			{ class: 'etk-range', style: `--v: ${ ( value - min ) / step + 1 }` },
@@ -1596,23 +1597,19 @@
 					range.style.setProperty( '--v', ( next - min ) / step + 1 );
 					onchange( next );
 				},
-			} ),
-			h( 'span', { class: 'etk-range__notches', 'aria-hidden': 'true' }, WEIGHTS.map( ( w, i ) => h( 'span', { style: `--t: ${ i + 1 }` } ) ) )
+			} )
 		);
-		return boxed
-			? h( 'div', { class: 'etk-fonts__inputbox etk-fonts__valuebox' }, h( 'span', { class: 'etk-fonts__inputbox-label', 'aria-hidden': 'true', textContent: name } ), range, output )
-			: h( 'div', { class: 'etk-fonts__slider' }, h( 'span', { 'aria-hidden': 'true', textContent: name } ), range, output );
+		return h( 'div', { class: 'etk-fonts__inputbox etk-fonts__valuebox' }, h( 'span', { class: 'etk-fonts__inputbox-label', 'aria-hidden': 'true', textContent: name } ), range, output );
 	};
 
-	const weightSlider = ( boxed = false ) =>
-		notchedSlider( {
+	const weightSlider = () =>
+		valueSlider( {
 			name: 'Weight',
 			label: 'Preview weight',
 			min: 100,
 			step: 100,
 			value: google.weight,
-			boxed,
-			text: ( value ) => ( boxed ? String( value ) : weightLabel( String( value ) ) ),
+			text: String,
 			spoken: ( value ) => weightLabel( String( value ) ),
 			onchange: ( value ) => {
 				google.weight = value;
@@ -1621,17 +1618,15 @@
 			},
 		} );
 
-	// Each list starts at its own size until you pick one, then they all share it.
-	const SIZE_DEFAULT = { library: 32, google: 40, 'google-font': 40 };
-	const sizeSlider = ( { boxed = false } = {} ) =>
-		notchedSlider( {
+	// The Google results preview size, remembered once you pick one.
+	const sizeSlider = () =>
+		valueSlider( {
 			name: 'Size',
 			label: 'Preview size',
 			min: 16,
 			step: 8,
-			value: prefs.size ?? SIZE_DEFAULT[ view ],
-			boxed,
-			text: ( value ) => ( boxed ? String( value ) : `${ value }px` ),
+			value: prefs.size ?? 40,
+			text: String,
 			spoken: ( value ) => `${ value } pixels`,
 			onchange: ( value ) => {
 				prefs.size = value;
@@ -1927,7 +1922,7 @@
 					'div',
 					{ class: 'etk-fonts__pane etk-fonts__gresults' },
 					pageHeader( 'Google Fonts' ),
-					h( 'div', { class: 'etk-fonts__gtoolbar' }, inputBox( 'Preview', previewInput( reloadGooglePreviews ) ), weightSlider( true ), sizeSlider( { boxed: true } ), layoutToggle( 'google' ) ),
+					h( 'div', { class: 'etk-fonts__gtoolbar' }, inputBox( 'Preview', previewInput( reloadGooglePreviews ) ), weightSlider(), sizeSlider(), layoutToggle( 'google' ) ),
 					h( 'p', { class: 'etk-fonts__help etk-fonts__google-summary', role: 'status' } ),
 					h( 'ul', { class: 'etk-fonts__tiles etk-fonts__google-results', role: 'list', 'data-layout': prefs.google } ),
 					h( 'div', { class: 'etk-fonts__actions etk-fonts__actions--center' }, button( 'Load more', () => google.loading || searchGoogle( true ), { variant: 'ghost', attrs: { class: 'etk-fonts__more', hidden: true } } ) )
