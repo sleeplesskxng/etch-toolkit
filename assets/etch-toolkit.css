@@ -260,9 +260,18 @@
 	opacity: 0.8;
 }
 
-.etk-preview__errors {
+.etk-preview__errors,
+.etk-preview__warnings {
+	display: flex;
+	flex-direction: column;
+	gap: var(--etch-space-xs);
 	margin: 0;
 	padding: 0;
 	list-style: none;
 	color: var(--etch-danger);
+}
+
+/* Worth knowing, but nothing to fix. */
+.etk-preview__warnings {
+	color: var(--etch-warning, var(--e-warning));
 }

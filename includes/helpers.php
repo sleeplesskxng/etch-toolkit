@@ -82,45 +82,24 @@ function etch_toolkit_enqueue_feature( string $feature ): void {
 }
 
 /**
- * IDs of every post whose content can hold Etch blocks: pages, posts,
- * custom post types, templates and components (wp_block).
+ * IDs of every post with blocks in its content: pages, posts, custom post
+ * types, templates and components (wp_block), in any status but auto-drafts.
+ * Types kept out of search count too, like templates and non-public custom
+ * post types.
  *
  * @param bool $trash Include trashed posts, so restoring one doesn't bring back an old class name.
  * @return int[]
  */
 function etch_toolkit_content_post_ids( bool $trash = false ): array {
-	$statuses = array( 'publish', 'draft', 'pending', 'private', 'future' );
-	if ( $trash ) {
-		$statuses[] = 'trash';
-	}
+	global $wpdb;
+	$types    = array_values( array_diff( get_post_types(), array( 'attachment', 'revision', 'nav_menu_item', 'custom_css', 'customize_changeset', 'oembed_cache', 'user_request', 'wp_global_styles', 'wp_font_family', 'wp_font_face' ) ) );
+	$statuses = array_values( array_diff( get_post_stati(), $trash ? array( 'auto-draft', 'inherit' ) : array( 'auto-draft', 'inherit', 'trash' ) ) );
+	$in_types = implode( ',', array_fill( 0, count( $types ), '%s' ) );
+	$in_stati = implode( ',', array_fill( 0, count( $statuses ), '%s' ) );
 
-	$ids = get_posts(
-		array(
-			'post_type'              => 'any',
-			'post_status'            => $statuses,
-			'numberposts'            => -1,
-			'fields'                 => 'ids',
-			'no_found_rows'          => true,
-			'update_post_meta_cache' => false,
-			'update_post_term_cache' => false,
-		)
-	);
-
-	// 'any' skips post types excluded from search, which includes templates and components.
-	$ids = array_merge(
-		$ids,
-		get_posts(
-			array(
-				'post_type'     => array( 'wp_template', 'wp_template_part', 'wp_block' ),
-				'post_status'   => $statuses,
-				'numberposts'   => -1,
-				'fields'        => 'ids',
-				'no_found_rows' => true,
-			)
-		)
-	);
-
-	return array_values( array_unique( array_map( 'intval', $ids ) ) );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+	$ids = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type IN ($in_types) AND post_status IN ($in_stati) AND post_content LIKE %s ORDER BY ID", array_merge( $types, $statuses, array( '%' . $wpdb->esc_like( '<!-- wp:' ) . '%' ) ) ) );
+	return array_map( 'intval', $ids );
 }
 
 /**
@@ -151,8 +130,11 @@ function etch_toolkit_contents( bool $trash = false ): Generator {
  * because that round trip turns empty JSON objects into arrays and rewrites
  * blocks that weren't touched.
  *
+ * The callback also gets the first tag of the block's saved HTML, if any, where
+ * Gutenberg writes className too. It can change that tag in place.
+ *
  * @param string   $content Post content.
- * @param callable $edit    fn( object $attrs, string $name ): bool. Mutates $attrs, returns true if it changed anything.
+ * @param callable $edit    fn( object $attrs, string $name, string &$tag ): bool. Mutates $attrs, returns true if it changed anything.
  * @param int      $changed Set to the number of blocks changed.
  * @return string Updated content.
  * @throws RuntimeException When the content is too large or malformed to read.
@@ -160,19 +142,24 @@ function etch_toolkit_contents( bool $trash = false ): Generator {
 function etch_toolkit_edit_block_attrs( string $content, callable $edit, int &$changed ): string {
 	$changed = 0;
 
-	// Block opener tokenizer, same pattern as WP_Block_Parser.
-	$pattern = '/<!--\s+wp:(?P<name>(?:[a-z][a-z0-9_-]*\/)?[a-z][a-z0-9_-]*)\s+(?P<attrs>{(?:(?:[^}]+|}+(?=})|(?!}\s+\/?-->).)*+)?}\s+)(?P<void>\/)?-->/s';
+	// Block opener tokenizer, same pattern as WP_Block_Parser, then the tag that opens
+	// the block's HTML, for blocks that aren't void.
+	$pattern = '/<!--\s+wp:(?P<name>(?:[a-z][a-z0-9_-]*\/)?[a-z][a-z0-9_-]*)\s+(?P<attrs>{(?:(?:[^}]+|}+(?=})|(?!}\s+\/?-->).)*+)?}\s+)(?P<void>\/)?-->'
+		. '(?(void)|(?P<tag>\s*<[a-zA-Z][\w:-]*(?:\s+[^\s>"\'=\/]+(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'>]+))?)*\s*\/?>)?)/s';
 
 	$result = preg_replace_callback(
 		$pattern,
 		function ( $match ) use ( $edit, &$changed ) {
 			$attrs = json_decode( $match['attrs'] );
-			if ( ! is_object( $attrs ) || ! $edit( $attrs, $match['name'] ) ) {
+			$tag   = $match['tag'] ?? '';
+			if ( ! is_object( $attrs ) || ! $edit( $attrs, $match['name'], $tag ) ) {
 				return $match[0];
 			}
 
 			++$changed;
-			return '<!-- wp:' . $match['name'] . ' ' . serialize_block_attributes( $attrs ) . ' ' . ( empty( $match['void'] ) ? '' : '/' ) . '-->';
+			// No attributes left is written the way Gutenberg writes it: none at all.
+			$json = serialize_block_attributes( $attrs );
+			return '<!-- wp:' . $match['name'] . ( '{}' === $json ? '' : ' ' . $json ) . ' ' . ( empty( $match['void'] ) ? '' : '/' ) . '-->' . $tag;
 		},
 		$content
 	);
@@ -195,8 +182,9 @@ function etch_toolkit_edit_block_attrs( string $content, callable $edit, int &$c
 // A CSS identifier, escapes included. Mirrors CLASS_IN_CSS in assets/etch-toolkit.js.
 const ETCH_TOOLKIT_CSS_IDENT = '(?:-?(?:[_a-zA-Z]|[^\x00-\x7F]|\\\\(?:[0-9a-fA-F]{1,6}\s?|[^\n\r\f0-9a-fA-F]))|--)(?:[\w-]|[^\x00-\x7F]|\\\\(?:[0-9a-fA-F]{1,6}\s?|[^\n\r\f0-9a-fA-F]))*';
 
-// A class selector's name.
-const ETCH_TOOLKIT_CLASS_PATTERN = '/\.(' . ETCH_TOOLKIT_CSS_IDENT . ')/u';
+// A class selector's name, in group 1. Comments, strings and url()s match too, with
+// no group 1, so a class-like ".png" or ".pdf" inside them is left alone.
+const ETCH_TOOLKIT_CLASS_PATTERN = '/\/\*.*?\*\/|"(?:[^"\\\\\n]|\\\\.)*"|\'(?:[^\'\\\\\n]|\\\\.)*\'|\b(?i:url)\(\s*(?:"(?:[^"\\\\]|\\\\.)*"|\'(?:[^\'\\\\]|\\\\.)*\'|[^)]*)\s*\)|\.(' . ETCH_TOOLKIT_CSS_IDENT . ')/su';
 
 /**
  * A code point as UTF-8, or '' for NUL, a surrogate or anything past Unicode.
@@ -230,8 +218,12 @@ function etch_toolkit_css_unescape( string $name ): string {
  */
 function etch_toolkit_plain_content( string $content ): string {
 	$content = preg_replace_callback(
-		'/\\\\u([0-9a-fA-F]{4})/',
-		fn( $m ) => etch_toolkit_chr( (int) hexdec( $m[1] ) ) ?: $m[0],
+		// A character past U+FFFF, like an emoji, is written as a surrogate pair.
+		'/\\\\u(d[89ab][0-9a-f]{2})\\\\u(d[c-f][0-9a-f]{2})|\\\\u([0-9a-f]{4})/i',
+		function ( $m ) {
+			$code = isset( $m[3] ) ? hexdec( $m[3] ) : 0x10000 + ( ( hexdec( $m[1] ) - 0xD800 ) << 10 ) + hexdec( $m[2] ) - 0xDC00;
+			return etch_toolkit_chr( (int) $code ) ?: $m[0];
+		},
 		$content
 	) ?? $content;
 	return str_replace( array( '\\\\', '\/', '\"' ), array( '\\', '/', '"' ), $content );
@@ -244,7 +236,7 @@ function etch_toolkit_plain_content( string $content ): string {
  */
 function etch_toolkit_css_classes( string $css ): array {
 	preg_match_all( ETCH_TOOLKIT_CLASS_PATTERN, $css, $found );
-	return array_map( 'etch_toolkit_css_unescape', $found[1] ?? array() );
+	return array_map( 'etch_toolkit_css_unescape', array_values( array_filter( $found[1] ?? array(), 'strlen' ) ) );
 }
 
 /**
@@ -259,17 +251,19 @@ function etch_toolkit_class_tokens( string $classes ): array {
 
 /**
  * The class names on a block: Etch's class attribute and Gutenberg's className,
- * which Etch merges into it. Dynamic parts like {props.extra} are left out.
+ * which Etch merges into it. Dynamic parts like {props.extra} are left out, or
+ * with $dynamic, they're all you get.
  *
- * @param object $attrs Block attributes, from etch_toolkit_edit_block_attrs().
+ * @param object $attrs   Block attributes, from etch_toolkit_edit_block_attrs().
+ * @param bool   $dynamic The dynamic parts instead, like btn--{props.variant}.
  * @return string[]
  */
-function etch_toolkit_block_classes( object $attrs ): array {
+function etch_toolkit_block_classes( object $attrs, bool $dynamic = false ): array {
 	$classes = array();
 	foreach ( array( $attrs->attributes->class ?? null, $attrs->className ?? null ) as $value ) {
 		if ( is_string( $value ) ) {
 			foreach ( etch_toolkit_class_tokens( $value ) as $token ) {
-				if ( ! str_contains( $token, '{' ) ) {
+				if ( str_contains( $token, '{' ) === $dynamic ) {
 					$classes[] = $token;
 				}
 			}
@@ -279,14 +273,39 @@ function etch_toolkit_block_classes( object $attrs ): array {
 }
 
 /**
+ * Could a dynamic class name produce this class name? With fixed text around
+ * its expressions, anything that fits: btn--{props.variant} could be any
+ * btn--…. An expression on its own could be the names it spells out in
+ * quotes: {item.on ? 'is-on' : ''} could be is-on.
+ */
+function etch_toolkit_dynamic_class_matches( string $token, string $class ): bool {
+	$fixed = preg_split( '/\{[^{}]*\}/', $token ) ?: array();
+	if ( '' !== implode( '', $fixed ) ) {
+		return (bool) preg_match( '/^' . implode( '.*', array_map( fn( $part ) => preg_quote( $part, '/' ), $fixed ) ) . '$/sD', $class );
+	}
+	preg_match_all( '/([\'"])(.*?)\1/s', $token, $quoted );
+	foreach ( $quoted[2] as $names ) {
+		if ( in_array( $class, preg_split( '/\s+/', $names, -1, PREG_SPLIT_NO_EMPTY ) ?: array(), true ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
  * Rename or remove class names on a block, in Etch's class attribute and
  * Gutenberg's className. Dynamic parts like {props.extra} are left alone.
  *
+ * Gutenberg also writes className into the tag that opens the block's saved
+ * HTML, so the same names change there, or the block editor would call the
+ * block invalid and the page would still show the old names.
+ *
  * @param object   $attrs Block attributes, from etch_toolkit_edit_block_attrs().
  * @param callable $edit  fn( string $class ): string. The new name, or '' to remove it.
+ * @param string   $tag   The tag that opens the block's HTML, from etch_toolkit_edit_block_attrs().
  * @return bool True if anything changed.
  */
-function etch_toolkit_edit_block_classes( object $attrs, callable $edit ): bool {
+function etch_toolkit_edit_block_classes( object $attrs, callable $edit, string &$tag = '' ): bool {
 	$rewrite = function ( string $value ) use ( $edit ): ?string {
 		$tokens = etch_toolkit_class_tokens( $value );
 		$next   = array();
@@ -312,7 +331,8 @@ function etch_toolkit_edit_block_classes( object $attrs, callable $edit ): bool 
 		}
 	}
 	if ( isset( $attrs->className ) && is_string( $attrs->className ) ) {
-		$value = $rewrite( $attrs->className );
+		$before = etch_toolkit_class_tokens( $attrs->className );
+		$value  = $rewrite( $attrs->className );
 		if ( null !== $value ) {
 			if ( '' === $value ) {
 				unset( $attrs->className );
@@ -320,6 +340,24 @@ function etch_toolkit_edit_block_classes( object $attrs, callable $edit ): bool 
 				$attrs->className = $value;
 			}
 			$changed = true;
+
+			$html = new WP_HTML_Tag_Processor( $tag );
+			if ( '' !== $tag && $html->next_tag() && is_string( $html->get_attribute( 'class' ) ) ) {
+				$names = preg_split( '/\s+/', trim( $html->get_attribute( 'class' ) ), -1, PREG_SPLIT_NO_EMPTY ) ?: array();
+				$next  = array();
+				foreach ( $names as $name ) {
+					// Only the names className put there. Classes like wp-block-group stay.
+					$new = in_array( $name, $before, true ) ? $edit( $name ) : $name;
+					if ( '' !== $new ) {
+						$next[] = $new;
+					}
+				}
+				if ( $next !== $names ) {
+					$next ? $html->set_attribute( 'class', implode( ' ', $next ) ) : $html->remove_attribute( 'class' );
+					// Removing the attribute leaves a space behind: <p >.
+					$tag = (string) preg_replace( '/\s+(\/?>)$/', '$1', $html->get_updated_html() );
+				}
+			}
 		}
 	}
 	return $changed;
@@ -327,19 +365,36 @@ function etch_toolkit_edit_block_classes( object $attrs, callable $edit ): bool 
 
 /**
  * Save new post content, keeping a revision where the post type supports it.
+ * The status stays as it is: wp_update_post() would publish a scheduled post
+ * whose time has passed. Anything a save hook throws comes back as an error.
  *
  * @return true|WP_Error
  */
 function etch_toolkit_update_content( int $post_id, string $content ) {
-	$result = wp_update_post(
-		wp_slash(
-			array(
-				'ID'           => $post_id,
-				'post_content' => $content,
-			)
-		),
-		true
-	);
+	$status = get_post_status( $post_id );
+	$keep   = function ( $data, $postarr ) use ( $post_id, $status ) {
+		if ( $status && (int) ( $postarr['ID'] ?? 0 ) === $post_id ) {
+			$data['post_status'] = $status;
+		}
+		return $data;
+	};
+
+	add_filter( 'wp_insert_post_data', $keep, 10, 2 );
+	try {
+		$result = wp_update_post(
+			wp_slash(
+				array(
+					'ID'           => $post_id,
+					'post_content' => $content,
+				)
+			),
+			true
+		);
+	} catch ( Throwable $e ) {
+		$result = new WP_Error( 'etch_toolkit_save_failed', $e->getMessage() );
+	} finally {
+		remove_filter( 'wp_insert_post_data', $keep, 10 );
+	}
 	return is_wp_error( $result ) ? $result : true;
 }
 
@@ -352,16 +407,31 @@ function etch_toolkit_update_content( int $post_id, string $content ) {
  * @return true|WP_Error
  */
 function etch_toolkit_update_contents( array $contents, array $originals ) {
+	// Every save makes a revision and runs save hooks, which adds up on a big site.
+	wp_raise_memory_limit( 'admin' );
+	if ( function_exists( 'set_time_limit' ) ) {
+		set_time_limit( 300 );
+	}
+
 	$saved = array();
 	foreach ( $contents as $post_id => $content ) {
 		$result = etch_toolkit_update_content( $post_id, $content );
-		if ( is_wp_error( $result ) ) {
-			foreach ( $saved as $id ) {
-				etch_toolkit_update_content( $id, $originals[ $id ] );
-			}
-			return new WP_Error( $result->get_error_code(), sprintf( 'Could not save "%s", so nothing was changed. %s', etch_toolkit_post_title( $post_id ), $result->get_error_message() ), array( 'status' => 500 ) );
+		if ( ! is_wp_error( $result ) ) {
+			$saved[] = $post_id;
+			continue;
 		}
-		$saved[] = $post_id;
+
+		$stuck = array();
+		foreach ( $saved as $id ) {
+			if ( is_wp_error( etch_toolkit_update_content( $id, $originals[ $id ] ) ) ) {
+				$stuck[] = etch_toolkit_post_title( $id );
+			}
+		}
+		$message = sprintf( 'Could not save "%s". %s', etch_toolkit_post_title( $post_id ), $result->get_error_message() );
+		$message .= $stuck
+			? sprintf( " These were saved and couldn't be put back, so check them: %s.", implode( ', ', $stuck ) )
+			: ' Nothing was changed.';
+		return new WP_Error( $result->get_error_code(), $message, array( 'status' => 500 ) );
 	}
 	return true;
 }

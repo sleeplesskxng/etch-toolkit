@@ -101,10 +101,13 @@
 		'<path d="M3 5.5H8M21 5.5H16M16 5.5L14.7597 2.60608C14.6022 2.2384 14.2406 2 13.8406 2H10.1594C9.75937 2 9.39783 2.2384 9.24025 2.60608L8 5.5M16 5.5H8"/>' +
 		'<path d="M9.5 16.5L9.5 10.5"/><path d="M14.5 16.5L14.5 10.5"/></svg>';
 
-	// A class selector's name, escapes included. Etch writes class names with CSS.escape()
-	// when special character support is on. Mirrors ETCH_TOOLKIT_CLASS_PATTERN in includes/helpers.php.
-	const CLASS_IN_CSS = /\.((?:-?(?:[_a-zA-Z]|[^\0-\x7F]|\\(?:[0-9a-fA-F]{1,6}\s?|[^\n\r\f0-9a-fA-F]))|--)(?:[\w-]|[^\0-\x7F]|\\(?:[0-9a-fA-F]{1,6}\s?|[^\n\r\f0-9a-fA-F]))*)/gu;
-	const ONE_CLASS = new RegExp( `^${ CLASS_IN_CSS.source }$`, 'u' );
+	// A CSS identifier, escapes included. Etch writes class names with CSS.escape() when
+	// special character support is on. Mirrors ETCH_TOOLKIT_CSS_IDENT in includes/helpers.php.
+	const IDENT = String.raw`(?:-?(?:[_a-zA-Z]|[^\0-\x7F]|\\(?:[0-9a-fA-F]{1,6}\s?|[^\n\r\f0-9a-fA-F]))|--)(?:[\w-]|[^\0-\x7F]|\\(?:[0-9a-fA-F]{1,6}\s?|[^\n\r\f0-9a-fA-F]))*`;
+	// A class selector's name, in group 1. Comments, strings and url()s match with no group 1,
+	// so ".png" in a URL isn't a class. Mirrors ETCH_TOOLKIT_CLASS_PATTERN.
+	const CLASS_IN_CSS = new RegExp( String.raw`/\*[^]*?\*/|"(?:[^"\\\n]|\\[^])*"|'(?:[^'\\\n]|\\[^])*'|\b[uU][rR][lL]\(\s*(?:"(?:[^"\\]|\\[^])*"|'(?:[^'\\]|\\[^])*'|[^)]*)\s*\)|\.(${ IDENT })`, 'gu' );
+	const ONE_CLASS = new RegExp( String.raw`^\.(?:${ IDENT })$`, 'u' );
 
 	// `md\:flex` => "md:flex", `\31 col` => "1col". An escape that isn't a character reads as U+FFFD.
 	const unescapeCss = ( name ) =>
@@ -115,7 +118,7 @@
 		} );
 
 	// The class names in a selector or CSS, unescaped, in order.
-	const classesIn = ( css ) => [ ...css.matchAll( CLASS_IN_CSS ) ].map( ( match ) => unescapeCss( match[ 1 ] ) );
+	const classesIn = ( css ) => [ ...css.matchAll( CLASS_IN_CSS ) ].filter( ( match ) => match[ 1 ] ).map( ( match ) => unescapeCss( match[ 1 ] ) );
 
 	// A selector that is one class and nothing else, like `.card` or `.md\:flex`.
 	const isClassSelector = ( selector ) => ONE_CLASS.test( selector.trim() );
@@ -131,6 +134,7 @@
 	 * Esc, focus return and modal semantics. Resolves true on confirm and
 	 * stays open (busy) so the caller can finish, then close(), reload or fail().
 	 */
+	let dialogs = 0;
 	const confirmDialog = ( {
 		title,
 		message,
@@ -142,8 +146,9 @@
 		initialFocus = null, // element to focus instead of Cancel
 	} ) => {
 		const danger = variant === 'danger';
-		const titleEl = el( 'p', { className: 'etk-confirm__title', id: 'etk-confirm-title', textContent: title } );
-		const messageEl = el( 'div', { className: 'etk-confirm__message', id: 'etk-confirm-message' }, message );
+		const n = ++dialogs;
+		const titleEl = el( 'p', { className: 'etk-confirm__title', id: `etk-confirm-title-${ n }`, textContent: title } );
+		const messageEl = el( 'div', { className: 'etk-confirm__message', id: `etk-confirm-message-${ n }` }, message );
 		const cancel = el( 'button', { type: 'button', className: 'etk-confirm__btn etk-confirm__btn--cancel', textContent: 'Cancel', autofocus: ! initialFocus } );
 		const confirm = el( 'button', { type: 'button', className: `etk-confirm__btn etk-confirm__btn--${ variant }` } );
 		if ( danger ) confirm.innerHTML = DELETE_ICON;
@@ -175,9 +180,12 @@
 			event.preventDefault();
 			if ( ! busy ) close();
 		} );
-		// Click on the backdrop (the dialog box itself, outside the panel).
+		// Click on the backdrop (the dialog box itself, outside the panel). It has to start
+		// there too, or selecting text in a field and letting go outside would close it.
+		let pressedBackdrop = false;
+		dialog.addEventListener( 'pointerdown', ( event ) => ( pressedBackdrop = event.target === dialog ) );
 		dialog.addEventListener( 'click', ( event ) => {
-			if ( event.target === dialog && ! busy ) close();
+			if ( event.target === dialog && pressedBackdrop && ! busy ) close();
 		} );
 		confirm.addEventListener( 'click', () => {
 			if ( confirm.disabled ) return;

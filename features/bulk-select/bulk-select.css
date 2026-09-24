@@ -63,7 +63,7 @@
 	}
 }
 
-.etk-confirm__message > .etk-preview__errors:empty {
+.etk-confirm__message > :is(.etk-preview__errors, .etk-preview__warnings):empty {
 	display: none;
 }
 

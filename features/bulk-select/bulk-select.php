@@ -78,7 +78,7 @@ add_action(
 /**
  * Rename class names in a selector or CSS, matched unescaped. The pattern
  * takes the longest name at each dot, so `.card` never matches inside
- * `.card__title` or `.card\:hover`.
+ * `.card__title` or `.card\:hover`, and skips comments, strings and url()s.
  *
  * @param array<string, string> $map Old class name => new class name, unescaped. New
  *                                   names are plain identifiers, so they need no escaping.
@@ -91,6 +91,10 @@ function etch_toolkit_rename_classes_in( string $text, array $map ): string {
 	$renamed = preg_replace_callback(
 		ETCH_TOOLKIT_CLASS_PATTERN,
 		function ( $m ) use ( $map ) {
+			// A comment, string or url(), left as it is.
+			if ( ! isset( $m[1] ) || '' === $m[1] ) {
+				return $m[0];
+			}
 			$name = etch_toolkit_css_unescape( $m[1] );
 			return isset( $map[ $name ] ) ? '.' . $map[ $name ] : $m[0];
 		},
@@ -112,6 +116,7 @@ function etch_toolkit_rename_classes_in( string $text, array $map ): string {
  * @param string[]              $keep      Class names to leave alone, even as BEM children.
  * @return array{
  *     classMap: array<string, string>,
+ *     nested: array<int, array{from: string, to: string}>,
  *     bem: array<int, array{from: string, to: string, styled: bool}>,
  *     also: string[],
  *     styles: array<int, array{id: string, from: string, to: string, selected: bool, cssChanged: bool}>,
@@ -120,6 +125,7 @@ function etch_toolkit_rename_classes_in( string $text, array $map ): string {
  *     elements: int,
  *     errors: string[],
  *     rowErrors: array<string, string>,
+ *     warnings: string[],
  *     newStyles: array<string, array<string, mixed>>,
  *     newStylesheets: array<string, array<string, mixed>>,
  *     newContent: array<int, string>,
@@ -130,7 +136,19 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 	$styles       = (array) get_option( 'etch_styles', array() );
 	$stylesheets  = (array) get_option( 'etch_global_stylesheets', array() );
 	$ids          = array_flip( $ids );
+	$keep         = array_flip( $keep );
 	$has_selector = fn( $style ) => is_array( $style ) && is_string( $style['selector'] ?? null );
+	$errors       = array();
+	$row_errors   = array(); // Keyed by the class name that causes them, so the builder can flag that row.
+	$warnings     = array();
+
+	// Class names read-only styles use. Those styles can't change, so neither can the names.
+	$locked = array();
+	foreach ( $styles as $style ) {
+		if ( $has_selector( $style ) && ! empty( $style['readonly'] ) ) {
+			$locked += array_fill_keys( etch_toolkit_css_classes( $style['selector'] ), true );
+		}
+	}
 
 	// 1. Class names to rename: the requested ones that appear in the selected selectors.
 	$map = array();
@@ -145,44 +163,78 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 		}
 	}
 
-	// Load content once, trashed posts too, so restoring one doesn't bring an old name back.
+	// Nested rules like &__title in a renamed class's own CSS. Etch writes them out with
+	// the style's selector, so once .card is .box, &__title styles box__title, and every
+	// card__title has to become box__title with it, whatever the BEM option says.
+	$nested = array();
+	foreach ( $styles as $style ) {
+		if ( ! $has_selector( $style ) || ! empty( $style['readonly'] ) || ! is_string( $style['css'] ?? null )
+			|| ! preg_match( '/^\.(' . ETCH_TOOLKIT_CSS_IDENT . ')$/uD', trim( $style['selector'] ), $m ) ) {
+			continue;
+		}
+		$parent = etch_toolkit_css_unescape( $m[1] );
+		if ( ! isset( $map[ $parent ] ) ) {
+			continue;
+		}
+		// Etch's own pattern for these, in CssProcessor::parse_scss_like_syntax().
+		preg_match_all( '/&(__|--|_|-)([a-zA-Z0-9_-]+)/', $style['css'], $found, PREG_SET_ORDER );
+		foreach ( $found as $rule ) {
+			$nested[ $parent . $rule[1] . $rule[2] ] = $map[ $parent ] . $rule[1] . $rule[2];
+		}
+	}
+	foreach ( $nested as $child => $new ) {
+		if ( isset( $keep[ $child ] ) || ( isset( $map[ $child ] ) && $map[ $child ] !== $new ) ) {
+			$errors[]             = sprintf( '.%1$s is styled by a nested rule in the class it belongs to, so it has to become .%2$s.', $child, $new );
+			$row_errors[ $child ] = sprintf( 'A nested rule makes this .%s.', $new );
+		}
+		$map[ $child ] = $new;
+	}
+
+	// Load content once, trashed posts too, so restoring one doesn't bring an old name
+	// back. Posts using a new name already are read too, to say when names merge.
 	$contents = array();
 	if ( $map ) {
+		$names = array_unique( array_merge( array_map( 'strval', array_keys( $map ) ), array_values( $map ) ) );
 		foreach ( etch_toolkit_contents( true ) as $post_id => $content ) {
 			$plain = etch_toolkit_plain_content( $content );
-			foreach ( array_keys( $map ) as $old ) {
-				if ( str_contains( $plain, (string) $old ) ) {
+			foreach ( $names as $name ) {
+				if ( str_contains( $plain, $name ) ) {
 					$contents[ $post_id ] = $content;
 					break;
 				}
 			}
 		}
 	}
+	$universe = etch_toolkit_rename_class_universe( $styles, $stylesheets, $contents );
 
 	// BEM children and modifiers: renaming "card" can also rename "card__cta" and "card--wide"
-	// wherever they're used, even when they have no style of their own. They're always
-	// listed in `bem` so the preview can show them, and only renamed when $bem is on.
+	// wherever they're used, even when they have no style of their own. A name follows its
+	// longest renamed parent, and a name kept as it is keeps its own children too. They're
+	// always listed in `bem` so the preview can show them, and only renamed when $bem is on.
 	// `also` reports those without a style, since styled ones show up in `styles`.
 	$styled = array();
 	foreach ( $styles as $style ) {
 		if ( $has_selector( $style ) && 'class' === ( $style['type'] ?? '' ) ) {
-			foreach ( etch_toolkit_css_classes( $style['selector'] ) as $name ) {
-				$styled[ $name ] = true;
-			}
+			$styled += array_fill_keys( etch_toolkit_css_classes( $style['selector'] ), true );
 		}
 	}
+	$parents = $map + array_fill_keys( array_keys( $keep ), null );
+	uksort( $parents, fn( $a, $b ) => strlen( (string) $b ) <=> strlen( (string) $a ) );
 	$also      = array();
 	$bem_found = array();
 	$bem_map   = array();
-	$keep      = array_flip( $keep );
-	foreach ( etch_toolkit_rename_class_universe( $styles, $stylesheets, $contents ) as $name ) {
+	foreach ( $universe as $name ) {
 		$name = (string) $name;
-		if ( isset( $map[ $name ] ) || isset( $keep[ $name ] ) ) {
+		if ( isset( $parents[ $name ] ) || isset( $locked[ $name ] ) ) {
 			continue;
 		}
-		foreach ( $map as $old => $new ) {
-			if ( str_starts_with( $name, $old . '__' ) || str_starts_with( $name, $old . '--' ) ) {
-				$bem_map[ $name ] = $new . substr( $name, strlen( (string) $old ) );
+		foreach ( $parents as $old => $new ) {
+			$old = (string) $old;
+			if ( ! str_starts_with( $name, $old . '__' ) && ! str_starts_with( $name, $old . '--' ) ) {
+				continue;
+			}
+			if ( null !== $new ) {
+				$bem_map[ $name ] = $new . substr( $name, strlen( $old ) );
 				$bem_found[]      = array(
 					'from'   => $name,
 					'to'     => $bem_map[ $name ],
@@ -191,25 +243,28 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 				if ( $bem && ! isset( $styled[ $name ] ) ) {
 					$also[] = $name;
 				}
-				break;
 			}
+			break;
 		}
 	}
 	if ( $bem ) {
 		$map += $bem_map;
 	}
 
-	// Errors keyed by the class name that causes them, so the builder can flag that row.
-	$errors     = array();
-	$row_errors = array();
-	$targets    = array();
+	$targets = array();
 	foreach ( $map as $old => $new ) {
-		if ( ! preg_match( '/^-?[_a-zA-Z][_a-zA-Z0-9-]*$/', $new ) ) {
+		$old = (string) $old;
+		if ( isset( $locked[ $old ] ) ) {
+			$errors[]           = sprintf( ".%s is also used by a read-only style, which can't be renamed.", $old );
+			$row_errors[ $old ] = $row_errors[ $old ] ?? 'A read-only style uses it.';
+		} elseif ( ! preg_match( '/^[a-zA-Z][a-zA-Z0-9_-]*$/D', $new ) ) {
+			// Etch only reads a selector as a class when the name starts with a letter. D, or $
+			// would also match before a trailing newline.
 			$errors[]           = sprintf( '".%s" would become ".%s", which isn\'t a valid class name.', $old, $new );
-			$row_errors[ $old ] = 'Not a valid class name.';
+			$row_errors[ $old ] = $row_errors[ $old ] ?? 'Not a valid class name.';
 		} elseif ( isset( $targets[ $new ] ) ) {
 			$errors[]           = sprintf( '".%s" and ".%s" would both become ".%s".', $targets[ $new ], $old, $new );
-			$row_errors[ $old ] = sprintf( 'Same name as .%s.', $targets[ $new ] );
+			$row_errors[ $old ] = $row_errors[ $old ] ?? sprintf( 'Same name as .%s.', $targets[ $new ] );
 		}
 		$targets[ $new ] = $old;
 	}
@@ -261,6 +316,15 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 		}
 	}
 
+	// A new name that's in use already, as a class on elements or a style in another
+	// collection, merges with what's there. Allowed, but worth knowing.
+	$in_use = array_flip( $universe );
+	foreach ( $map as $old => $new ) {
+		if ( isset( $in_use[ $new ] ) && ! isset( $map[ $new ] ) && ! isset( $row_errors[ (string) $old ] ) ) {
+			$warnings[] = sprintf( "There's already a .%1\$s on this site, so .%2\$s merges with it.", $new, $old );
+		}
+	}
+
 	// 3. Global stylesheets.
 	$changed_sheets  = array();
 	$new_stylesheets = $stylesheets;
@@ -273,14 +337,25 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 		}
 	}
 
-	// 4. Element class names across all content.
+	// 4. Element class names across all content, and dynamic ones like btn--{props.variant},
+	// which aren't renamed but could still make an old name.
 	$changed     = array();
 	$new_content = array();
+	$dynamic     = array();
 	foreach ( $contents as $post_id => $content ) {
 		$count   = 0;
 		$content = etch_toolkit_edit_block_attrs(
 			$content,
-			fn( $attrs ) => etch_toolkit_edit_block_classes( $attrs, fn( $class ) => (string) ( $map[ $class ] ?? $class ) ),
+			function ( $attrs, $name, &$tag ) use ( $map, &$dynamic ) {
+				foreach ( etch_toolkit_block_classes( $attrs, true ) as $token ) {
+					foreach ( $map as $old => $new ) {
+						if ( etch_toolkit_dynamic_class_matches( $token, (string) $old ) ) {
+							$dynamic[ $token ][ (string) $old ] = true;
+						}
+					}
+				}
+				return etch_toolkit_edit_block_classes( $attrs, fn( $class ) => (string) ( $map[ $class ] ?? $class ), $tag );
+			},
 			$count
 		);
 
@@ -289,18 +364,25 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 			$changed[ $post_id ]     = $count;
 		}
 	}
-	$posts = etch_toolkit_post_summaries( $changed );
+	foreach ( array_slice( $dynamic, 0, 5, true ) as $token => $olds ) {
+		$warnings[] = sprintf( "The dynamic class %s can still make .%s. Dynamic classes aren't renamed, so update it by hand.", $token, implode( ', .', array_keys( $olds ) ) );
+	}
+	if ( count( $dynamic ) > 5 ) {
+		$warnings[] = sprintf( 'And %d more dynamic classes like it.', count( $dynamic ) - 5 );
+	}
 
 	return array(
 		'classMap'       => (object) $map,
+		'nested'         => array_map( fn( $from, $to ) => compact( 'from', 'to' ), array_map( 'strval', array_keys( $nested ) ), array_values( $nested ) ),
 		'bem'            => $bem_found,
 		'also'           => $also,
 		'styles'         => array_values( $changes ),
 		'stylesheets'    => $changed_sheets,
-		'posts'          => $posts,
+		'posts'          => etch_toolkit_post_summaries( $changed ),
 		'elements'       => array_sum( $changed ),
 		'errors'         => array_values( array_unique( $errors ) ),
 		'rowErrors'      => (object) $row_errors,
+		'warnings'       => $warnings,
 		// Used by apply, stripped from the preview response.
 		'newStyles'      => $new_styles,
 		'newStylesheets' => $new_stylesheets,
@@ -323,13 +405,16 @@ function etch_toolkit_rename_apply( array $ids, array $map, bool $bem = false, a
 	}
 
 	// Content first, all or nothing, so a failed save leaves the styles untouched too.
-	$saved = etch_toolkit_update_contents( $plan['newContent'], $plan['oldContent'] );
+	$styles = get_option( 'etch_styles' );
+	$saved  = etch_toolkit_update_contents( $plan['newContent'], $plan['oldContent'] );
 	if ( is_wp_error( $saved ) ) {
 		return $saved;
 	}
-	update_option( 'etch_styles', $plan['newStyles'] );
-	if ( $plan['stylesheets'] ) {
-		update_option( 'etch_global_stylesheets', $plan['newStylesheets'] );
+	// Then the options. If one won't save, everything goes back the way it was.
+	if ( ! update_option( 'etch_styles', $plan['newStyles'] ) || ( $plan['stylesheets'] && ! update_option( 'etch_global_stylesheets', $plan['newStylesheets'] ) ) ) {
+		update_option( 'etch_styles', $styles );
+		etch_toolkit_update_contents( $plan['oldContent'], $plan['newContent'] );
+		return new WP_Error( 'etch_toolkit_rename_failed', "The renamed styles couldn't be saved, so nothing was changed.", array( 'status' => 500 ) );
 	}
 
 	return rest_ensure_response( etch_toolkit_rename_public( $plan ) );
