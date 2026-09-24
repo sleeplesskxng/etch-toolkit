@@ -7,7 +7,7 @@
  * the builder so no stale copy of a page or component can bring the class back.
  */
 ( () => {
-	const { restUrl, api, el, confirmDialog } = window.etchToolkit || {};
+	const { restUrl, api, el, confirmDialog, reload } = window.etchToolkit || {};
 	if ( ! restUrl || ! confirmDialog ) return;
 
 	const BADGE = '.etch-css-selectors .etch-badges > *';
@@ -75,7 +75,7 @@
 
 			await window.etch.saveAsync();
 			await api( `styles/${ styleId }/delete-everywhere`, 'POST' );
-			window.location.reload();
+			reload();
 		} catch ( err ) {
 			if ( dialog ) dialog.fail( err.message );
 			else window.alert( `Delete Everywhere failed: ${ err.message }` );

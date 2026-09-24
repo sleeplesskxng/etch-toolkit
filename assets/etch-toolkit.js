@@ -99,11 +99,15 @@
 		initialFocus?.focus();
 
 		return {
+			element: dialog,
 			result,
 			close,
 			confirm: () => confirm.click(),
 			setConfirmEnabled( enabled ) {
 				if ( ! busy ) confirm.disabled = ! enabled;
+			},
+			setConfirmLabel( label ) {
+				if ( ! busy ) confirm.lastChild.textContent = ` ${ label }`;
 			},
 			// Swap to an error state with a single Close button.
 			fail( error ) {
@@ -120,6 +124,29 @@
 		};
 	};
 
-	Object.assign( toolkit, { api, el, confirmDialog, DELETE_ICON } );
+	// Etch always reopens in the builder. reload() remembers where you were (e.g. the
+	// Style Manager) and goes back there once Etch's API is up.
+	const PLACE_KEY = 'etk-return-place';
+
+	const reload = () => {
+		try {
+			sessionStorage.setItem( PLACE_KEY, window.etch.navigation.getCurrentPlace() );
+		} catch {}
+		window.location.reload();
+	};
+
+	try {
+		const place = sessionStorage.getItem( PLACE_KEY );
+		sessionStorage.removeItem( PLACE_KEY );
+		const started = Date.now();
+		const tick = () => {
+			const navigation = window.etch?.navigation;
+			if ( navigation ) navigation.goTo( place );
+			else if ( Date.now() - started < 20000 ) setTimeout( tick, 100 );
+		};
+		if ( place && place !== 'builder' ) tick();
+	} catch {}
+
+	Object.assign( toolkit, { api, el, confirmDialog, reload, DELETE_ICON } );
 	window.etchToolkit = toolkit;
 } )();
