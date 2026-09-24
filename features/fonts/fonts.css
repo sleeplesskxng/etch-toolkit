@@ -31,6 +31,7 @@
 	--etk-fonts-text-40: color-mix(in srgb, var(--etk-fonts-text) 40%, transparent);
 	--etk-fonts-text-25: color-mix(in srgb, var(--etk-fonts-text) 25%, transparent);
 	--etk-fonts-muted: var(--etk-fonts-text-60);
+	--etk-fonts-spotlight: color-mix(in srgb, var(--etk-fonts-text) 6%, transparent);
 
 	/* Accent and status. */
 	--etk-fonts-accent: var(--e-primary, #57e9db);
@@ -443,6 +444,28 @@
 	background: var(--etk-fonts-surface);
 }
 
+/* The whole card clicks through to its .etk-fonts__card-link. Other controls sit above the stretched hit area. */
+.etk-fonts__card:has(.etk-fonts__card-link) {
+	position: relative;
+	cursor: pointer;
+
+	:is(button, a, input, select):not(.etk-fonts__card-link) {
+		position: relative;
+		z-index: 1;
+	}
+}
+
+/* Etch sets position: relative on .etch-builder-button, which would trap the ::after. */
+.etk-fonts .etk-fonts__card-link.etch-builder-button {
+	position: static;
+}
+
+.etk-fonts__card-link::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+}
+
 .etk-fonts__card--padded {
 	gap: 12px;
 	padding: 16px;
@@ -549,28 +572,12 @@
 	line-height: 14px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-
-	/* A Google card's variable, then whether it's variable or static. */
-	&:has(> .etk-fonts__tile-kind) {
-		display: flex;
-		gap: 6px;
-	}
 }
 
-.etk-fonts__tile-var {
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
+/* A Google card's line: variable or static. */
 .etk-fonts__tile-kind {
-	flex: none;
 	color: var(--etk-fonts-text-45);
 	font-family: var(--e-font-interface);
-
-	&::before {
-		content: "·" / "";
-		margin-inline-end: 6px;
-	}
 }
 
 .etk-fonts__tile-actions {
@@ -1858,6 +1865,41 @@
 	}
 }
 
+/* On hover, a brighter border and a soft light on the top right corner, behind the content. */
+.etk-fonts__upload,
+.etk-fonts__family-add {
+	position: relative;
+	isolation: isolate;
+
+	&:hover:not(.is-over) {
+		border-color: var(--etk-fonts-text-40);
+	}
+
+	&:hover::before {
+		opacity: 1;
+	}
+
+	&::before {
+		content: "";
+		position: absolute;
+		inset-block-start: -160px;
+		inset-inline-end: -24px;
+		z-index: -1;
+		inline-size: var(--etk-fonts-spotlight-size, 420px);
+		aspect-ratio: 1;
+		border-radius: 50%;
+		background: var(--etk-fonts-spotlight);
+		filter: blur(90px);
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity var(--e-transition, 0.15s ease-in-out);
+	}
+}
+
+.etk-fonts__family-add {
+	--etk-fonts-spotlight-size: 240px;
+}
+
 .etk-fonts__upload-text {
 	display: flex;
 	flex-direction: column;
@@ -2421,11 +2463,6 @@
 		line-height: 1.15;
 		letter-spacing: -0.02em;
 		overflow-wrap: anywhere;
-	}
-
-	/* View brightens with the tile. */
-	.etk-fonts__gtile:hover .etk-fonts__card-view {
-		color: var(--etk-fonts-text);
 	}
 
 	&[data-layout="rows"] {

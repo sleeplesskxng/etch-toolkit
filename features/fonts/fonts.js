@@ -893,7 +893,7 @@
 				'div',
 				{ class: 'etk-fonts__tile-meta' },
 				h( 'div', { class: 'etk-fonts__tile-title' }, h( 'h3', { class: 'etk-fonts__tile-name', textContent: family.name } ), state.vars[ family.name ] ? h( 'span', { class: 'etk-fonts__tile-sub', textContent: state.vars[ family.name ] } ) : null ),
-				h( 'div', { class: 'etk-fonts__tile-actions' }, copyVar( family.name, { variant: 'icon' } ), button( 'Edit', () => edit( index ), { attrs: { 'aria-label': `Edit ${ family.name }` } } ) )
+				h( 'div', { class: 'etk-fonts__tile-actions' }, copyVar( family.name, { variant: 'icon' } ), button( 'Edit', () => edit( index ), { attrs: { class: 'etk-fonts__card-link', 'aria-label': `Edit ${ family.name }` } } ) )
 			)
 		);
 	};
@@ -2141,10 +2141,9 @@
 				return h(
 					'li',
 					{ class: 'etk-fonts__card etk-fonts__tile etk-fonts__gtile' },
-					// View is the keyboard target. The canvas is a larger click target for the same thing.
 					h(
 						'div',
-						{ class: 'etk-fonts__tile-canvas', onclick: open },
+						{ class: 'etk-fonts__tile-canvas' },
 						h( 'div', { class: 'etk-fonts__tile-top' }, badge( categoryLabel( font.category ), 'tag' ), h( 'span', { class: 'etk-fonts__tile-note', textContent: styleNote( font ) } ) ),
 						specimen( 'etk-fonts__tile-specimen', scriptOf( font.script, font.subsets ), `font-family: "${ font.family }", ${ font.category === 'serif' ? 'serif' : 'sans-serif' }; font-weight: ${ google.weight }` )
 					),
@@ -2155,9 +2154,9 @@
 							'div',
 							{ class: 'etk-fonts__tile-title' },
 							h( 'h3', { class: 'etk-fonts__tile-name', textContent: font.family } ),
-							h( 'span', { class: 'etk-fonts__tile-sub' }, h( 'span', { class: 'etk-fonts__tile-var', textContent: googleVar( font.family ) } ), h( 'span', { class: 'etk-fonts__tile-kind', textContent: font.wght?.min ? 'Variable' : 'Static only' } ) )
+							h( 'span', { class: 'etk-fonts__tile-sub etk-fonts__tile-kind', textContent: font.wght?.min ? 'Variable' : 'Static only' } )
 						),
-						h( 'div', { class: 'etk-fonts__tile-actions' }, iconButton( `View ${ font.family }`, 'chevron-right', open, { title: 'View', attrs: { class: 'etk-fonts__card-view', 'data-family': font.family } } ), addButton( font ) )
+						h( 'div', { class: 'etk-fonts__tile-actions' }, addButton( font ), iconButton( `View ${ font.family }`, 'chevron-right', open, { title: 'View', attrs: { class: 'etk-fonts__card-view etk-fonts__card-link', 'data-family': font.family } } ) )
 					)
 				);
 			} )
