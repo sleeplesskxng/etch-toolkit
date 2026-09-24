@@ -5,7 +5,7 @@ Quality of life additions for the Etch builder. Vanilla PHP, JS and CSS, no buil
 ## Local environment
 
 - This folder lives inside a WordPress Studio site at `../../..` (`blank-etch-site`). Edits are live on that site.
-- Run WP-CLI as `studio wp …`, never bare `wp`. Get the URL and login with `studio status`.
+- Run WP-CLI as `studio wp --path ../../.. …`, never bare `wp`. From this folder, `studio` needs `--path ../../..` to find the site. Get the URL and login with `studio status --path ../../..`.
 - Etch (`../etch`) is a third-party dependency. Read it, never edit it.
 
 ## Structure
@@ -16,7 +16,7 @@ Quality of life additions for the Etch builder. Vanilla PHP, JS and CSS, no buil
 
 ## Skills
 
-WordPress skills from [WordPress/agent-skills](https://github.com/WordPress/agent-skills) live in `.claude/skills/`. Where a skill says `skills/…`, read it as `.claude/skills/…`. Where it says `wp …`, run `studio wp …`.
+WordPress skills from [WordPress/agent-skills](https://github.com/WordPress/agent-skills) live in `.claude/skills/`. Where a skill says `skills/…`, read it as `.claude/skills/…`. Where it says `wp …`, run `studio wp --path ../../.. …`.
 
 ## Releasing
 
