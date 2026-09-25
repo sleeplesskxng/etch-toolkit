@@ -2847,6 +2847,10 @@
 
 	const open = async () => {
 		if ( ! panel ) build();
+		// One manager at a time, like Etch's own, so Back goes straight to the canvas.
+		try {
+			if ( window.etch.navigation.getCurrentPlace() !== 'builder' ) window.etch.navigation.goTo( 'builder' );
+		} catch {}
 		// Pinning Automatic.css's dashboard writes left and max-width onto every fixed element
 		// on the page, which squeezes this one. Its place comes from fonts.css.
 		panel.removeAttribute( 'style' );
@@ -2866,7 +2870,8 @@
 		panel.querySelector( '.etk-fonts__page-title' )?.focus();
 	};
 
-	const close = async () => {
+	// focus: false when another Settings Bar button closed it, so focus stays on that one.
+	const close = async ( { focus = true } = {} ) => {
 		if ( ! panel || panel.hidden ) return;
 		closeMenu();
 		if ( view === 'family' && ! ( await leaveFamily( 'library' ) ) ) return;
@@ -2874,7 +2879,7 @@
 		document.body.classList.remove( 'etk-fonts-open' );
 		controlButton?.setAttribute( 'aria-expanded', 'false' );
 		controlButton?.removeAttribute( 'selected' );
-		controlButton?.focus();
+		if ( focus ) controlButton?.focus();
 	};
 
 	const togglePanel = () => ( panel && ! panel.hidden ? close() : open() );
@@ -2928,7 +2933,7 @@
 		// Opening one of Etch's own managers closes this one.
 		document.querySelector( '.settings-bar' )?.addEventListener( 'click', ( e ) => {
 			const clicked = e.target.closest( 'button' );
-			if ( clicked && clicked !== controlButton ) close();
+			if ( clicked && clicked !== controlButton ) close( { focus: false } );
 		} );
 		return true;
 	};
