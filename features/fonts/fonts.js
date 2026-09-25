@@ -2847,6 +2847,9 @@
 
 	const open = async () => {
 		if ( ! panel ) build();
+		// Pinning Automatic.css's dashboard writes left and max-width onto every fixed element
+		// on the page, which squeezes this one. Its place comes from fonts.css.
+		panel.removeAttribute( 'style' );
 		panel.hidden = false;
 		document.body.classList.add( 'etk-fonts-open' );
 		controlButton?.setAttribute( 'aria-expanded', 'true' );

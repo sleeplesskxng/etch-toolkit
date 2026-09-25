@@ -69,6 +69,15 @@
 		display: none;
 	}
 
+	/* Automatic.css's pinned dashboard moves the builder aside with a margin on <body>, which fixed positioning ignores. */
+	body.push-right & {
+		inset-inline-start: calc(var(--acss-dashboard-width, 0px) + var(--e-settings-bar-width, 46.5px));
+	}
+
+	body.push-left & {
+		inset-inline-end: var(--acss-dashboard-width, 0px);
+	}
+
 	*,
 	*::before,
 	*::after {
