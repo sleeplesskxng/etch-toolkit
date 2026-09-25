@@ -1852,28 +1852,35 @@
 	};
 
 	// Delete files from the fonts folder, taking them out of their families first.
+	// A family left with no files goes too.
 	const deleteFiles = async ( files ) => {
 		if ( ! files.length ) return;
 		const one = files.length === 1;
+		const names = new Set( files.map( ( f ) => f.name ) );
 		const inUse = files.filter( ( f ) => f.family );
+		const emptied = state.families.filter( ( f ) => f.variants.length && f.variants.every( ( v ) => names.has( v.file ) ) );
+		const taken = inUse.filter( ( f ) => ! emptied.some( ( e ) => e.name === f.family ) );
+		const emptiedNames = new Intl.ListFormat( 'en' ).format( emptied.map( ( f ) => f.name ) );
+		const [ has, it ] = emptied.length === 1 ? [ 'has', 'it' ] : [ 'have', 'them' ];
 		const dialog = confirmDialog( {
 			title: one ? `Delete ${ files[ 0 ].name }?` : `Delete ${ files.length } files?`,
 			message: [
 				h( 'p', { textContent: `${ one ? 'The file is' : 'They’re' } removed from the fonts folder. This can’t be undone.` } ),
-				inUse.length ? h( 'p', { textContent: one ? `It’s taken out of ${ inUse[ 0 ].family } too.` : 'Files in a family are taken out of it too.' } ) : null,
+				taken.length ? h( 'p', { textContent: one ? `It’s taken out of ${ taken[ 0 ].family } too.` : 'Files in a family are taken out of it too.' } ) : null,
+				emptied.length ? h( 'p', { textContent: `${ emptiedNames } ${ has } no files left, so ${ emptied.length === 1 ? 'it’s' : 'they’re' } deleted too. Anything using ${ it } falls back to the next font in the stack.` } ) : null,
 			].filter( Boolean ),
 			confirmLabel: 'Delete',
 		} );
 		if ( ! ( await dialog.result ) ) return;
 
-		const names = new Set( files.map( ( f ) => f.name ) );
 		let next = null;
 		try {
-			if ( inUse.length ) next = await api( 'fonts/families', 'POST', { families: state.families.map( ( f ) => ( { ...f, variants: f.variants.filter( ( v ) => ! names.has( v.file ) ) } ) ) } );
+			if ( inUse.length ) next = await api( 'fonts/families', 'POST', { families: state.families.filter( ( f ) => ! emptied.some( ( e ) => e.name === f.name ) ).map( ( f ) => ( { ...f, variants: f.variants.filter( ( v ) => ! names.has( v.file ) ) } ) ) } );
 			next = await api( 'fonts/files/delete', 'POST', { names: [ ...names ] } );
 			// Closed before the list re-renders, so focus is back in the list to be kept.
 			dialog.close();
-			await apply( next, one ? `Deleted ${ files[ 0 ].name }.` : `Deleted ${ plural( files.length, 'file', 'files' ) }.` );
+			const deleted = one ? files[ 0 ].name : plural( files.length, 'file', 'files' );
+			await apply( next, emptied.length ? `Deleted ${ deleted } and the ${ emptiedNames } ${ emptied.length === 1 ? 'family' : 'families' }.` : `Deleted ${ deleted }.` );
 		} catch ( error ) {
 			if ( next ) await apply( next );
 			dialog.fail( errorText( error ) );
