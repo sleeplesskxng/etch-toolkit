@@ -5,18 +5,23 @@
  * like Etch's own Style Manager. Views: Library (families and files), family
  * editor, Google Fonts and Settings.
  *
- * The server owns the families and builds the CSS. After every change this
+ * Changes to families wait for Etch's Save, like Etch's own changes: the
+ * editor, roles, weights, and adding, moving or removing files change them
+ * here, and once Etch has saved they're saved too. Work on files, like an
+ * upload, a delete or a Google download, happens at once, like Etch's media.
+ *
+ * The server owns the saved families and builds the CSS. After every save this
  * writes that CSS into the Etch stylesheet "Etch Toolkit Fonts" through
  * window.etch.stylesheets, so Etch's in-memory copy never goes stale and the
- * canvas updates live. It also runs once on load, to repair the stylesheet if
- * it was edited or deleted.
+ * canvas updates. It also runs once on load, to repair the stylesheet if it
+ * was edited or deleted.
  *
  * Uploads that aren't WOFF2 are converted in the browser first, by google/woff2
  * compiled to WebAssembly in a worker (lib/woff2). A WOFF is unwrapped to TTF
  * with DecompressionStream before that.
  */
 ( () => {
-	const { api, afterSave, confirmDialog, DELETE_ICON } = window.etchToolkit || {};
+	const { api, afterSave, unsaved, confirmDialog, DELETE_ICON } = window.etchToolkit || {};
 	const config = window.etchToolkitFonts || {};
 	if ( ! confirmDialog ) return;
 
@@ -131,7 +136,7 @@
 	/* State and sync                                                      */
 	/* ------------------------------------------------------------------ */
 
-	let state = null; // { families, files, settings, css, faces, vars }
+	let state = null; // { families, files, settings, css, faces, vars }: families as edited, the rest as saved
 	let view = 'library';
 	let draft = null; // Family being edited: { original: name|null, family }
 	let panel = null;
@@ -222,7 +227,7 @@
 			if ( sheet.css !== state.css || sheet.name !== config.stylesheetName ) {
 				await sheets.updateAsync( sheet.id, { css: state.css, name: config.stylesheetName } );
 			}
-		} else if ( state.families.length ) {
+		} else if ( saved.length ) {
 			id = await sheets.createAsync( { name: config.stylesheetName, css: state.css, type: 'default' } );
 		}
 
@@ -232,11 +237,83 @@
 		}
 	};
 
-	/**
-	 * Take a new state from the server, then sync the stylesheet and re-render.
+	/*
+	 * Families as last saved. state.families is what you've changed, each one
+	 * marked with the name it was saved under, ORIGIN, which JSON leaves out.
 	 */
-	const apply = async ( next, message ) => {
+	let saved = [];
+	const ORIGIN = Symbol( 'saved as' );
+	const marked = ( families ) => families.map( ( f ) => Object.assign( clone( f ), { [ ORIGIN ]: f.name } ) );
+	const savedName = ( family ) => family[ ORIGIN ] ?? family.name;
+	const fontsUnsaved = () => !! state && JSON.stringify( state.families ) !== JSON.stringify( saved );
+
+	/*
+	 * Your changes, on top of new saved families from the server, like after an
+	 * upload added a file: families and files the server added or took out
+	 * since `before` change here too. A family you haven't changed takes the
+	 * server's copy whole.
+	 */
+	const rebase = ( working, before, after ) => {
+		const was = new Map( before.map( ( f ) => [ f.name, f ] ) );
+		const now = new Map( after.map( ( f ) => [ f.name, f ] ) );
+		const files = ( family ) => new Set( ( family?.variants || [] ).map( ( v ) => v.file ) );
+		const result = [];
+		for ( const family of working ) {
+			const name = savedName( family );
+			if ( was.has( name ) && ! now.has( name ) ) continue;
+			if ( ! now.has( name ) ) {
+				result.push( family );
+				continue;
+			}
+			const server = now.get( name );
+			if ( JSON.stringify( family ) === JSON.stringify( was.get( name ) ) ) {
+				result.push( ...marked( [ server ] ) );
+				continue;
+			}
+			const [ had, has ] = [ files( was.get( name ) ), files( server ) ];
+			family.variants = family.variants.filter( ( v ) => has.has( v.file ) || ! had.has( v.file ) );
+			family.variants.push( ...clone( server.variants.filter( ( v ) => ! had.has( v.file ) && ! family.variants.some( ( x ) => x.file === v.file ) ) ) );
+			// What Google serves, which a download changes.
+			if ( server.google ) family.google = clone( server.google );
+			family[ ORIGIN ] = name;
+			result.push( family );
+		}
+		for ( const family of after ) {
+			if ( ! was.has( family.name ) && ! result.some( ( f ) => savedName( f ) === family.name ) ) result.push( ...marked( [ family ] ) );
+		}
+		return result;
+	};
+
+	// Each file's family, as you've changed them. A file WordPress's Font Library has keeps that.
+	const relink = () => {
+		for ( const file of state.files ) {
+			file.family = state.families.find( ( f ) => f.variants.some( ( v ) => v.file === file.name ) )?.name || file.library;
+		}
+	};
+
+	/**
+	 * Take a new state from the server, keeping changes not saved yet on top,
+	 * then sync the stylesheet and re-render. After saving, `committed` is the
+	 * families as sent, the base for anything changed while it was on its way.
+	 */
+	const take = ( next, committed ) => {
+		const working = state?.families;
+		const before = committed ? JSON.parse( committed ) : saved;
+		for ( const file of next.files ) file.library = file.family && ! next.families.some( ( f ) => f.name === file.family ) ? file.family : '';
+		saved = clone( next.families );
+		const editing = draft?.family;
 		state = next;
+		state.families = working ? rebase( working, before, next.families ) : marked( next.families );
+		relink();
+		// The family open in the editor, by its new name after a save, or its old one.
+		if ( draft ) {
+			const family = state.families.find( ( f ) => f === editing ) || state.families.find( ( f ) => f.name === editing?.name ) || state.families.find( ( f ) => savedName( f ) === draft.original );
+			draft = family ? { original: savedName( family ), family } : null;
+		}
+	};
+
+	const apply = async ( next, message, { committed } = {} ) => {
+		take( next, committed );
 		loadFaces();
 		render();
 		try {
@@ -247,11 +324,37 @@
 		}
 	};
 
-	const saveFamilies = ( families, message ) => api( 'fonts/families', 'POST', { families } ).then( ( next ) => apply( next, message ) );
+	// What's wrong with your families, if anything, so they can't be saved yet.
+	const familyProblem = ( family ) => {
+		const name = family.name.trim();
+		if ( ! name ) return 'Give the family a name.';
+		if ( state.families.some( ( f ) => f !== family && f.name.trim().toLowerCase() === name.toLowerCase() ) ) return `There's already a family called ${ name }.`;
+		if ( family.variable ) {
+			if ( ! /^[A-Za-z0-9_-]+$/.test( family.variable ) ) return 'Use letters, numbers, - and _ in the variable name.';
+			if ( Object.keys( ROLES ).some( ( role ) => family.variable === `${ role }-font-family` ) ) return `--${ family.variable } is set from the heading and body roles. Pick another name.`;
+			const owner = state.families.find( ( f ) => f !== family && ( f.variable ? `--${ f.variable }` : state.vars[ savedName( f ) ] ) === `--${ family.variable }` );
+			if ( owner ) return `${ owner.name } already uses --${ family.variable }.`;
+		}
+		return '';
+	};
 
-	// Etch's undo can take the stylesheet back to CSS from before a font change, and its
-	// next save writes that. So once it has saved, the stylesheet gets the fonts' CSS again.
-	afterSave( () => state && syncStylesheet() );
+	// Saved with Etch's Save, once Etch has saved. Then the stylesheet gets the fonts' CSS
+	// again anyway, since Etch's undo can take it back to CSS from before a font change.
+	unsaved( fontsUnsaved );
+	afterSave( async () => {
+		if ( ! state ) return;
+		if ( ! fontsUnsaved() ) return syncStylesheet();
+		const problem = state.families.map( familyProblem ).find( Boolean );
+		if ( problem ) throw new Error( `Your font changes weren’t saved. ${ problem }` );
+		const committed = JSON.stringify( state.families );
+		let next;
+		try {
+			next = await api( 'fonts/families', 'POST', { families: state.families.map( ( f ) => ( { ...f, name: f.name.trim() } ) ) } );
+		} catch ( error ) {
+			throw new Error( `Your font changes weren’t saved. ${ errorText( error ) }` );
+		}
+		await apply( next, 'Saved your font changes.', { committed } );
+	} );
 
 	/* ------------------------------------------------------------------ */
 	/* WOFF2 conversion                                                    */
@@ -891,7 +994,7 @@
 					badges.length ? h( 'div', { class: 'etk-fonts__family-badges' }, badges ) : null,
 					weights ? h( 'span', { class: 'etk-fonts__tile-note' }, h( 'span', { class: 'screen-reader-text', textContent: 'Weights ' } ), weights ) : null
 				),
-				h( 'p', { class: 'etk-fonts__tile-specimen etk-fonts__family-specimen', 'aria-hidden': 'true', style: `font-family: "${ family.name }", ${ family.fallback || 'sans-serif' }`, textContent: glyphs } )
+				h( 'p', { class: 'etk-fonts__tile-specimen etk-fonts__family-specimen', 'aria-hidden': 'true', style: `font-family: "${ savedName( family ) }", ${ family.fallback || 'sans-serif' }`, textContent: glyphs } )
 			),
 			h(
 				'div',
@@ -1103,23 +1206,19 @@
 		] );
 	};
 
-	// Save one file's weight and style into its family.
-	const saveVariant = async ( familyName, variant ) => {
-		const families = clone( state.families );
-		const variants = families.find( ( f ) => f.name === familyName )?.variants || [];
+	// One file's weight and style, in its family.
+	const setVariant = ( familyName, variant ) => {
+		const variants = state.families.find( ( f ) => f.name === familyName )?.variants || [];
 		const i = variants.findIndex( ( v ) => v.file === variant.file );
 		if ( i < 0 ) return;
 		variants[ i ] = variant;
-		try {
-			await saveFamilies( families, `Saved ${ variant.file } as ${ variantLabel( variant ) }.` );
-		} catch ( error ) {
-			warn( errorText( error ) );
-		}
+		render();
+		announce( `${ variant.file } is ${ variantLabel( variant ) }.` );
 	};
 
 	/*
 	 * A file's weight and style, on a button that opens them in a popover.
-	 * Changes save to its family when the popover closes. A file with no
+	 * Changes go into its family when the popover closes. A file with no
 	 * family has nowhere to keep them yet.
 	 */
 	const weightCell = ( file ) => {
@@ -1171,10 +1270,10 @@
 			);
 			openPopup( trigger, popup, {
 				align: 'start',
-				onclose: async () => {
+				onclose: () => {
 					if ( JSON.stringify( edited ) === JSON.stringify( variant ) ) return;
 					const refocus = document.activeElement === trigger;
-					await saveVariant( family.name, edited );
+					setVariant( family.name, edited );
 					if ( refocus ) main.querySelector( `.etk-fonts__weight-cell[data-file="${ CSS.escape( file.name ) }"]` )?.focus();
 				},
 			} );
@@ -1331,7 +1430,7 @@
 	 * A family's CSS variable, after a fixed --. Empty uses the default,
 	 * --font-{name}, shown as the placeholder. The copy button copies what's typed.
 	 */
-	const defaultVar = ( family ) => ( family.name === draft.original && ! state.families.find( ( f ) => f.name === family.name )?.variable ? state.vars[ family.name ]?.slice( 2 ) : null ) || `font-${ slugOf( family.name ) }`;
+	const defaultVar = ( family ) => ( family.name === family[ ORIGIN ] && ! saved.find( ( f ) => f.name === family.name )?.variable ? state.vars[ family.name ]?.slice( 2 ) : null ) || `font-${ slugOf( family.name ) }`;
 	const varField = ( family, update ) => {
 		const input = h( 'input', {
 			class: 'etk-fonts__input etk-fonts__input--mono etk-fonts__var-name',
@@ -1357,58 +1456,36 @@
 		);
 	};
 
+	// The editor changes the family itself, like everything else, until Etch's Save.
 	const edit = ( index ) => {
-		draft = { original: state.families[ index ].name, family: clone( state.families[ index ] ) };
+		draft = { original: savedName( state.families[ index ] ), family: state.families[ index ] };
 		go( 'family' );
 	};
 
-	const dirty = () => draft && JSON.stringify( draft.family ) !== JSON.stringify( state.families.find( ( f ) => f.name === draft.original ) );
-
-	const saveDraft = async () => {
-		const family = draft.family;
-		family.name = family.name.trim();
-		if ( ! family.name ) return warn( 'Give the family a name.' );
-		if ( state.families.some( ( f ) => f.name !== draft.original && f.name.toLowerCase() === family.name.toLowerCase() ) ) return warn( `There's already a family called ${ family.name }.` );
-		if ( family.variable ) {
-			if ( ! /^[A-Za-z0-9_-]+$/.test( family.variable ) ) return warn( 'Use letters, numbers, - and _ in the variable name.' );
-			if ( Object.keys( ROLES ).some( ( role ) => family.variable === `${ role }-font-family` ) ) return warn( `--${ family.variable } is set from the heading and body roles. Pick another name.` );
-			const owner = state.families.find( ( f ) => f.name !== draft.original && state.vars[ f.name ] === `--${ family.variable }` );
-			if ( owner ) return warn( `${ owner.name } already uses --${ family.variable }.` );
-		}
-
-		// A role belongs to one family, so claiming it here takes it from the others.
-		const index = state.families.findIndex( ( f ) => f.name === draft.original );
-		const families = state.families.map( ( f, i ) => ( i === index ? family : { ...f, roles: f.roles.filter( ( r ) => ! family.roles.includes( r ) ) } ) );
-		try {
-			const next = await api( 'fonts/families', 'POST', { families } );
-			// Found by position: the server can clean up the name, and a save never drops or reorders families.
-			const saved = next.families[ index ];
-			draft = { original: saved.name, family: clone( saved ) };
-			await apply( next, `Saved ${ saved.name }.` );
-		} catch ( error ) {
-			warn( errorText( error ) );
-		}
-	};
-
 	const deleteFamily = async () => {
-		const family = state.families.find( ( f ) => f.name === draft.original );
+		const family = draft.family;
+		// Its files no other family has, here or saved.
+		const own = family.variants
+			.map( ( v ) => v.file )
+			.filter( ( name ) => ! [ ...state.families, ...saved.filter( ( f ) => f.name !== family[ ORIGIN ] ) ].some( ( f ) => f !== family && f.variants.some( ( v ) => v.file === name ) ) );
 		let alsoFiles = false;
 		const dialog = confirmDialog( {
 			title: `Delete ${ family.name }?`,
 			message: [
-				h( 'p', { textContent: 'Its @font-face rules and CSS variable are removed from the stylesheet. Anything using it falls back to the next font in the stack.' } ),
-				check( `Also delete its ${ plural( family.variants.length, 'font file', 'font files' ) }`, false, ( value ) => ( alsoFiles = value ) ),
-			],
+				h( 'p', { textContent: 'Its @font-face rules and CSS variable are removed from the stylesheet when you save. Anything using it falls back to the next font in the stack.' } ),
+				own.length ? check( `Also delete its ${ plural( own.length, 'font file', 'font files' ) }, now`, false, ( value ) => ( alsoFiles = value ) ) : null,
+			].filter( Boolean ),
 			confirmLabel: 'Delete',
 			form: true,
 		} );
 		if ( ! ( await dialog.result ) ) return;
 
+		state.families = state.families.filter( ( f ) => f !== family );
 		try {
-			await saveFamilies( state.families.filter( ( f ) => f !== family ) );
+			// Files go at once, like Etch's media, so the family comes out of the saved ones first.
 			if ( alsoFiles ) {
-				const names = family.variants.map( ( v ) => v.file ).filter( ( name ) => state.files.some( ( f ) => f.name === name && ! f.family ) );
-				if ( names.length ) state = await api( 'fonts/files/delete', 'POST', { names } );
+				if ( family[ ORIGIN ] ) await api( 'fonts/families', 'POST', { families: saved.filter( ( f ) => f.name !== family[ ORIGIN ] ) } );
+				await apply( await api( 'fonts/files/delete', 'POST', { names: own } ) );
 			}
 			dialog.close();
 			draft = null;
@@ -1419,13 +1496,8 @@
 		}
 	};
 
-	const uploadInto = async ( files ) => {
-		await uploadFiles( files, draft.original );
-		const saved = state.families.find( ( f ) => f.name === draft.original );
-		// Keep unsaved edits, take the new variants.
-		draft.family.variants = [ ...draft.family.variants, ...saved.variants.filter( ( v ) => ! draft.family.variants.some( ( d ) => d.file === v.file ) ) ];
-		render();
-	};
+	// Uploaded into the family as it's saved, or made under this name. Your changes stay on top.
+	const uploadInto = ( files ) => uploadFiles( files, draft.original );
 
 	/**
 	 * Measure a saved family against the local font its fallback is drawn from,
@@ -1566,20 +1638,20 @@
 		);
 	};
 
-	const discardDraft = () => {
-		editingFile = null;
-		edit( state.families.findIndex( ( f ) => f.name === draft.original ) );
-	};
-
 	const renderFamily = () => {
 		const family = draft.family;
-		const saved = state.families.find( ( f ) => f.name === draft.original );
+		// Anything that stops the family saving, as you type.
+		const problem = h( 'p', { class: 'etk-fonts__field-error', 'aria-live': 'polite' } );
+		const showProblem = () => {
+			const text = familyProblem( family );
+			if ( problem.textContent !== text ) problem.textContent = text;
+		};
 		const update = ( changes ) => {
 			Object.assign( family, changes );
-			renderSavebar();
+			showProblem();
 		};
 		const unused = state.files.filter( ( f ) => ! f.family && ! f.unsafe && ! family.variants.some( ( v ) => v.file === f.name ) );
-		const takenBy = ( role ) => state.families.find( ( f ) => f.name !== draft.original && f.roles.includes( role ) );
+		const takenBy = ( role ) => state.families.find( ( f ) => f !== family && f.roles.includes( role ) );
 		const face = `"${ draft.original }", ${ family.fallback || 'sans-serif' }`;
 		const script = scriptOf( family.google?.script, family.google?.subsets );
 
@@ -1590,8 +1662,8 @@
 			has: ( weight, style ) => covers( family.variants, weight, style ),
 		} );
 
-		const roleBadges = ( saved?.roles || [] ).map( ( role ) => badge( ROLES[ role ], 'accent' ) );
-		if ( saved && ! saved.enabled ) roleBadges.push( badge( 'Disabled' ) );
+		const roleBadges = family.roles.map( ( role ) => badge( ROLES[ role ], 'accent' ) );
+		if ( ! family.enabled ) roleBadges.push( badge( 'Disabled' ) );
 
 		const familySection = section(
 			{ title: 'Family', variant: 'panel' },
@@ -1610,6 +1682,7 @@
 				{ row: true }
 			),
 			field( 'Variable', varField( family, update ), null, { row: true } ),
+			problem,
 			field( 'Fallback', h( 'input', { class: 'etk-fonts__input etk-fonts__input--mono', type: 'text', value: family.fallback, placeholder: 'system-ui, sans-serif', oninput: ( e ) => update( { fallback: e.target.value } ) } ), null, { row: true } ),
 			field(
 				'Display',
@@ -1652,13 +1725,19 @@
 		const roleOwner = ( role ) => {
 			const other = takenBy( role );
 			if ( other ) return `Currently using: ${ other.name }`;
-			return saved?.roles.includes( role ) ? null : 'Currently using: nothing';
+			return family.roles.includes( role ) ? null : 'Currently using: nothing';
+		};
+		// A role belongs to one family, so claiming it here takes it from the others.
+		const setRole = ( role, value ) => {
+			if ( value ) state.families.forEach( ( f ) => ( f.roles = f.roles.filter( ( r ) => r !== role ) ) );
+			family.roles = value ? [ ...family.roles, role ] : family.roles.filter( ( r ) => r !== role );
+			render();
 		};
 		const rolesSection = section(
 			{ title: state.acss ? 'Automatic.css' : 'Typography tokens', variant: 'panel' },
 			state.acss ? null : h( 'p', { class: 'etk-fonts__help', textContent: 'Adds --heading-font-family or --text-font-family and applies it to headings or the body.' } ),
 			...Object.entries( ROLES ).map( ( [ role, label ] ) =>
-				toggle( `Use for ${ label.toLowerCase() }`, family.roles.includes( role ), ( value ) => update( { roles: value ? [ ...family.roles, role ] : family.roles.filter( ( r ) => r !== role ) } ), roleOwner( role ) )
+				toggle( `Use for ${ label.toLowerCase() }`, family.roles.includes( role ), ( value ) => setRole( role, value ), roleOwner( role ) )
 			)
 		);
 		rolesSection.classList.add( 'etk-fonts__section--roles' );
@@ -1724,7 +1803,7 @@
 				h(
 					'div',
 					{ class: 'etk-fonts__pane' },
-					pageHeader( { title: draft.original, hidden: false, bar: true, back: { label: 'Back to the library', crumb: 'Library', onclick: () => leaveFamily( 'library' ) }, meta: roleBadges.length ? h( 'span', { class: 'etk-fonts__family-badges' }, roleBadges ) : null } ),
+					pageHeader( { title: family.name || draft.original, hidden: false, bar: true, back: { label: 'Back to the library', crumb: 'Library', onclick: () => leaveFamily( 'library' ) }, meta: roleBadges.length ? h( 'span', { class: 'etk-fonts__family-badges' }, roleBadges ) : null } ),
 					h( 'div', { class: 'etk-fonts__gdetail' }, detailToolbar(), family.variants.length ? specimens : h( 'p', { class: 'etk-fonts__help', textContent: 'Add files to see its weights.' } ) )
 				),
 				h(
@@ -1734,38 +1813,18 @@
 					loadingSection,
 					rolesSection,
 					filesSection,
-					h(
-						'div',
-						{ class: 'etk-fonts__inspector-footer' },
-						iconButton( `Delete ${ draft.original }`, 'trash', deleteFamily, { variant: 'danger', title: 'Delete family' } ),
-						h( 'div', { class: 'etk-fonts__family-actions' }, button( 'Discard', discardDraft, { variant: 'ghost' } ), button( 'Save family', saveDraft, { variant: 'primary' } ) )
-					)
+					h( 'div', { class: 'etk-fonts__inspector-footer' }, iconButton( `Delete ${ family.name }`, 'trash', deleteFamily, { variant: 'danger', title: 'Delete family' } ) )
 				)
 			),
 		];
 	};
 
-	// Leaving the editor with unsaved changes asks first.
-	const leaveFamily = async ( next ) => {
-		if ( dirty() ) {
-			const dialog = confirmDialog( { title: 'Discard changes?', message: [ h( 'p', { textContent: `Your changes to ${ draft.original } haven't been saved.` } ) ], confirmLabel: 'Discard' } );
-			if ( ! ( await dialog.result ) ) return false;
-			dialog.close();
-		}
+	// Your changes stay when you leave the editor, until Etch's Save.
+	const leaveFamily = ( next ) => {
 		draft = null;
 		editingFile = null;
 		go( next );
 		return true;
-	};
-
-	// Save and Discard sit in the inspector's footer, live only with changes to save.
-	const renderSavebar = () => {
-		const actions = view === 'family' ? main?.querySelector( '.etk-fonts__family-actions' ) : null;
-		if ( ! actions ) return;
-		const show = dirty();
-		// Saving or discarding disables the button under focus, so focus goes to the page title.
-		if ( ! show && actions.contains( document.activeElement ) ) panel.querySelector( '.etk-fonts__page-title' )?.focus();
-		actions.querySelectorAll( 'button' ).forEach( ( b ) => ( b.disabled = ! show ) );
 	};
 
 	/* ------------------------------------------------------------------ */
@@ -1829,11 +1888,11 @@
 	 * family, made if it's new. With no name they're only taken out. A file
 	 * moving between families keeps its weight, style and subset.
 	 */
-	const moveFiles = async ( files, target ) => {
+	const moveFiles = ( files, target ) => {
 		if ( ! files.length ) return;
 		const names = new Set( files.map( ( f ) => f.name ) );
 		const kept = new Map();
-		const families = clone( state.families );
+		const families = state.families;
 		for ( const family of families ) {
 			family.variants = family.variants.filter( ( v ) => ! ( names.has( v.file ) && kept.set( v.file, v ) ) );
 		}
@@ -1846,13 +1905,9 @@
 
 		const what = files.length === 1 ? files[ 0 ].name : plural( files.length, 'file', 'files' );
 		const message = family ? `${ kept.size ? 'Moved' : 'Added' } ${ what } to ${ family.name }.` : `Removed ${ what } from ${ files.length === 1 ? files[ 0 ].family : 'their families' }.`;
-		try {
-			await saveFamilies( families, message );
-			files.forEach( ( f ) => picked.delete( f.name ) );
-			syncPicks();
-		} catch ( error ) {
-			warn( errorText( error ) );
-		}
+		files.forEach( ( f ) => picked.delete( f.name ) );
+		render();
+		announce( message );
 	};
 
 	// Delete files from the fonts folder, taking them out of their families first.
@@ -1862,7 +1917,8 @@
 		const one = files.length === 1;
 		const names = new Set( files.map( ( f ) => f.name ) );
 		const inUse = files.filter( ( f ) => f.family );
-		const emptied = state.families.filter( ( f ) => f.variants.length && f.variants.every( ( v ) => names.has( v.file ) ) );
+		const emptying = ( f ) => f.variants.length && f.variants.every( ( v ) => names.has( v.file ) );
+		const emptied = state.families.filter( emptying );
 		const taken = inUse.filter( ( f ) => ! emptied.some( ( e ) => e.name === f.family ) );
 		const emptiedNames = new Intl.ListFormat( 'en' ).format( emptied.map( ( f ) => f.name ) );
 		const [ has, it ] = emptied.length === 1 ? [ 'has', 'it' ] : [ 'have', 'them' ];
@@ -1877,10 +1933,14 @@
 		} );
 		if ( ! ( await dialog.result ) ) return;
 
+		// Files go at once, like Etch's media, so they come out of the saved families first, and
+		// out of yours here. A family they empty goes from both.
+		const without = ( families ) => families.filter( ( f ) => ! emptying( f ) ).map( ( f ) => ( { ...f, variants: f.variants.filter( ( v ) => ! names.has( v.file ) ) } ) );
 		let next = null;
 		try {
-			if ( inUse.length ) next = await api( 'fonts/families', 'POST', { families: state.families.filter( ( f ) => ! emptied.some( ( e ) => e.name === f.name ) ).map( ( f ) => ( { ...f, variants: f.variants.filter( ( v ) => ! names.has( v.file ) ) } ) ) } );
+			if ( saved.some( ( f ) => f.variants.some( ( v ) => names.has( v.file ) ) ) ) next = await api( 'fonts/families', 'POST', { families: without( saved ) } );
 			next = await api( 'fonts/files/delete', 'POST', { names: [ ...names ] } );
+			state.families = without( state.families );
 			// Closed before the list re-renders, so focus is back in the list to be kept.
 			dialog.close();
 			const deleted = one ? files[ 0 ].name : plural( files.length, 'file', 'files' );
@@ -2217,11 +2277,7 @@
 	// Download the chosen files. Resolves with the new state, for apply().
 	const installGoogle = async ( { meta, choice } ) => {
 		const cuts = choice.variable ? ( choice.italic ? meta.cuts : meta.cuts.filter( ( c ) => ! c.endsWith( 'i' ) ) ) : [ ...choice.cuts ];
-		const next = await api( 'fonts/google/install', 'POST', { family: meta.family, subsets: [ ...choice.subsets ], variable: choice.variable, cuts } );
-		if ( draft?.original === meta.family ) {
-			draft.family.variants = clone( next.families.find( ( f ) => f.name === meta.family ).variants );
-		}
-		return next;
+		return api( 'fonts/google/install', 'POST', { family: meta.family, subsets: [ ...choice.subsets ], variable: choice.variable, cuts } );
 	};
 
 	const cutLabel = ( cut ) => `${ weightLabel( cut.replace( 'i', '' ) ) }${ cut.endsWith( 'i' ) ? ' Italic' : '' }`;
@@ -2734,7 +2790,7 @@
 							h(
 								'div',
 								{ class: 'etk-fonts__card-row etk-fonts__export-foot' },
-								button( exporting ? 'Exporting…' : chosen.length ? `Export ${ plural( chosen.length, 'family', 'families' ) }` : 'Export', () => exportFonts( chosen.map( ( f ) => f.name ) ), {
+								button( exporting ? 'Exporting…' : chosen.length ? `Export ${ plural( chosen.length, 'family', 'families' ) }` : 'Export', () => exportFonts( chosen.map( ( f ) => f[ ORIGIN ] ).filter( Boolean ) ), {
 									attrs: { disabled: ! chosen.length, 'aria-disabled': exporting ? 'true' : null },
 								} )
 							)
@@ -2790,6 +2846,7 @@
 
 	const render = () => {
 		if ( ! panel || panel.hidden || ! state ) return;
+		relink();
 		const views = { library: renderLibrary, family: renderFamily, google: renderGoogle, 'google-font': renderGoogleFont, settings: renderSettings };
 		if ( view === 'family' && ! draft ) view = 'library';
 		// Its button may be about to go.
@@ -2809,7 +2866,6 @@
 			renderGoogleResults();
 		};
 		inPlace ? keepFocus( update ) : update();
-		renderSavebar();
 		syncPicks();
 	};
 
@@ -2885,7 +2941,12 @@
 	const close = async ( { focus = true } = {} ) => {
 		if ( ! panel || panel.hidden ) return;
 		closeMenu();
-		if ( view === 'family' && ! ( await leaveFamily( 'library' ) ) ) return;
+		// Your changes stay, until Etch's Save. The editor opens on the library next time.
+		if ( view === 'family' ) {
+			draft = null;
+			editingFile = null;
+			view = 'library';
+		}
 		panel.hidden = true;
 		document.body.classList.remove( 'etk-fonts-open' );
 		controlButton?.setAttribute( 'aria-expanded', 'false' );
@@ -2897,7 +2958,7 @@
 
 	const load = async () => {
 		try {
-			state = await api( 'fonts' );
+			take( await api( 'fonts' ) );
 			loadFaces();
 			await syncStylesheet();
 		} catch ( error ) {

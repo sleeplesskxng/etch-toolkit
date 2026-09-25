@@ -255,7 +255,6 @@
 	inset-block-end: 0;
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
 	gap: 6px;
 	margin-block-start: auto;
 	padding: 12px 16px;
@@ -1080,6 +1079,19 @@
 	}
 }
 
+/* What stops a family saving, under the fields, lined up with them. */
+.etk-fonts__field-error {
+	padding-inline-start: 80px;
+	color: var(--etk-fonts-danger);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 400;
+	line-height: 16px;
+
+	&:empty {
+		display: none;
+	}
+}
+
 /* A CSS variable with its copy button. */
 .etk-fonts__var {
 	display: inline-flex;
@@ -1744,15 +1756,6 @@
 	}
 }
 
-/* Footer: delete, then Discard and Save family, live only with changes. */
-.etk-fonts__family-actions {
-	display: flex;
-	gap: 6px;
-}
-
-.etk-fonts .etk-fonts__family-actions .etk-fonts__btn.etch-builder-button {
-	block-size: 30px;
-}
 
 .etk-fonts .etk-fonts__family-actions .etk-fonts__btn--primary.etch-builder-button {
 	padding-inline: 14px;
