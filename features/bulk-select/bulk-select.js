@@ -23,7 +23,7 @@
  * checkboxes too, and Select All and ranges follow what it lists.
  */
 ( () => {
-	const { api, save, syncStyles, el, confirmDialog, reload, classesIn, isClassSelector } = window.etchToolkit || {};
+	const { api, save, afterSave, syncStyles, el, confirmDialog, reload, classesIn, isClassSelector } = window.etchToolkit || {};
 	if ( ! confirmDialog ) return;
 
 	const ROOT = '.style-overview-modal__left';
@@ -183,7 +183,7 @@
 	 */
 	const renames = [];
 	let following = Promise.resolve();
-	const follow = () =>
+	afterSave( () =>
 		( following = following.then( async () => {
 			const selectors = new Map( window.etch.styles.list().map( ( s ) => [ s.id, s.selector ] ) );
 			for ( const rename of renames ) {
@@ -201,12 +201,11 @@
 					notice.fail( `The rename wasn’t ${ undone ? 'undone' : 'redone' } on pages that aren’t open. ${ err.message } Save again to try again.` );
 				}
 			}
-		} ) );
+		} ) )
+	);
 	const remember = ( plan ) => {
 		const styles = plan.styles.filter( ( s ) => s.from !== s.to ).map( ( { id, from, to } ) => ( { id, from, to } ) );
-		if ( ! styles.length ) return;
-		if ( ! renames.length ) window.etchControls?.builder?.onSave?.( follow );
-		renames.push( { map: plan.classMap, merged: plan.merged, styles, undone: false } );
+		if ( styles.length ) renames.push( { map: plan.classMap, merged: plan.merged, styles, undone: false } );
 	};
 
 	const bulkDelete = async () => {

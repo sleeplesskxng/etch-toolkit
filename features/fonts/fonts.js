@@ -16,7 +16,7 @@
  * with DecompressionStream before that.
  */
 ( () => {
-	const { api, confirmDialog, DELETE_ICON } = window.etchToolkit || {};
+	const { api, afterSave, confirmDialog, DELETE_ICON } = window.etchToolkit || {};
 	const config = window.etchToolkitFonts || {};
 	if ( ! confirmDialog ) return;
 
@@ -248,6 +248,10 @@
 	};
 
 	const saveFamilies = ( families, message ) => api( 'fonts/families', 'POST', { families } ).then( ( next ) => apply( next, message ) );
+
+	// Etch's undo can take the stylesheet back to CSS from before a font change, and its
+	// next save writes that. So once it has saved, the stylesheet gets the fonts' CSS again.
+	afterSave( () => state && syncStylesheet() );
 
 	/* ------------------------------------------------------------------ */
 	/* WOFF2 conversion                                                    */

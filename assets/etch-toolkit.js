@@ -53,6 +53,31 @@
 
 	const NOT_SAVED = "Your changes didn't all save, so nothing was changed. Save, then try again.";
 
+	/*
+	 * Etch's Save, for features that hold changes until then, the way Etch holds
+	 * its own. afterSave( fn ) runs fn once Etch has saved, as part of its save:
+	 * Etch waits for it, and shows a failure as its own error toast. unsaved( fn )
+	 * adds a check for held changes, so leaving the builder asks first, as it
+	 * does for Etch's.
+	 */
+	const afterSaves = new Set();
+	const unsavedChecks = new Set();
+	let committing = Promise.resolve();
+	const afterSave = ( fn ) => afterSaves.add( fn );
+	const unsaved = ( fn ) => unsavedChecks.add( fn );
+	let hookTries = 0;
+	const hook = setInterval( () => {
+		const onSave = window.etchControls?.builder?.onSave;
+		if ( typeof onSave === 'function' ) onSave( () => ( committing = Promise.all( [ ...afterSaves ].map( ( fn ) => fn() ) ) ) );
+		if ( typeof onSave === 'function' || ++hookTries > 600 ) clearInterval( hook );
+	}, 100 );
+	window.addEventListener( 'beforeunload', ( event ) => {
+		if ( [ ...unsavedChecks ].some( ( fn ) => fn() ) ) {
+			event.preventDefault();
+			event.returnValue = '';
+		}
+	} );
+
 	// The server's copy of Etch's styles and global stylesheets, each keyed by ID.
 	const savedStyles = () => Promise.all( [ request( endpoint( restRoot, 'etch-api/styles' ) ), request( endpoint( restRoot, 'etch-api/stylesheets' ) ) ] );
 
@@ -63,8 +88,8 @@
 	 * Etch's saveAsync() resolves without saving while a save runs and for a
 	 * second after one, and reports failures as toasts. So this waits for
 	 * onSave, which runs once a save completes (asking again after that second),
-	 * then checks the server has the builder's styles and stylesheets, which
-	 * Etch saves whole.
+	 * and for what features commit then, then checks the server has the
+	 * builder's styles and stylesheets, which Etch saves whole.
 	 */
 	const save = async () => {
 		const onSave = window.etchControls?.builder?.onSave;
@@ -88,6 +113,7 @@
 		} else {
 			await window.etch.saveAsync();
 		}
+		await committing;
 
 		const [ styles, sheets ] = await savedStyles();
 		const same = ( list, saved, keys ) =>
@@ -284,6 +310,6 @@
 		if ( place && place !== 'builder' ) tick();
 	} catch {}
 
-	Object.assign( toolkit, { api, save, syncStyles, el, confirmDialog, reload, classesIn, isClassSelector, DELETE_ICON } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, confirmDialog, reload, classesIn, isClassSelector, DELETE_ICON } );
 	window.etchToolkit = toolkit;
 } )();
