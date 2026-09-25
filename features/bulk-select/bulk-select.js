@@ -399,7 +399,7 @@
 				} catch ( err ) {
 					if ( mine === seq ) summary.textContent = err.message;
 				}
-			}, 250 );
+			}, 150 );
 		};
 
 		modes.addEventListener( 'change', () => {
