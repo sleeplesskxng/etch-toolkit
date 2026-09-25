@@ -5,9 +5,12 @@
  * builder script, with nowhere to see them all or add to them. This adds a
  * Recipes tab to the Style Manager that lists them and lets you add your own,
  * which Etch then offers after "?" like its own.
+ *
+ * Yours change as you edit them, like Etch's styles, and are saved with
+ * Etch's Save.
  */
 ( () => {
-	const { api, el, confirmDialog } = window.etchToolkit || {};
+	const { api, el, confirmDialog, afterSave, unsaved } = window.etchToolkit || {};
 	if ( ! api ) return;
 
 	// The real Object.entries, kept before the hook below replaces it. Reading recipes
@@ -15,7 +18,10 @@
 	const entries = Object.entries;
 	const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/; // Mirrors ETCH_TOOLKIT_RECIPES_NAME.
 
+	// Your recipes as edited, and as last saved. Every edit makes a new list.
 	let mine = window.etchToolkitRecipes?.recipes ?? [];
+	let saved = mine;
+	const same = ( a, b ) => JSON.stringify( a ) === JSON.stringify( b );
 
 	/* ---- Your recipes in Etch's "?" list ---- */
 
@@ -146,6 +152,25 @@
 		return names;
 	};
 
+	/* ---- Saving, with Etch's Save ---- */
+
+	unsaved( () => ! same( mine, saved ) );
+	afterSave( async () => {
+		if ( same( mine, saved ) ) return;
+		const sent = mine;
+		try {
+			saved = ( await api( 'recipes', 'PUT', { recipes: sent } ) ).recipes;
+		} catch ( err ) {
+			throw new Error( `Your recipes weren’t saved. ${ err.message }` );
+		}
+		// The server tidies them, like trimming the CSS. Unless you've edited since, use its copy.
+		if ( mine === sent && ! same( mine, saved ) ) {
+			mine = saved;
+			addToEtch();
+			renderList();
+		}
+	} );
+
 	/* ---- Recipes tab ---- */
 
 	const INNER = '.style-overview-modal__inner'; // Where every Style Manager tab renders.
@@ -154,8 +179,7 @@
 
 	let on = false;
 	let selected = null; // { kind: 'etch' | 'mine', name } | { kind: 'new' } | null
-	let draft = null; // { name, css } as edited, for a recipe of yours or a new one.
-	let saving = false;
+	let draft = null; // { name, css } as typed, for a recipe of yours or a new one.
 	let query = '';
 	let frame = 0;
 	let ids = 0;
@@ -242,7 +266,7 @@
 	const nameList = ( title, recipes ) =>
 		recipes.length ? [ el( 'p', { textContent: title } ), el( 'ul', { className: 'etk-confirm__list' }, recipes.map( ( r ) => el( 'li', {}, [ el( 'code', { textContent: `?${ r.name }` } ) ] ) ) ) ] : [];
 
-	// Preview what a file would change, then save it. Nothing changes until Import.
+	// Preview what a file would change. Nothing changes until Import.
 	const importRecipes = async ( file ) => {
 		let data = null;
 		try {
@@ -265,7 +289,6 @@
 				...( plan.unusable ? [ el( 'p', { textContent: `${ plural( plan.unusable ) } in the file couldn’t be used.` } ) ] : [] ),
 			],
 			confirmLabel: 'Import',
-			busyLabel: 'Importing…',
 			variant: 'primary',
 			form: true,
 		} );
@@ -273,23 +296,18 @@
 		if ( ! ( await dialog.result ) ) return;
 
 		const incoming = new Map( plan.replaced.map( ( r ) => [ r.name, r ] ) );
-		try {
-			const saved = await api( 'recipes', 'PUT', { recipes: [ ...mine.map( ( r ) => incoming.get( r.name ) ?? r ), ...plan.added ] } );
-			// A recipe open with no unsaved changes shows what was imported over it.
-			const refresh = selected?.kind === 'mine' && ! isDirty();
-			mine = saved.recipes;
-			addToEtch();
-			dialog.close();
-			if ( refresh && savedRecipe() ) {
-				draft = { ...savedRecipe() };
-				renderDetail();
-			}
-			renderList();
-			moreButton.focus();
-			announce( `Imported ${ plural( count ) }.` );
-		} catch ( err ) {
-			dialog.fail( err.message );
+		// A recipe open with nothing pending shows what was imported over it.
+		const refresh = selected?.kind === 'mine' && ! isDirty();
+		mine = [ ...mine.map( ( r ) => incoming.get( r.name ) ?? r ), ...plan.added ];
+		addToEtch();
+		dialog.close();
+		if ( refresh && ownRecipe() ) {
+			draft = { ...ownRecipe() };
+			renderDetail();
 		}
+		renderList();
+		moreButton.focus();
+		announce( `Imported ${ plural( count ) }. Save to keep them.` );
 	};
 
 	const fileInput = el( 'input', {
@@ -386,12 +404,11 @@
 				// Keep typing in the panel away from Etch's keyboard shortcuts.
 				onkeydown: ( e ) => {
 					e.stopPropagation();
-					// Cmd/Ctrl+S saves the recipe being edited, or else the page, as it would in Etch.
+					// Cmd/Ctrl+S takes what's typed in the form, then saves, as it would in Etch.
 					if ( ( e.metaKey || e.ctrlKey ) && ( e.code === 'KeyS' || e.key.toLowerCase() === 's' ) ) {
 						e.preventDefault();
-						const form = e.target.closest( 'form' );
-						if ( form ) form.requestSubmit();
-						else window.etch?.saveAsync?.();
+						e.target.closest( 'form' )?.requestSubmit();
+						window.etch?.saveAsync?.();
 					}
 					// Up and down through the list.
 					if ( ( e.key === 'ArrowDown' || e.key === 'ArrowUp' ) && e.target.closest( '.etk-recipes__item' ) ) {
@@ -407,15 +424,16 @@
 		{ 'aria-label': 'Recipes' }
 	);
 
-	const savedRecipe = () => ( selected?.kind === 'mine' ? mine.find( ( recipe ) => recipe.name === selected.name ) : null );
-	const isDirty = () => !! draft && ( savedRecipe() ? draft.name !== savedRecipe().name || draft.css !== savedRecipe().css : !! ( draft.name || draft.css ) );
+	const ownRecipe = () => ( selected?.kind === 'mine' ? mine.find( ( recipe ) => recipe.name === selected.name ) : null );
+	// A new recipe not added yet, or a new name that can't be used.
+	const isDirty = () => !! draft && ( ownRecipe() ? draft.name !== ownRecipe().name : !! ( draft.name || draft.css ) );
 
-	// Selecting something else drops unsaved changes, so ask first.
+	// Selecting something else drops what's pending, so ask first.
 	const select = async ( next ) => {
 		if ( isDirty() ) {
 			const dialog = confirmDialog( {
 				title: 'Discard your changes?',
-				message: [ el( 'p', { textContent: 'Your changes to this recipe haven’t been saved.' } ) ],
+				message: [ el( 'p', { textContent: ownRecipe() ? 'Its new name hasn’t been used.' : 'This recipe hasn’t been added.' } ) ],
 				confirmLabel: 'Discard',
 				busyLabel: 'Discard',
 				variant: 'primary',
@@ -424,7 +442,7 @@
 			dialog.close();
 		}
 		selected = next;
-		const recipe = savedRecipe();
+		const recipe = ownRecipe();
 		draft = next.kind === 'new' ? { name: '', css: '' } : recipe ? { ...recipe } : null;
 		renderList();
 		renderDetail();
@@ -507,31 +525,73 @@
 	const nameError = ( name ) => {
 		if ( ! name ) return 'Give it a name.';
 		if ( ! NAME.test( name ) ) return 'Use lowercase letters, numbers and hyphens.';
-		if ( mine.some( ( recipe ) => recipe.name === name && recipe.name !== savedRecipe()?.name ) ) return 'You already have a recipe with this name.';
+		if ( mine.some( ( recipe ) => recipe.name === name && recipe.name !== ownRecipe()?.name ) ) return 'You already have a recipe with this name.';
 		if ( etchNames().has( name ) ) return 'Etch has a recipe with this name.';
 		return '';
 	};
 
+	/*
+	 * A recipe of yours changes as you edit it, like a style's CSS in Etch: its
+	 * CSS as you type, its name on Enter or when you leave the field. A new one
+	 * is added with its button.
+	 */
 	const renderForm = () => {
-		const existing = savedRecipe();
-		const nameInput = attrs( el( 'input', { type: 'text', className: 'etk-recipes__name-input', value: draft.name, placeholder: 'recipe-name', spellcheck: false, autocomplete: 'off', oninput: () => ( ( draft.name = nameInput.value.trim() ), changed() ) } ), {
-			'aria-label': 'Name',
-		} );
-		const cssInput = attrs( el( 'textarea', { value: draft.css, spellcheck: false, className: 'etk-recipes__textarea', oninput: () => ( ( draft.css = cssInput.value ), changed() ) } ), { 'aria-label': 'CSS' } );
+		const existing = ownRecipe();
+		const nameInput = attrs(
+			el( 'input', {
+				type: 'text',
+				className: 'etk-recipes__name-input',
+				value: draft.name,
+				placeholder: 'recipe-name',
+				spellcheck: false,
+				autocomplete: 'off',
+				oninput: () => ( ( draft.name = nameInput.value.trim() ), nameProblem.set( '' ) ),
+				onchange: () => existing && useName(),
+			} ),
+			{ 'aria-label': 'Name' }
+		);
+		const cssInput = attrs(
+			el( 'textarea', {
+				value: draft.css,
+				spellcheck: false,
+				className: 'etk-recipes__textarea',
+				oninput: () => {
+					draft.css = cssInput.value;
+					const css = draft.css.trim();
+					cssProblem.set( css || ! existing ? '' : 'Add some CSS.' );
+					if ( existing && css ) {
+						mine = mine.map( ( recipe ) => ( recipe.name === selected.name ? { ...recipe, css } : recipe ) );
+						addToEtch();
+					}
+				},
+			} ),
+			{ 'aria-label': 'CSS' }
+		);
 		const nameProblem = errorFor( nameInput );
 		const cssProblem = errorFor( cssInput );
 		const status = attrs( el( 'p', { className: 'etk-recipes__status' } ), { role: 'status' } );
-		const saveButton = el( 'button', { type: 'submit', className: 'etch-builder-button etch-builder-button--variant-default etk-recipes__btn', textContent: existing ? 'Save' : 'Add recipe' } );
 
 		// Etch's own recipe with this name wins, so this one never shows after "?".
-		const shadowed = existing && etchNames().has( existing.name ) ? el( 'p', { className: 'etk-recipes__meta', textContent: 'Etch now has its own recipe with this name, so “?' + existing.name + '” adds Etch’s. Rename this one to use it.' } ) : null;
+		const shadowed = el( 'p', { className: 'etk-recipes__meta', hidden: true } );
+		const showShadowed = () => {
+			const name = ownRecipe()?.name;
+			shadowed.hidden = ! name || ! etchNames().has( name );
+			shadowed.textContent = shadowed.hidden ? '' : `Etch now has its own recipe with this name, so “?${ name }” adds Etch’s. Rename this one to use it.`;
+		};
 
-		function changed() {
-			status.textContent = '';
-			status.classList.remove( 'is-error' );
-			nameProblem.set( '' );
-			cssProblem.set( '' );
-		}
+		// A new name for this recipe, if it can have it.
+		const useName = () => {
+			const recipe = ownRecipe();
+			if ( draft.name === recipe.name ) return;
+			const message = nameError( draft.name );
+			nameProblem.set( message );
+			if ( message ) return;
+			mine = mine.map( ( r ) => ( r === recipe ? { ...r, name: draft.name } : r ) );
+			selected = { kind: 'mine', name: draft.name };
+			addToEtch();
+			renderList();
+			showShadowed();
+		};
 
 		const remove = async () => {
 			const dialog = confirmDialog( {
@@ -540,19 +600,37 @@
 				confirmLabel: 'Delete',
 			} );
 			if ( ! ( await dialog.result ) ) return;
-			try {
-				const data = await api( 'recipes', 'PUT', { recipes: mine.filter( ( recipe ) => recipe.name !== existing.name ) } );
-				mine = data.recipes;
-				addToEtch();
-				dialog.close();
-				selected = null;
-				draft = null;
-				renderList();
-				renderDetail();
-				addButton.focus();
-			} catch ( err ) {
-				dialog.fail( err.message );
+			mine = mine.filter( ( recipe ) => recipe.name !== selected.name );
+			addToEtch();
+			dialog.close();
+			selected = null;
+			draft = null;
+			renderList();
+			renderDetail();
+			addButton.focus();
+		};
+
+		const add = () => {
+			const next = { name: draft.name, css: draft.css.trim() };
+			const errors = [ [ nameProblem, nameInput, nameError( next.name ) ], [ cssProblem, cssInput, next.css ? '' : 'Add some CSS.' ] ];
+			errors.forEach( ( [ problem, , message ] ) => problem.set( message ) );
+			const invalid = errors.find( ( [ , , message ] ) => message );
+			if ( invalid ) {
+				invalid[ 1 ].focus();
+				return;
 			}
+
+			mine = [ ...mine, next ];
+			addToEtch();
+			selected = { kind: 'mine', name: next.name };
+			draft = { ...next };
+			renderList();
+			renderDetail();
+			// The form is new, so focus goes to its CSS. The message waits a moment, or a
+			// screen reader can miss it in a status region that just appeared.
+			detail.querySelector( 'textarea' )?.focus();
+			const added = detail.querySelector( '.etk-recipes__status' );
+			setTimeout( () => added?.replaceChildren( 'Added. ', ...hint( next.name ), ' Save to keep it.' ), 100 );
 		};
 
 		const form = el(
@@ -560,57 +638,28 @@
 			{
 				className: 'etk-recipes__form',
 				noValidate: true,
-				onsubmit: async ( e ) => {
+				onsubmit: ( e ) => {
 					e.preventDefault();
-					if ( saving ) return;
-					const next = { name: draft.name, css: draft.css.trim() };
-					const errors = [ [ nameProblem, nameInput, nameError( next.name ) ], [ cssProblem, cssInput, next.css ? '' : 'Add some CSS.' ] ];
-					errors.forEach( ( [ problem, , message ] ) => problem.set( message ) );
-					const invalid = errors.find( ( [ , , message ] ) => message );
-					if ( invalid ) {
-						invalid[ 1 ].focus();
-						return;
-					}
-
-					saving = true;
-					saveButton.setAttribute( 'aria-disabled', 'true' );
-					status.textContent = 'Saving…';
-					try {
-						const data = await api( 'recipes', 'PUT', { recipes: existing ? mine.map( ( recipe ) => ( recipe.name === existing.name ? next : recipe ) ) : [ ...mine, next ] } );
-						mine = data.recipes;
-						addToEtch();
-						selected = { kind: 'mine', name: next.name };
-						draft = { ...next };
-						renderList();
-						renderDetail();
-						// The form is new, so focus goes back to its Save button. The message waits a
-						// moment, or a screen reader can miss it in a status region that just appeared.
-						detail.querySelector( 'button[type="submit"]' )?.focus();
-						const saved = detail.querySelector( '.etk-recipes__status' );
-						setTimeout( () => saved?.replaceChildren( 'Saved. ', ...hint( next.name ) ), 100 );
-					} catch ( err ) {
-						status.textContent = err.message;
-						status.classList.add( 'is-error' );
-					} finally {
-						saving = false;
-						saveButton.removeAttribute( 'aria-disabled' );
-					}
+					if ( existing ) useName();
+					else add();
 				},
 			},
 			[
-				// Laid out like the Selectors tab's editor: the name and its actions, then the CSS.
+				// Laid out like the Selectors tab's editor: the name and its action, then the CSS.
 				el( 'div', { className: 'etk-recipes__bar' }, [
 					el( 'div', { className: 'etk-recipes__name' }, [ el( 'span', { className: 'etk-recipes__q', textContent: '?' } ), nameInput ] ),
-					...( existing ? [ button( 'Delete', 'etch-builder-button--variant-outline etk-recipes__btn etk-recipes__btn--danger', remove ) ] : [] ),
-					saveButton,
+					existing
+						? button( 'Delete', 'etch-builder-button--variant-outline etk-recipes__btn etk-recipes__btn--danger', remove )
+						: el( 'button', { type: 'submit', className: 'etch-builder-button etch-builder-button--variant-default etk-recipes__btn', textContent: 'Add recipe' } ),
 				] ),
 				nameProblem.node,
-				...( shadowed ? [ shadowed ] : [] ),
+				shadowed,
 				cssInput,
 				cssProblem.node,
 				status,
 			]
 		);
+		showShadowed();
 		detail.replaceChildren( form );
 	};
 
