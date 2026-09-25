@@ -53,6 +53,9 @@
 
 	const NOT_SAVED = "Your changes didn't all save, so nothing was changed. Save, then try again.";
 
+	// The server's copy of Etch's styles and global stylesheets, each keyed by ID.
+	const savedStyles = () => Promise.all( [ request( endpoint( restRoot, 'etch-api/styles' ) ), request( endpoint( restRoot, 'etch-api/stylesheets' ) ) ] );
+
 	/**
 	 * Save the builder and make sure it landed, before a feature changes saved
 	 * data behind Etch's back and reloads.
@@ -86,12 +89,38 @@
 			await window.etch.saveAsync();
 		}
 
-		const [ styles, sheets ] = await Promise.all( [ request( endpoint( restRoot, 'etch-api/styles' ) ), request( endpoint( restRoot, 'etch-api/stylesheets' ) ) ] );
+		const [ styles, sheets ] = await savedStyles();
 		const same = ( list, saved, keys ) =>
 			list.length === Object.keys( saved ).length && list.every( ( item ) => saved[ item.id ] && keys.every( ( key ) => ( item[ key ] ?? '' ) === ( saved[ item.id ][ key ] ?? '' ) ) );
 		if ( ! same( window.etch.styles.list(), styles, [ 'selector', 'css' ] ) || ! same( window.etch.stylesheets.list(), sheets, [ 'name', 'css' ] ) ) {
 			throw new Error( NOT_SAVED );
 		}
+	};
+
+	/**
+	 * Bring the builder's styles and global stylesheets up to date with the
+	 * server's, after a feature changed them there. Updating a style through
+	 * Etch's API also renames its class on every element linked to it, on every
+	 * page Etch has open, the way Etch's own rename does.
+	 *
+	 * Every change, and any from alongside(), is made at once, so Etch's undo
+	 * history takes them as one step. Etch writes a stylesheet to the server
+	 * as it updates it, which is waited for after.
+	 */
+	const syncStyles = async ( alongside = () => {} ) => {
+		const [ styles, sheets ] = await savedStyles();
+		for ( const style of window.etch.styles.list() ) {
+			const saved = styles[ style.id ];
+			if ( saved && ( saved.selector !== style.selector || ( saved.css ?? '' ) !== ( style.css ?? '' ) ) ) {
+				window.etch.styles.update( style.id, { selector: saved.selector, css: saved.css ?? '' } );
+			}
+		}
+		const writes = window.etch.stylesheets
+			.list()
+			.filter( ( sheet ) => sheets[ sheet.id ] && ( sheets[ sheet.id ].css ?? '' ) !== ( sheet.css ?? '' ) )
+			.map( ( sheet ) => window.etch.stylesheets.updateAsync( sheet.id, { css: sheets[ sheet.id ].css ?? '' } ) );
+		alongside();
+		await Promise.all( writes );
 	};
 
 	// Etch's hugeicons "delete-02", as bundled in the builder.
@@ -255,6 +284,6 @@
 		if ( place && place !== 'builder' ) tick();
 	} catch {}
 
-	Object.assign( toolkit, { api, save, el, confirmDialog, reload, classesIn, isClassSelector, DELETE_ICON } );
+	Object.assign( toolkit, { api, save, syncStyles, el, confirmDialog, reload, classesIn, isClassSelector, DELETE_ICON } );
 	window.etchToolkit = toolkit;
 } )();

@@ -72,6 +72,24 @@ add_action(
 				'permission_callback' => 'etch_toolkit_can_manage',
 			)
 		);
+
+		register_rest_route(
+			ETCH_TOOLKIT_REST_NAMESPACE,
+			'/styles/rename/content',
+			array(
+				'methods'             => 'POST',
+				'args'                => array(
+					'map'  => $args['map'],
+					'skip' => array(
+						'type'    => 'array',
+						'default' => array(),
+						'items'   => array( 'type' => 'integer' ),
+					),
+				),
+				'callback'            => fn( WP_REST_Request $r ) => etch_toolkit_rest_try( fn() => etch_toolkit_rename_content_everywhere( $r['map'], $r['skip'] ) ),
+				'permission_callback' => 'etch_toolkit_can_manage',
+			)
+		);
 	}
 );
 
@@ -123,6 +141,8 @@ function etch_toolkit_rename_classes_in( string $text, array $map ): string {
  *     stylesheets: string[],
  *     posts: array<int, array{id: int, title: string, type: string, elements: int}>,
  *     elements: int,
+ *     unlinked: array<int, array{id: int, type: string}>,
+ *     merged: string[],
  *     errors: string[],
  *     rowErrors: array<string, string>,
  *     warnings: string[],
@@ -189,6 +209,15 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 		$map[ $child ] = $new;
 	}
 
+	// The styles of plain class selectors, by class name. Etch links an element to these
+	// by ID, and renames the class on it in the builder when the style is renamed.
+	$class_styles = array();
+	foreach ( $styles as $id => $style ) {
+		if ( $has_selector( $style ) && preg_match( '/^\.(' . ETCH_TOOLKIT_CSS_IDENT . ')$/uD', trim( $style['selector'] ), $m ) ) {
+			$class_styles[ etch_toolkit_css_unescape( $m[1] ) ][] = (string) $id;
+		}
+	}
+
 	// Read the blocks of content that could use a renamed name, trashed posts too, so
 	// restoring one doesn't bring an old name back. Posts using a new name already are
 	// read too, to say when names merge. Each post is read once, for everything below.
@@ -199,7 +228,7 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 		foreach ( etch_toolkit_contents( true ) as $post_id => $content ) {
 			if ( etch_toolkit_rename_mentions( etch_toolkit_plain_content( $content ), $names ) ) {
 				$contents[ $post_id ] = $content;
-				$usage[ $post_id ]    = etch_toolkit_rename_usage( $content );
+				$usage[ $post_id ]    = etch_toolkit_rename_usage( $content, $class_styles );
 			}
 		}
 	}
@@ -317,9 +346,13 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 	// A new name that's in use already, as a class on elements or a style in another
 	// collection, merges with what's there. Allowed, but worth knowing.
 	$in_use = array_flip( $universe );
+	$merged = array();
 	foreach ( $map as $old => $new ) {
-		if ( isset( $in_use[ $new ] ) && ! isset( $map[ $new ] ) && ! isset( $row_errors[ (string) $old ] ) ) {
-			$warnings[] = sprintf( "There's already a .%1\$s on this site, so .%2\$s merges with it.", $new, $old );
+		if ( isset( $in_use[ $new ] ) && ! isset( $map[ $new ] ) ) {
+			$merged[] = $new;
+			if ( ! isset( $row_errors[ (string) $old ] ) ) {
+				$warnings[] = sprintf( "There's already a .%1\$s on this site, so .%2\$s merges with it.", $new, $old );
+			}
 		}
 	}
 
@@ -338,9 +371,18 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 	// 4. Elements with a renamed class, counted per post, and dynamic classes like
 	// btn--{props.variant}, which aren't renamed but could still make an old name.
 	// The content itself is only rewritten when the rename is applied.
-	$changed = array();
-	$dynamic = array();
+	// Posts where a renamed class is on an element that isn't linked to its style, like
+	// a BEM child with no style of its own, which the builder won't rename by itself.
+	$changed  = array();
+	$dynamic  = array();
+	$unlinked = array();
 	foreach ( $usage as $post_id => $post ) {
+		if ( array_intersect_key( $post['unlinked'], $map ) ) {
+			$unlinked[] = array(
+				'id'   => (int) $post_id,
+				'type' => (string) get_post_type( $post_id ),
+			);
+		}
 		$count = 0;
 		foreach ( $post['classes'] as $classes => $blocks ) {
 			foreach ( explode( ' ', (string) $classes ) as $class ) {
@@ -377,6 +419,8 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 		'stylesheets'    => $changed_sheets,
 		'posts'          => etch_toolkit_post_summaries( $changed ),
 		'elements'       => array_sum( $changed ),
+		'unlinked'       => $unlinked,
+		'merged'         => array_values( array_unique( $merged ) ),
 		'errors'         => array_values( array_unique( $errors ) ),
 		'rowErrors'      => (object) $row_errors,
 		'warnings'       => $warnings,
@@ -419,7 +463,49 @@ function etch_toolkit_rename_apply( array $ids, array $map, bool $bem = false, a
 }
 
 /**
- * The plan minus the internal "new*" and "old*" payloads.
+ * Rename class names on elements in every post but the skipped ones, all or
+ * nothing. Styles and stylesheets are left to the builder. For a rename undone
+ * or redone in the builder and saved, which Etch saves for the pages it has
+ * open, the skipped ones, and this does for the rest.
+ *
+ * @param array<string, string> $map  Old class name => new class name.
+ * @param int[]                 $skip Post IDs to leave alone.
+ * @return WP_REST_Response|WP_Error
+ */
+function etch_toolkit_rename_content_everywhere( array $map, array $skip ) {
+	// Names as they appear in class attributes: no spaces, quotes or braces.
+	foreach ( $map as $old => $new ) {
+		foreach ( array( (string) $old, $new ) as $name ) {
+			if ( ! preg_match( '/^[^\s"\'{}<>]+$/u', $name ) ) {
+				return new WP_Error( 'etch_toolkit_rename_invalid', sprintf( '"%s" isn\'t a class name.', $name ), array( 'status' => 400 ) );
+			}
+		}
+	}
+	$map  = array_filter( $map, fn( $new, $old ) => (string) $old !== $new, ARRAY_FILTER_USE_BOTH );
+	$skip = array_flip( array_map( 'intval', $skip ) );
+
+	$before = array();
+	$after  = array();
+	if ( $map ) {
+		$names = array_map( 'strval', array_keys( $map ) );
+		foreach ( etch_toolkit_contents( true ) as $post_id => $content ) {
+			if ( isset( $skip[ $post_id ] ) || ! etch_toolkit_rename_mentions( etch_toolkit_plain_content( $content ), $names ) ) {
+				continue;
+			}
+			$renamed = etch_toolkit_rename_content( $content, $map );
+			if ( $renamed !== $content ) {
+				$before[ $post_id ] = $content;
+				$after[ $post_id ]  = $renamed;
+			}
+		}
+	}
+
+	$saved = etch_toolkit_update_contents( $after, $before );
+	return is_wp_error( $saved ) ? $saved : rest_ensure_response( array( 'posts' => array_keys( $after ) ) );
+}
+
+/**
+ * The plan minus what only apply uses: the new styles and stylesheets, and the content.
  */
 function etch_toolkit_rename_public( array $plan ): array {
 	return array_diff_key( $plan, array_flip( array( 'newStyles', 'newStylesheets', 'contents' ) ) );
@@ -447,24 +533,33 @@ function etch_toolkit_rename_mentions( string $plain, array $names ): bool {
 
 /**
  * The class names on the blocks in some content: each set of names a block
- * has, space-separated, with how many blocks have it, and every dynamic name
- * like btn--{props.variant}.
+ * has, space-separated, with how many blocks have it, the names on a block
+ * that isn't linked to their style, and every dynamic name like
+ * btn--{props.variant}.
  *
- * @return array{classes: array<string, int>, dynamic: array<string, true>}
+ * @param array<string, string[]> $class_styles Class name => IDs of its plain class selector styles.
+ * @return array{classes: array<string, int>, unlinked: array<string, true>, dynamic: array<string, true>}
  */
-function etch_toolkit_rename_usage( string $content ): array {
+function etch_toolkit_rename_usage( string $content, array $class_styles = array() ): array {
 	$usage  = array(
-		'classes' => array(),
-		'dynamic' => array(),
+		'classes'  => array(),
+		'unlinked' => array(),
+		'dynamic'  => array(),
 	);
 	$unused = 0;
 	etch_toolkit_edit_block_attrs(
 		$content,
-		function ( $attrs ) use ( &$usage ) {
+		function ( $attrs ) use ( &$usage, $class_styles ) {
 			$classes = etch_toolkit_block_classes( $attrs );
 			if ( $classes ) {
 				$key                      = implode( ' ', $classes );
 				$usage['classes'][ $key ] = ( $usage['classes'][ $key ] ?? 0 ) + 1;
+				$linked                   = is_array( $attrs->styles ?? null ) ? array_map( 'strval', $attrs->styles ) : array();
+				foreach ( $classes as $class ) {
+					if ( ! array_intersect( $class_styles[ $class ] ?? array(), $linked ) ) {
+						$usage['unlinked'][ $class ] = true;
+					}
+				}
 			}
 			foreach ( etch_toolkit_block_classes( $attrs, true ) as $token ) {
 				$usage['dynamic'][ $token ] = true;

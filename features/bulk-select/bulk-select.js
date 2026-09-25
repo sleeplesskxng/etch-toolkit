@@ -10,7 +10,9 @@
  * action (replace, add prefix, add suffix) fills them in, and any can be
  * edited by hand. The server previews and applies the old => new map,
  * renaming each changed class everywhere: every style's selector and CSS,
- * global stylesheets, and element class attributes across the site.
+ * global stylesheets, and element class attributes across the site. The
+ * builder then catches up the way Etch's own rename does, without a reload,
+ * unless the rename reaches something Etch holds that this can't update.
  *
  * Selection is kept here by style ID, because Etch's list is virtual and only
  * renders the rows in view. Range selection rebuilds the list's full order the
@@ -21,7 +23,7 @@
  * checkboxes too, and Select All and ranges follow what it lists.
  */
 ( () => {
-	const { api, save, el, confirmDialog, reload, classesIn, isClassSelector } = window.etchToolkit || {};
+	const { api, save, syncStyles, el, confirmDialog, reload, classesIn, isClassSelector } = window.etchToolkit || {};
 	if ( ! confirmDialog ) return;
 
 	const ROOT = '.style-overview-modal__left';
@@ -45,6 +47,26 @@
 	};
 
 	const selected = new Set(); // style IDs
+
+	// Pages opened in the builder this session. Etch keeps each one and saves it again
+	// with every save. It notes the switch in the URL, with history.replaceState().
+	const opened = new Set();
+	const noteOpened = () => {
+		try {
+			const id = window.etch.navigation.getActivePostId();
+			if ( id ) opened.add( id );
+			return !! id;
+		} catch {
+			return false;
+		}
+	};
+	const replaceState = history.replaceState;
+	history.replaceState = function ( ...args ) {
+		const result = replaceState.apply( this, args );
+		noteOpened();
+		return result;
+	};
+	const firstPage = setInterval( () => noteOpened() && clearInterval( firstPage ), 250 );
 	let anchor = null; // style ID the next Shift-click ranges from
 	let frame = 0;
 
@@ -116,6 +138,76 @@
 	};
 
 	/* ---- Bulk actions ---- */
+
+	// Where Etch shows other posts around the open page, from copies it doesn't reload.
+	const SHOWN_AROUND = new Set( [ 'wp_template', 'wp_template_part', 'wp_block' ] );
+
+	/**
+	 * After the server renamed, bring the builder up to date the way Etch's own
+	 * rename works: update the styles, and Etch renames the class on every element
+	 * linked to them, on every page it has open, then save. A renamed class on an
+	 * element that isn't linked to its style, like a BEM child with no style, is
+	 * renamed here on the open page. Anywhere else Etch holds, like a page opened
+	 * earlier, a template or a component, it can't be reached, so this returns
+	 * false before changing anything and the builder reloads instead.
+	 */
+	const renameInBuilder = async ( plan ) => {
+		const active = window.etch.navigation.getActivePostId();
+		if ( plan.unlinked.some( ( post ) => post.id !== active && ( opened.has( post.id ) || SHOWN_AROUND.has( post.type ) ) ) ) return false;
+
+		// Linked classes follow their styles. The rest are renamed on the open page, in the same undo step.
+		const map = plan.classMap;
+		const walk = ( blocks ) => {
+			for ( const block of blocks ) {
+				const value = block.attributes?.class;
+				const names = typeof value === 'string' ? value.trim().split( /\s+(?![^{]*})/ ) : [];
+				if ( names.some( ( name ) => Object.hasOwn( map, name ) ) ) {
+					window.etch.blocks.update( block.id, { attributes: { class: names.map( ( name ) => ( Object.hasOwn( map, name ) ? map[ name ] : name ) ).join( ' ' ) } } );
+				}
+				walk( block.children || [] );
+			}
+		};
+		await syncStyles( () => walk( window.etch.blocks.getTree() ) );
+
+		await save();
+		return true;
+	};
+
+	/*
+	 * Renames made this session. Etch can undo one in the builder, like its own
+	 * rename, and saves that for the pages it has open. Once it has, the rest of
+	 * the site follows: when a rename's styles are back to their old selectors,
+	 * the old names go back on every other page, and forward again after a redo.
+	 * A name that merged with one already on the site stays, since those
+	 * elements can't be told apart.
+	 */
+	const renames = [];
+	let following = Promise.resolve();
+	const follow = () =>
+		( following = following.then( async () => {
+			const selectors = new Map( window.etch.styles.list().map( ( s ) => [ s.id, s.selector ] ) );
+			for ( const rename of renames ) {
+				const at = ( side ) => rename.styles.every( ( s ) => selectors.get( s.id ) === s[ side ] );
+				const undone = at( 'from' ) ? true : at( 'to' ) ? false : rename.undone;
+				if ( undone === rename.undone ) continue;
+
+				const pairs = Object.entries( rename.map );
+				const map = Object.fromEntries( undone ? pairs.filter( ( [ , to ] ) => ! rename.merged.includes( to ) ).map( ( [ from, to ] ) => [ to, from ] ) : pairs );
+				try {
+					await api( 'styles/rename/content', 'POST', { map, skip: [ ...opened ] } );
+					rename.undone = undone;
+				} catch ( err ) {
+					const notice = confirmDialog( { title: '', message: [], confirmLabel: '', failTitle: 'Other pages weren’t updated' } );
+					notice.fail( `The rename wasn’t ${ undone ? 'undone' : 'redone' } on pages that aren’t open. ${ err.message } Save again to try again.` );
+				}
+			}
+		} ) );
+	const remember = ( plan ) => {
+		const styles = plan.styles.filter( ( s ) => s.from !== s.to ).map( ( { id, from, to } ) => ( { id, from, to } ) );
+		if ( ! styles.length ) return;
+		if ( ! renames.length ) window.etchControls?.builder?.onSave?.( follow );
+		renames.push( { map: plan.classMap, merged: plan.merged, styles, undone: false } );
+	};
 
 	const bulkDelete = async () => {
 		// In the Style Manager's order, not the order they were clicked.
@@ -329,7 +421,7 @@
 				summary,
 				el( 'p', {
 					className: 'etk-preview__also',
-					textContent: "Class names are updated on every element across the site. Your changes will be saved and the builder will reload. This can't be undone.",
+					textContent: "Class names are updated on every element across the site, and your changes are saved. This can't be undone.",
 				} ),
 			],
 		} );
@@ -455,13 +547,21 @@
 		seq++;
 		for ( const control of dialog.element.querySelectorAll( 'input, .etk-rename__reset, .etk-rename__remove' ) ) control.disabled = true;
 
+		let plan;
 		try {
 			await save();
-			await api( 'styles/rename', 'POST', { ids, map, bem: bemBox.checked, keep: keep() } );
-			reload();
+			plan = await api( 'styles/rename', 'POST', { ids, map, bem: bemBox.checked, keep: keep() } );
 		} catch ( err ) {
 			dialog.fail( err.message );
+			return;
 		}
+		// Renamed on the server by now, so if the builder can't catch up, it starts over.
+		if ( ! ( await renameInBuilder( plan ).catch( () => false ) ) ) {
+			reload();
+			return;
+		}
+		remember( plan );
+		dialog.close();
 	};
 
 	/* ---- Rendering ---- */
