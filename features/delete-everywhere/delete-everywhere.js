@@ -2,12 +2,17 @@
  * Etch Toolkit: "Delete Everywhere" in the CSS editor's class right-click menu.
  *
  * Etch's menus take no outside items, so this clones the menu's own "Delete"
- * row and inserts it underneath. Running it saves the current page, has the
- * server strip the class from all content and delete the style, then reloads
- * the builder so no stale copy of a page or component can bring the class back.
+ * row and inserts it underneath.
+ *
+ * It works like Etch's own delete, in the builder: the style goes, and the
+ * class comes off the open page's elements, in one step Cmd+Z undoes. Once
+ * Etch has saved, the server takes the class off everything else. It does
+ * that again after each save while the style stays deleted, since Etch's
+ * copies of pages opened earlier still have the class and save it back. If an
+ * undo brings the style back, saving puts the class back where it came off.
  */
 ( () => {
-	const { restUrl, api, save, el, confirmDialog, reload } = window.etchToolkit || {};
+	const { restUrl, api, save, afterSave, el, confirmDialog } = window.etchToolkit || {};
 	if ( ! restUrl || ! confirmDialog ) return;
 
 	const BADGE = '.etch-css-selectors .etch-badges > *';
@@ -43,7 +48,6 @@
 	};
 
 	const usageMessage = ( usage ) => {
-		const strong = ( text ) => el( 'strong', { textContent: text } );
 		const code = ( text ) => el( 'code', { textContent: text } );
 		const nodes = [];
 
@@ -92,10 +96,40 @@
 			);
 		}
 
-		nodes.push(
-			el( 'p', {}, [ 'Your changes will be saved and the builder will reload. This action ', strong( 'cannot be undone' ), '. Are you sure?' ] )
-		);
+		nodes.push( el( 'p', { textContent: 'It’s deleted here now, and across the site when you save.' } ) );
 		return nodes;
+	};
+
+	// Deleted styles, by ID: { name, stripped }, whether the server has taken the class off.
+	const deleted = new Map();
+	afterSave( async () => {
+		const styles = new Set( window.etch.styles.list().map( ( s ) => s.id ) );
+		for ( const [ id, entry ] of deleted ) {
+			const back = styles.has( id );
+			if ( back && ! entry.stripped ) continue;
+			try {
+				await api( `styles/${ id }/${ back ? 'unstrip' : 'strip' }`, 'POST', back ? undefined : { class: entry.name } );
+				entry.stripped = ! back;
+			} catch ( err ) {
+				throw new Error( `Delete Everywhere didn’t finish for .${ entry.name }. ${ err.message }` );
+			}
+		}
+	} );
+
+	// The class off the open page's elements, as the server takes it off the rest.
+	const stripOpenPage = ( name ) => {
+		const walk = ( blocks ) => {
+			for ( const block of blocks ) {
+				const value = block.attributes?.class;
+				const names = typeof value === 'string' ? value.trim().split( /\s+(?![^{]*})/ ) : [];
+				if ( names.includes( name ) ) {
+					const rest = names.filter( ( n ) => n !== name ).join( ' ' );
+					window.etch.blocks.update( block.id, { attributes: { class: rest || undefined } } );
+				}
+				walk( block.children || [] );
+			}
+		};
+		walk( window.etch.blocks.getTree() );
 	};
 
 	const run = async ( styleId ) => {
@@ -119,9 +153,11 @@
 			} );
 			if ( ! ( await dialog.result ) ) return;
 
-			await save();
-			await api( `styles/${ styleId }/delete-everywhere`, 'POST' );
-			reload();
+			// Both at once, so Etch's undo takes them as one step.
+			window.etch.styles.delete( styleId );
+			if ( ! usage.shared ) stripOpenPage( usage.class );
+			deleted.set( styleId, { name: usage.class, stripped: false } );
+			dialog.close();
 		} catch ( err ) {
 			if ( dialog ) dialog.fail( err.message );
 			else window.alert( `Delete Everywhere failed: ${ err.message }` );

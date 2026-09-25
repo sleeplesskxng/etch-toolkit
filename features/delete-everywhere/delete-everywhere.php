@@ -1,7 +1,12 @@
 <?php
 /**
  * Delete Everywhere: removes a class style from every element across the
- * site (pages, posts, templates, components), then deletes the style.
+ * site (pages, posts, templates, components).
+ *
+ * The builder deletes the style itself, the way Etch's own delete does, so
+ * it's undone with Cmd+Z and saved with Etch's Save. Once Etch has saved, the
+ * builder has this take the class off everything else. What that changed is
+ * kept for a week, so an undo saved after it can put the class back.
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -16,17 +21,33 @@ add_action(
 			"{$route}/usage",
 			array(
 				'methods'             => 'GET',
-				'callback'            => fn( WP_REST_Request $request ) => etch_toolkit_rest_try( fn() => etch_toolkit_delete_everywhere( $request['id'], false ) ),
+				'callback'            => fn( WP_REST_Request $request ) => etch_toolkit_rest_try( fn() => etch_toolkit_delete_everywhere_usage( $request['id'] ) ),
 				'permission_callback' => 'etch_toolkit_can_manage',
 			)
 		);
 
 		register_rest_route(
 			ETCH_TOOLKIT_REST_NAMESPACE,
-			"{$route}/delete-everywhere",
+			"{$route}/strip",
 			array(
 				'methods'             => 'POST',
-				'callback'            => fn( WP_REST_Request $request ) => etch_toolkit_rest_try( fn() => etch_toolkit_delete_everywhere( $request['id'], true ) ),
+				'args'                => array(
+					'class' => array(
+						'type'     => 'string',
+						'required' => true,
+					),
+				),
+				'callback'            => fn( WP_REST_Request $request ) => etch_toolkit_rest_try( fn() => etch_toolkit_delete_everywhere_strip( $request['id'], $request['class'] ) ),
+				'permission_callback' => 'etch_toolkit_can_manage',
+			)
+		);
+
+		register_rest_route(
+			ETCH_TOOLKIT_REST_NAMESPACE,
+			"{$route}/unstrip",
+			array(
+				'methods'             => 'POST',
+				'callback'            => fn( WP_REST_Request $request ) => etch_toolkit_rest_try( fn() => etch_toolkit_delete_everywhere_unstrip( $request['id'] ) ),
 				'permission_callback' => 'etch_toolkit_can_manage',
 			)
 		);
@@ -43,13 +64,12 @@ add_action(
 );
 
 /**
- * Find (and optionally remove) every use of a class style.
+ * Every use of a class style, for the builder's confirm dialog.
  *
  * @param string $style_id Etch style ID.
- * @param bool   $apply    False for a dry run that only reports usage.
  * @return WP_REST_Response|WP_Error
  */
-function etch_toolkit_delete_everywhere( string $style_id, bool $apply ) {
+function etch_toolkit_delete_everywhere_usage( string $style_id ) {
 	$styles = (array) get_option( 'etch_styles', array() );
 	$style  = $styles[ $style_id ] ?? null;
 
@@ -62,8 +82,125 @@ function etch_toolkit_delete_everywhere( string $style_id, bool $apply ) {
 		return new WP_Error( 'etch_toolkit_not_deletable', 'Only editable class styles can be deleted everywhere.', array( 'status' => 400 ) );
 	}
 
-	// Another style with the same class, like .card in another collection, takes this
-	// one's place on elements, so they keep the class and stay styled.
+	$scan = etch_toolkit_delete_everywhere_scan( $styles, $style_id, $class );
+	return rest_ensure_response(
+		array(
+			'selector' => $style['selector'],
+			'class'    => $class,
+			'elements' => array_sum( $scan['changed'] ),
+			'posts'    => etch_toolkit_post_summaries( $scan['changed'] ),
+			// Elements keep the class, since another style has it.
+			'shared'   => $scan['shared'],
+			// Components whose class properties default to the style.
+			'defaults' => count( $scan['defaults'] ),
+			// Elements with a dynamic class name that could make the class, left as they are.
+			'dynamic'  => $scan['dynamic'],
+		)
+	);
+}
+
+/**
+ * Take a deleted style's ID and class off every element, and out of component
+ * class property defaults, all or nothing. Only once the style is gone from
+ * the saved styles: an undo saved first brings it back, and then nothing
+ * changes. Run again, it takes off what a copy of a page kept by the builder
+ * put back.
+ *
+ * @param string $style_id Etch style ID.
+ * @param string $class    Its class name, unescaped.
+ * @return WP_REST_Response|WP_Error
+ */
+function etch_toolkit_delete_everywhere_strip( string $style_id, string $class ) {
+	$styles = (array) get_option( 'etch_styles', array() );
+	if ( isset( $styles[ $style_id ] ) ) {
+		return rest_ensure_response( array( 'elements' => 0 ) );
+	}
+	// As it appears in class attributes: no spaces, quotes or braces.
+	if ( ! preg_match( '/^[^\s"\'{}<>]+$/u', $class ) ) {
+		return new WP_Error( 'etch_toolkit_not_deletable', sprintf( '"%s" isn\'t a class name.', $class ), array( 'status' => 400 ) );
+	}
+
+	$scan = etch_toolkit_delete_everywhere_scan( $styles, $style_id, $class );
+	$saved = etch_toolkit_update_contents( $scan['contents'], $scan['originals'] );
+	if ( is_wp_error( $saved ) ) {
+		return $saved;
+	}
+
+	// What each post and default was before this first took anything off, and what it
+	// is now, so an undo only puts back what nobody has changed since.
+	$key     = etch_toolkit_delete_everywhere_key( $style_id );
+	$journal = get_transient( $key ) ?: array(
+		'posts'    => array(),
+		'defaults' => array(),
+	);
+	foreach ( $scan['originals'] as $post_id => $content ) {
+		$journal['posts'][ $post_id ]['before'] ??= $content;
+		$journal['posts'][ $post_id ]['after']    = md5( (string) get_post_field( 'post_content', $post_id, 'raw' ) );
+	}
+	foreach ( $scan['defaults'] as $component_id => $properties ) {
+		$journal['defaults'][ $component_id ]['before'] ??= get_post_meta( $component_id, 'etch_component_properties', true );
+		// A default left pointing at a deleted style does no harm, so these are best effort.
+		update_post_meta( $component_id, 'etch_component_properties', wp_slash( $properties ) );
+		$journal['defaults'][ $component_id ]['after'] = md5( wp_json_encode( get_post_meta( $component_id, 'etch_component_properties', true ) ) );
+	}
+	set_transient( $key, $journal, WEEK_IN_SECONDS );
+
+	return rest_ensure_response( array( 'elements' => array_sum( $scan['changed'] ) ) );
+}
+
+/**
+ * Put a deleted style's class back where Delete Everywhere took it off, once
+ * an undo has brought the style back into the saved styles. Posts and
+ * defaults changed since are left as they are.
+ *
+ * @param string $style_id Etch style ID.
+ * @return WP_REST_Response|WP_Error
+ */
+function etch_toolkit_delete_everywhere_unstrip( string $style_id ) {
+	$key     = etch_toolkit_delete_everywhere_key( $style_id );
+	$journal = get_transient( $key );
+	if ( ! $journal || ! isset( ( (array) get_option( 'etch_styles', array() ) )[ $style_id ] ) ) {
+		return rest_ensure_response( array( 'posts' => 0 ) );
+	}
+
+	$contents  = array();
+	$originals = array();
+	foreach ( $journal['posts'] as $post_id => $entry ) {
+		$current = get_post_field( 'post_content', $post_id, 'raw' );
+		if ( is_string( $current ) && md5( $current ) === $entry['after'] ) {
+			$contents[ $post_id ]  = $entry['before'];
+			$originals[ $post_id ] = $current;
+		}
+	}
+	$saved = etch_toolkit_update_contents( $contents, $originals );
+	if ( is_wp_error( $saved ) ) {
+		return $saved;
+	}
+	foreach ( $journal['defaults'] as $component_id => $entry ) {
+		if ( md5( wp_json_encode( get_post_meta( $component_id, 'etch_component_properties', true ) ) ) === $entry['after'] ) {
+			update_post_meta( $component_id, 'etch_component_properties', wp_slash( $entry['before'] ) );
+		}
+	}
+	delete_transient( $key );
+
+	return rest_ensure_response( array( 'posts' => count( $contents ) ) );
+}
+
+function etch_toolkit_delete_everywhere_key( string $style_id ): string {
+	return 'etch_toolkit_deleted_' . $style_id;
+}
+
+/**
+ * The elements and component defaults with a class style, and what taking it
+ * off would make of them. With another style for the same class, like .card
+ * in another collection, elements keep the class and get that style instead.
+ *
+ * @param array<string, array<string, mixed>> $styles   etch_styles.
+ * @param string                              $style_id Etch style ID.
+ * @param string                              $class    Its class name, unescaped.
+ * @return array{other: string, shared: bool, contents: array<int, string>, originals: array<int, string>, changed: array<int, int>, dynamic: int, defaults: array<int, array>}
+ */
+function etch_toolkit_delete_everywhere_scan( array $styles, string $style_id, string $class ): array {
 	$other  = etch_toolkit_other_class_style( $styles, $style_id, $class );
 	$shared = '' !== $other;
 
@@ -103,36 +240,7 @@ function etch_toolkit_delete_everywhere( string $style_id, bool $apply ) {
 		}
 	}
 
-	if ( $apply ) {
-		// All or nothing, so a failed save keeps the style and every use of it.
-		$saved = etch_toolkit_update_contents( $contents, $originals );
-		if ( is_wp_error( $saved ) ) {
-			return $saved;
-		}
-		unset( $styles[ $style_id ] );
-		if ( ! update_option( 'etch_styles', $styles ) ) {
-			etch_toolkit_update_contents( $originals, $contents );
-			return new WP_Error( 'etch_toolkit_delete_failed', "The style couldn't be deleted, so nothing was changed.", array( 'status' => 500 ) );
-		}
-		// A default left pointing at a deleted style does no harm, so these are best effort.
-		foreach ( $defaults as $component_id => $properties ) {
-			update_post_meta( $component_id, 'etch_component_properties', wp_slash( $properties ) );
-		}
-	}
-
-	return rest_ensure_response(
-		array(
-			'selector' => $style['selector'],
-			'elements' => array_sum( $changed ),
-			'posts'    => etch_toolkit_post_summaries( $changed ),
-			// Elements keep the class, since another style has it.
-			'shared'   => $shared,
-			// Components whose class properties default to the style.
-			'defaults' => count( $defaults ),
-			// Elements with a dynamic class name that could make the class, left as they are.
-			'dynamic'  => $dynamic,
-		)
-	);
+	return compact( 'other', 'shared', 'contents', 'originals', 'changed', 'dynamic', 'defaults' );
 }
 
 /**
