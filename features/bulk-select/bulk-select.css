@@ -42,18 +42,34 @@
 
 /* ---- Rename ---- */
 
+/*
+ * The panel never outgrows the viewport: the header, action fields and footer stay
+ * put, and the list of rows takes the rest, scrolling on its own. With dozens of
+ * classes, the other lists fold behind a count so they don't push the buttons away.
+ */
 .etk-confirm:has(.etk-rename) {
 	.etk-confirm__panel {
+		box-sizing: border-box;
 		inline-size: 760px;
 		max-inline-size: calc(100vw - 32px);
+		max-block-size: calc(100dvh - 32px);
 	}
 
-	.etk-confirm__list {
-		max-block-size: 240px;
+	.etk-confirm__message {
+		flex: 1 1 auto;
+		min-block-size: 0;
+		overflow-y: auto;
+	}
+
+	.etk-confirm__actions {
+		flex: none;
+		margin-block-start: 0;
 	}
 }
 
 .etk-rename {
+	flex: 1 1 auto;
+	min-block-size: 0;
 	display: flex;
 	flex-direction: column;
 	gap: var(--etk-gap-inner);
@@ -63,7 +79,7 @@
 	}
 }
 
-.etk-confirm__message > :is(.etk-preview__errors, .etk-preview__warnings):empty {
+.etk-confirm__message > .etk-preview__errors:empty {
 	display: none;
 }
 
@@ -117,14 +133,17 @@
 }
 
 .etk-rename__rows {
+	flex: 1 1 auto;
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
-	max-block-size: min(480px, 50dvh);
+	gap: 6px;
+	min-block-size: min(160px, 30dvh);
 	overflow-y: auto;
 	margin: 0;
 	padding: 0;
 	list-style: none;
+	/* Room for a focus ring on the first and last rows. */
+	scroll-padding-block: 4px;
 }
 
 .etk-rename__row {
@@ -136,7 +155,7 @@
 	input {
 		box-sizing: border-box;
 		inline-size: 100%;
-		padding: 8px 12px;
+		padding: 7px 12px;
 		border: 1px solid var(--etch-border-color);
 		border-radius: var(--etch-radius-lg);
 		background-color: var(--etch-neutral-semi-dark);
@@ -185,6 +204,11 @@
 	&:focus-visible {
 		outline: 2px solid var(--etch-primary);
 	}
+
+	&:disabled {
+		cursor: default;
+		opacity: 0.4;
+	}
 }
 
 .etk-rename__remove {
@@ -204,44 +228,149 @@
 	color: var(--etch-danger);
 }
 
-/* ---- Rename: BEM option ---- */
+/* ---- Rename: folded lists ---- */
 
-.etk-bem {
+.etk-fold {
 	display: flex;
 	flex-direction: column;
 	gap: var(--etch-space-sm);
+	color: var(--e-foreground-color);
 
 	&[hidden] {
 		display: none;
 	}
 }
 
-.etk-bem__label {
+.etk-fold__summary {
+	inline-size: fit-content;
+	cursor: pointer;
+	list-style: none;
+
+	&::-webkit-details-marker {
+		display: none;
+	}
+
+	/* A chevron that turns when open. */
+	&::before {
+		content: '';
+		display: inline-block;
+		inline-size: 6px;
+		block-size: 6px;
+		margin-inline-end: 0.75ch;
+		border: solid currentColor;
+		border-width: 0 1.5px 1.5px 0;
+		rotate: -45deg;
+		translate: 0 -2px;
+		opacity: 0.6;
+		transition: rotate 0.15s ease;
+	}
+
+	.etk-fold[open] > &::before {
+		rotate: 45deg;
+		translate: 0 -3px;
+	}
+
+	&:hover {
+		text-decoration: underline;
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--etch-primary);
+		outline-offset: 2px;
+		border-radius: 3px;
+	}
+}
+
+.etk-fold--warning .etk-fold__summary {
+	color: var(--etch-warning, var(--e-warning));
+}
+
+.etk-fold__list {
+	max-block-size: 160px;
+}
+
+.etk-fold__line {
+	display: flex;
+	align-items: center;
+	gap: var(--etk-gap-inner);
+}
+
+.etk-fold__label {
 	display: flex;
 	align-items: center;
 	gap: var(--etch-space-sm);
-	color: var(--e-foreground-color);
 	cursor: pointer;
 
 	input {
 		margin: 0;
 		accent-color: var(--e-primary, var(--etch-primary));
 	}
+}
 
-	/* The selectors heading, which has nothing to toggle. */
-	&:is(p) {
-		cursor: default;
+.etk-fold__toggle {
+	all: unset;
+	cursor: pointer;
+	font-size: var(--etch-font-size-s, 11px);
+	text-decoration: underline;
+	opacity: 0.7;
+
+	&:hover {
+		opacity: 1;
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--etch-primary);
+		outline-offset: 2px;
+		border-radius: 3px;
 	}
 }
 
-/* The list expands once the option is checked. */
-.etk-bem:not(:has(> .etk-bem__label input:checked)) > .etk-bem__list {
-	display: none;
+.etk-preview__errors {
+	max-block-size: 80px;
+	overflow-y: auto;
 }
 
-.etk-bem__count {
-	opacity: 0.6;
-	font-variant-numeric: tabular-nums;
+/* ---- Rename: footer status ---- */
+
+.etk-rename__status {
+	display: flex;
+	align-items: baseline;
+	gap: var(--etk-gap-inner);
+	padding-block-start: var(--etk-gap-inner);
+	border-block-start: 1px solid var(--etch-border-color);
+	font-size: var(--etch-font-size-m);
+	color: var(--e-foreground-color);
+	line-height: 1.4;
+
+	p {
+		margin: 0;
+	}
+}
+
+.etk-rename__status--problem {
+	color: var(--etch-danger);
+}
+
+.etk-rename__summary {
+	flex: 1 1 auto;
+}
+
+.etk-rename__goto {
+	all: unset;
+	flex: none;
+	cursor: pointer;
+	font-weight: 500;
+	text-decoration: underline;
+
+	&[hidden] {
+		display: none;
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--etch-danger);
+		outline-offset: 2px;
+		border-radius: 3px;
+	}
 }
 
 /* ---- Action bar ---- */

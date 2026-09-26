@@ -265,43 +265,29 @@
 		return `Updates ${ parts.join( ', ' ) }.`;
 	};
 
-	// A titled list of from → to pairs, hidden when it's empty.
-	const renderPairs = ( section, list, pairs ) => {
-		section.hidden = ! pairs.length;
-		section.querySelector( '.etk-bem__count' ).textContent = `(${ pairs.length })`;
-		list.replaceChildren(
-			...pairs.map( ( [ from, to ] ) =>
-				el( 'li', {}, [
-					el( 'code', { textContent: from } ),
-					el( 'span', { className: 'etk-preview__arrow', textContent: '→' } ),
-					el( 'code', { textContent: to } ),
-				] )
-			)
-		);
-	};
+	// A from → to pair, with an optional note, for the lists of what else changes.
+	const pair = ( from, to, note = '' ) =>
+		el( 'li', {}, [
+			el( 'code', { textContent: from } ),
+			el( 'span', { className: 'etk-preview__arrow', textContent: '→' } ),
+			el( 'code', { textContent: to } ),
+			...( note ? [ el( 'span', { className: 'etk-preview__also', textContent: note } ) ] : [] ),
+		] );
 
-	// The BEM option, with a count, and the list of what it renames (shown when checked).
-	const renderBemOption = ( option, list, plan ) => {
-		option.hidden = ! plan.bem.length;
-		if ( ! plan.bem.length ) {
-			list.replaceChildren();
-			return;
-		}
-
-		const count = option.querySelector( '.etk-bem__count' );
-		const text = `(${ plan.bem.length })`;
-		if ( count.textContent !== text ) count.textContent = text;
-
-		list.replaceChildren(
-			...plan.bem.map( ( b ) =>
-				el( 'li', {}, [
-					el( 'code', { textContent: `.${ b.from }` } ),
-					el( 'span', { className: 'etk-preview__arrow', textContent: '→' } ),
-					el( 'code', { textContent: `.${ b.to }` } ),
-					el( 'span', { className: 'etk-preview__also', textContent: b.styled ? 'has a style' : 'class only' } ),
-				] )
-			)
-		);
+	// A line like "Also renames 3 classes for nested rules" that opens to a list. Long
+	// lists stay out of the way until they're wanted, so the dialog keeps its height.
+	const fold = ( className = '' ) => {
+		const summary = el( 'summary', { className: 'etk-fold__summary' } );
+		const list = el( 'ul', { className: 'etk-confirm__list etk-preview__list etk-fold__list' } );
+		const details = el( 'details', { className: `etk-fold ${ className }`.trim(), hidden: true }, [ summary, list ] );
+		return {
+			details,
+			set( text, items ) {
+				details.hidden = ! items.length;
+				if ( summary.textContent !== text ) summary.textContent = text;
+				list.replaceChildren( ...items );
+			},
+		};
 	};
 
 	// One row per class name in the selection. A bulk action (replace, prefix, suffix)
@@ -364,39 +350,67 @@
 		const setRowError = ( row, message ) => {
 			if ( row.error.textContent !== message ) row.error.textContent = message;
 			row.error.hidden = ! message;
+			row.li.classList.toggle( 'etk-rename__row--invalid', !! message );
 			row.input.setAttribute( 'aria-invalid', String( !! message ) );
 			if ( message ) row.input.setAttribute( 'aria-describedby', row.error.id );
 			else row.input.removeAttribute( 'aria-describedby' );
 		};
+		const invalidRows = () => rows.filter( ( r ) => ! r.removed && ! r.error.hidden );
 
 		const fill = () => {
 			for ( const row of rows ) if ( ! row.edited && ! row.removed ) row.input.value = auto( row.name );
 		};
 
+		// The BEM option: a checkbox, with the list of what it renames behind a Show button.
 		const bemBox = el( 'input', { type: 'checkbox', id: 'etk-rename-bem' } );
-		const bemList = el( 'ul', { className: 'etk-confirm__list etk-preview__list etk-bem__list', id: 'etk-rename-bem-list' } );
-		const bemOption = el( 'div', { className: 'etk-bem', hidden: true }, [
-			el( 'label', { className: 'etk-bem__label', htmlFor: bemBox.id }, [
-				bemBox,
-				' Also rename BEM children and modifiers ',
-				el( 'span', { className: 'etk-bem__count' } ),
-			] ),
+		const bemText = el( 'span' );
+		const bemList = el( 'ul', { className: 'etk-confirm__list etk-preview__list etk-fold__list', id: 'etk-rename-bem-list', hidden: true } );
+		const bemToggle = el( 'button', { type: 'button', className: 'etk-fold__toggle', textContent: 'Show' } );
+		bemToggle.setAttribute( 'aria-expanded', 'false' );
+		bemToggle.setAttribute( 'aria-controls', bemList.id );
+		bemToggle.addEventListener( 'click', () => {
+			bemList.hidden = ! bemList.hidden;
+			bemToggle.textContent = bemList.hidden ? 'Show' : 'Hide';
+			bemToggle.setAttribute( 'aria-expanded', String( ! bemList.hidden ) );
+		} );
+		const bemOption = el( 'div', { className: 'etk-fold etk-fold--option', hidden: true }, [
+			el( 'div', { className: 'etk-fold__line' }, [ el( 'label', { className: 'etk-fold__label', htmlFor: bemBox.id }, [ bemBox, bemText ] ), bemToggle ] ),
 			bemList,
 		] );
-
-		const pairsSection = ( title ) => {
-			const list = el( 'ul', { className: 'etk-confirm__list etk-preview__list' } );
-			return [ el( 'div', { className: 'etk-bem', hidden: true }, [ el( 'p', { className: 'etk-bem__label' }, [ `${ title } `, el( 'span', { className: 'etk-bem__count' } ) ] ), list ] ), list ];
+		const renderBem = ( plan ) => {
+			bemOption.hidden = ! plan.bem.length;
+			if ( ! plan.bem.length ) return bemList.replaceChildren();
+			const n = plan.bem.length;
+			const text = `Also rename ${ n } BEM ${ n === 1 ? 'child' : 'children' } and modifiers`;
+			if ( bemText.textContent !== text ) bemText.textContent = text;
+			bemList.replaceChildren( ...plan.bem.map( ( b ) => pair( `.${ b.from }`, `.${ b.to }`, b.styled ? 'has a style' : 'class only' ) ) );
 		};
+
 		// Classes styled by nested rules like &__title in a renamed class, which Etch writes
 		// out with the new name, and selectors beyond a plain class, like .card:hover .card__title.
-		const [ nested, nestedList ] = pairsSection( 'Also renames these, for nested rules like &__title' );
-		const [ selectors, selectorList ] = pairsSection( 'Also updates these selectors' );
-
+		const nested = fold();
+		const selectors = fold();
+		const warnings = fold( 'etk-fold--warning' );
 		const errors = el( 'ul', { className: 'etk-preview__errors' } );
-		const warnings = el( 'ul', { className: 'etk-preview__warnings' } );
-		const summary = el( 'p', { className: 'etk-preview__summary' } );
-		summary.setAttribute( 'aria-live', 'polite' );
+
+		// The footer: what the rename does, or what's stopping it, beside the buttons.
+		const summary = el( 'p', { className: 'etk-rename__summary' } );
+		const goto = el( 'button', { type: 'button', className: 'etk-rename__goto', hidden: true } );
+		const status = el( 'div', { className: 'etk-rename__status' }, [ summary, goto ] );
+		status.setAttribute( 'aria-live', 'polite' );
+		goto.addEventListener( 'click', () => {
+			const row = invalidRows()[ 0 ];
+			if ( ! row ) return;
+			row.li.scrollIntoView( { block: 'center' } );
+			row.input.focus();
+		} );
+		const setStatus = ( text, problem = false ) => {
+			if ( summary.textContent !== text ) summary.textContent = text;
+			status.classList.toggle( 'etk-rename__status--problem', problem );
+			const bad = invalidRows().length;
+			goto.hidden = ! bad;
+			goto.textContent = bad === 1 ? 'Go to it' : 'Go to the first';
+		};
 
 		const dialog = confirmDialog( {
 			title: `Rename ${ classes( names.length ) }`,
@@ -412,18 +426,18 @@
 					el( 'div', { className: 'etk-fields' }, [ findField, replaceField, affixField ] ),
 					el( 'ul', { className: 'etk-rename__rows' }, rows.map( ( r ) => r.li ) ),
 				] ),
-				errors,
-				warnings,
-				nested,
+				nested.details,
 				bemOption,
-				selectors,
-				summary,
+				selectors.details,
+				warnings.details,
+				errors,
 				el( 'p', {
 					className: 'etk-preview__also',
 					textContent: "Class names are updated on every element across the site, and your changes are saved. This can't be undone.",
 				} ),
 			],
 		} );
+		dialog.element.querySelector( '.etk-confirm__actions' ).before( status );
 		replace.select();
 
 		let seq = 0;
@@ -439,28 +453,22 @@
 			dialog.setConfirmEnabled( false );
 
 			map = {};
-			let invalid = false;
 			for ( const row of rows ) {
 				if ( row.removed ) continue;
 				const value = row.input.value.trim();
 				// An unchanged name is left as it is, even one with special characters like "md:flex".
 				const ok = value === row.name || CLASS_NAME.test( value );
 				setRowError( row, ok ? '' : value ? 'Letters, numbers, - and _ only, starting with a letter.' : 'Enter a class name.' );
-				if ( ! ok ) invalid = true;
-				else if ( value !== row.name ) map[ row.name ] = value;
+				if ( ok && value !== row.name ) map[ row.name ] = value;
 			}
 
 			const count = Object.keys( map ).length;
+			const bad = invalidRows().length;
 			dialog.setConfirmLabel( count ? `Rename ${ classes( count ) }` : 'Rename' );
 			errors.replaceChildren();
-			warnings.replaceChildren();
-			if ( invalid || ! count ) {
-				summary.textContent = invalid
-					? ''
-					: rows.every( ( r ) => r.removed )
-					? 'Nothing left to rename.'
-					: 'Pick an action or edit a name to see what changes.';
-				bemOption.hidden = selectors.hidden = nested.hidden = true;
+			if ( bad || ! count ) {
+				setStatus( bad ? `${ plural( bad, 'name' ) } need${ bad === 1 ? 's' : '' } fixing.` : rows.every( ( r ) => r.removed ) ? 'Nothing left to rename.' : 'Pick an action or edit a name to see what changes.', bad > 0 );
+				bemOption.hidden = selectors.details.hidden = nested.details.hidden = warnings.details.hidden = true;
 				return;
 			}
 
@@ -470,25 +478,28 @@
 				try {
 					const plan = await api( 'styles/rename/preview', 'POST', { ids, map: request, bem: bemBox.checked, keep: keep() } );
 					if ( mine !== seq ) return; // A newer keystroke is in flight.
-					renderBemOption( bemOption, bemList, plan );
-					renderPairs( nested, nestedList, plan.nested.map( ( n ) => [ `.${ n.from }`, `.${ n.to }` ] ) );
-					renderPairs( selectors, selectorList, plan.styles.filter( ( s ) => ! isClassSelector( s.from ) && s.from !== s.to ).map( ( s ) => [ s.from, s.to ] ) );
+					renderBem( plan );
+					nested.set( `Also renames ${ classes( plan.nested.length ) } for nested rules like &__title`, plan.nested.map( ( n ) => pair( `.${ n.from }`, `.${ n.to }` ) ) );
+					const others = plan.styles.filter( ( s ) => ! isClassSelector( s.from ) && s.from !== s.to );
+					selectors.set( `Also updates ${ plural( others.length, 'other selector' ) }`, others.map( ( s ) => pair( s.from, s.to ) ) );
+					warnings.set( plural( plan.warnings.length, 'warning' ), plan.warnings.map( ( w ) => el( 'li', { textContent: w } ) ) );
 					// Counts nested and BEM children too.
 					const total = Object.keys( plan.classMap ).length;
 					dialog.setConfirmLabel( total ? `Rename ${ classes( total ) }` : 'Rename' );
 					for ( const row of rows ) setRowError( row, plan.rowErrors[ row.name ] ?? '' );
-					// The full list, unless every error already shows on its row. Some can't,
-					// like a clash from a BEM child, which has no row.
+					// Errors that have no row to show on, like a clash from a BEM child.
 					const onRows = Object.keys( plan.rowErrors ).every( ( name ) => rows.some( ( r ) => ! r.removed && r.name === name ) );
 					if ( ! onRows || ! Object.keys( plan.rowErrors ).length ) {
 						errors.replaceChildren( ...plan.errors.map( ( e ) => el( 'li', { textContent: e } ) ) );
 					}
-					warnings.replaceChildren( ...plan.warnings.map( ( w ) => el( 'li', { textContent: w } ) ) );
-					summary.textContent = plan.styles.length ? renameSummary( plan ) : 'Nothing to rename.';
+					const bad = invalidRows().length;
+					if ( bad ) setStatus( `${ plural( bad, 'name' ) } need${ bad === 1 ? 's' : '' } fixing.`, true );
+					else if ( plan.errors.length ) setStatus( plan.errors[ 0 ], true );
+					else setStatus( plan.styles.length ? renameSummary( plan ) : 'Nothing to rename.' );
 					ready = plan.styles.length > 0 && ! plan.errors.length;
 					dialog.setConfirmEnabled( ready );
 				} catch ( err ) {
-					if ( mine === seq ) summary.textContent = err.message;
+					if ( mine === seq ) setStatus( err.message, true );
 				}
 			}, 150 );
 		};
@@ -544,13 +555,14 @@
 		// Drop a preview still on its way, and freeze the rows.
 		clearTimeout( timer );
 		seq++;
-		for ( const control of dialog.element.querySelectorAll( 'input, .etk-rename__reset, .etk-rename__remove' ) ) control.disabled = true;
+		for ( const control of dialog.element.querySelectorAll( 'input, button:not(.etk-confirm__btn)' ) ) control.disabled = true;
 
 		let plan;
 		try {
 			await save();
 			plan = await api( 'styles/rename', 'POST', { ids, map, bem: bemBox.checked, keep: keep() } );
 		} catch ( err ) {
+			status.remove();
 			dialog.fail( err.message );
 			return;
 		}
