@@ -279,17 +279,25 @@ function etch_toolkit_block_classes( object $attrs, bool $dynamic = false ): arr
  * quotes: {item.on ? 'is-on' : ''} could be is-on.
  */
 function etch_toolkit_dynamic_class_matches( string $token, string $class ): bool {
+	return (bool) etch_toolkit_dynamic_class_filter( $token, array( $class ) );
+}
+
+/**
+ * The class names a dynamic class name could produce, of those given. Works
+ * out the token once, for checking many names.
+ *
+ * @param string   $token   Dynamic class name, like btn--{props.variant}.
+ * @param string[] $classes Class names.
+ * @return string[]
+ */
+function etch_toolkit_dynamic_class_filter( string $token, array $classes ): array {
 	$fixed = preg_split( '/\{[^{}]*\}/', $token ) ?: array();
 	if ( '' !== implode( '', $fixed ) ) {
-		return (bool) preg_match( '/^' . implode( '.*', array_map( fn( $part ) => preg_quote( $part, '/' ), $fixed ) ) . '$/sD', $class );
+		return array_values( preg_grep( '/^' . implode( '.*', array_map( fn( $part ) => preg_quote( $part, '/' ), $fixed ) ) . '$/sD', $classes ) ?: array() );
 	}
 	preg_match_all( '/([\'"])(.*?)\1/s', $token, $quoted );
-	foreach ( $quoted[2] as $names ) {
-		if ( in_array( $class, preg_split( '/\s+/', $names, -1, PREG_SPLIT_NO_EMPTY ) ?: array(), true ) ) {
-			return true;
-		}
-	}
-	return false;
+	$names = preg_split( '/\s+/', implode( ' ', $quoted[2] ), -1, PREG_SPLIT_NO_EMPTY ) ?: array();
+	return array_values( array_filter( $classes, fn( $class ) => in_array( $class, $names, true ) ) );
 }
 
 /**

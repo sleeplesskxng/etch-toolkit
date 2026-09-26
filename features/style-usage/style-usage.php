@@ -69,6 +69,23 @@ function etch_toolkit_style_usage_counts(): array {
 		}
 	}
 
+	// Each target of the other selectors, under its first class, so a block only
+	// checks the targets it could match. And every class name selectors count.
+	$parts = array(); // Class => [ selector, class list as keys ].
+	$names = array();
+	foreach ( array_keys( $simple ) as $key ) {
+		if ( str_starts_with( (string) $key, 'class:' ) ) {
+			$names[ substr( (string) $key, 6 ) ] = true;
+		}
+	}
+	foreach ( $targets as $selector => $found ) {
+		foreach ( $found as $classes ) {
+			$parts[ $classes[0] ][] = array( $selector, array_flip( $classes ) );
+			$names                 += array_fill_keys( $classes, true );
+		}
+	}
+	$names = array_map( 'strval', array_keys( $names ) );
+
 	$dynamic = array(); // Dynamic class name => the class names it could be, worked out once each.
 	foreach ( etch_toolkit_contents() as $content ) {
 		if ( ! preg_match( '/"(?:styles|attributes|className)"/', $content ) ) {
@@ -77,8 +94,8 @@ function etch_toolkit_style_usage_counts(): array {
 		$unused = 0;
 		etch_toolkit_edit_block_attrs(
 			$content,
-			function ( $attrs, $name ) use ( $selectors, $simple, $targets, &$counts, &$dynamic ) {
-				etch_toolkit_count_block_styles( $attrs, $name, $selectors, $simple, $targets, $counts, $dynamic );
+			function ( $attrs, $name ) use ( $selectors, $simple, $parts, $names, &$counts, &$dynamic ) {
+				etch_toolkit_count_block_styles( $attrs, $name, $selectors, $simple, $parts, $names, $counts, $dynamic );
 				return false;
 			},
 			$unused
@@ -144,11 +161,13 @@ function etch_toolkit_style_usage_targets( string $selector ): array {
  * @param string               $name      Block name.
  * @param array<string, string> $selectors Style ID => selector.
  * @param array<string, array>  $simple    "class:card" or "id:main" => selectors.
- * @param array<string, array>  $targets   Selector => class lists, from etch_toolkit_style_usage_targets().
+ * @param array<string, array>  $parts     Class => [ selector, class list as keys ], for each target of
+ *                                         a selector etch_toolkit_style_usage_targets() reads, under its first class.
+ * @param string[]              $names     Every class name the selectors count.
  * @param array<string, int>    $counts    Running totals, by reference.
  * @param array<string, array>  $dynamic   Dynamic class name => the class names it could be, filled in as they come up.
  */
-function etch_toolkit_count_block_styles( object $attrs, string $name, array $selectors, array $simple, array $targets, array &$counts, array &$dynamic = array() ): void {
+function etch_toolkit_count_block_styles( object $attrs, string $name, array $selectors, array $simple, array $parts, array $names, array &$counts, array &$dynamic = array() ): void {
 	$used = array();
 
 	// Styles referenced by ID: the block's own, and a component instance's class properties.
@@ -170,21 +189,15 @@ function etch_toolkit_count_block_styles( object $attrs, string $name, array $se
 	// A dynamic class name like btn--{props.variant} could be any class that fits.
 	foreach ( etch_toolkit_block_classes( $attrs, true ) as $token ) {
 		if ( ! isset( $dynamic[ $token ] ) ) {
-			$dynamic[ $token ] = etch_toolkit_dynamic_class_uses( $token, $simple, $targets );
+			$dynamic[ $token ] = array_fill_keys( etch_toolkit_dynamic_class_filter( $token, $names ), true );
 		}
 		$classes += $dynamic[ $token ];
 	}
 	foreach ( array_keys( $classes ) as $class ) {
 		$used += $simple[ 'class:' . $class ] ?? array();
-	}
-
-	if ( $classes ) {
-		foreach ( $targets as $selector => $parts ) {
-			foreach ( $parts as $part ) {
-				if ( ! array_diff_key( array_flip( $part ), $classes ) ) {
-					$used[ $selector ] = true;
-					break;
-				}
+		foreach ( $parts[ $class ] ?? array() as [ $selector, $part ] ) {
+			if ( ! isset( $used[ $selector ] ) && ! array_diff_key( $part, $classes ) ) {
+				$used[ $selector ] = true;
 			}
 		}
 	}
@@ -192,29 +205,6 @@ function etch_toolkit_count_block_styles( object $attrs, string $name, array $se
 	foreach ( array_keys( $used ) as $selector ) {
 		$counts[ $selector ] = ( $counts[ $selector ] ?? 0 ) + 1;
 	}
-}
-
-/**
- * The class names selectors count that a dynamic class name could be.
- *
- * @param string               $token   Dynamic class name, like btn--{props.variant}.
- * @param array<string, array> $simple  "class:card" or "id:main" => selectors.
- * @param array<string, array> $targets Selector => class lists, from etch_toolkit_style_usage_targets().
- * @return array<string, true> Class name => true.
- */
-function etch_toolkit_dynamic_class_uses( string $token, array $simple, array $targets ): array {
-	$names = array();
-	foreach ( array_keys( $simple ) as $key ) {
-		if ( str_starts_with( (string) $key, 'class:' ) ) {
-			$names[ substr( (string) $key, 6 ) ] = true;
-		}
-	}
-	foreach ( $targets as $parts ) {
-		foreach ( $parts as $part ) {
-			$names += array_fill_keys( $part, true );
-		}
-	}
-	return array_filter( $names, fn( $class ) => etch_toolkit_dynamic_class_matches( $token, (string) $class ), ARRAY_FILTER_USE_KEY );
 }
 
 /**
