@@ -39,19 +39,23 @@ add_action(
 );
 
 /**
- * @return array{deleteData: bool}
+ * @return array{deleteData: bool, layerSorting: bool}
  */
 function etch_toolkit_settings(): array {
 	$settings = (array) get_option( ETCH_TOOLKIT_SETTINGS_OPTION, array() );
 	return array(
-		'deleteData' => ! empty( $settings['deleteData'] ),
+		'deleteData'   => ! empty( $settings['deleteData'] ),
+		// On until turned off.
+		'layerSorting' => ! array_key_exists( 'layerSorting', $settings ) || ! empty( $settings['layerSorting'] ),
 	);
 }
 
 function etch_toolkit_save_settings( array $input ): void {
 	$settings = etch_toolkit_settings();
-	if ( array_key_exists( 'deleteData', $input ) ) {
-		$settings['deleteData'] = (bool) $input['deleteData'];
+	foreach ( array( 'deleteData', 'layerSorting' ) as $key ) {
+		if ( array_key_exists( $key, $input ) ) {
+			$settings[ $key ] = (bool) $input[ $key ];
+		}
 	}
 	update_option( ETCH_TOOLKIT_SETTINGS_OPTION, $settings, false );
 }

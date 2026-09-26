@@ -1,0 +1,144 @@
+/* Enhanced layer sorting: the drop line and ghost, drawn over the builder while a layer is dragged. */
+
+.etk-sorting,
+.etk-sorting * {
+	cursor: grabbing !important;
+	user-select: none !important;
+}
+
+/* The dragged layer stays in place, dimmed, with its own layers folded away. */
+[data-etk-sort-source] [data-testid="accordion-header"] {
+	opacity: 0.4;
+
+	.etch-builder-accordion__quick-actions {
+		visibility: hidden;
+	}
+}
+
+[data-etk-sort-folded] {
+	display: none !important;
+}
+
+.etk-sort {
+	--etk-sort-color: var(--e-primary, #6ce0d4);
+
+	&.is-blocked {
+		--etk-sort-color: var(--etch-danger, var(--e-danger, #f26060));
+	}
+
+	&[hidden],
+	[hidden] {
+		display: none;
+	}
+}
+
+/* Kept to the Structure panel, and to the canvas. */
+.etk-sort__clip {
+	position: fixed;
+	z-index: 2147483000;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.etk-sort__line,
+.etk-sort__box {
+	position: absolute;
+	top: 0;
+	left: 0;
+	pointer-events: none;
+	will-change: transform;
+}
+
+.etk-sort__line {
+	block-size: 2px;
+	margin-block-start: -1px;
+	border-radius: 1px;
+	background: var(--etk-sort-color);
+
+	/* A ring where the line starts, as in Figma. */
+	&::before {
+		content: "";
+		position: absolute;
+		inset-block-start: -3px;
+		inset-inline-start: -4px;
+		inline-size: 8px;
+		block-size: 8px;
+		box-sizing: border-box;
+		border: 2px solid var(--etk-sort-color);
+		border-radius: 50%;
+		background: var(--etch-neutral, #27272b);
+	}
+}
+
+.etk-sort__line--canvas {
+	margin: 0;
+	margin-block-start: -1px;
+
+	&::before {
+		content: none;
+	}
+
+	&.is-down {
+		margin-block-start: 0;
+		margin-inline-start: -1px;
+	}
+}
+
+.etk-sort__box {
+	box-sizing: border-box;
+	border: 1.5px solid var(--etk-sort-color);
+	border-radius: var(--e-border-radius, 4px);
+	background: color-mix(in srgb, var(--etk-sort-color) 10%, transparent);
+}
+
+.etk-sort__box--canvas {
+	border-width: 1px;
+	border-style: dashed;
+	border-radius: 0;
+	background: none;
+}
+
+.etk-sort__ghost {
+	position: fixed;
+	top: 0;
+	left: 0;
+	z-index: 2147483001;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	max-inline-size: 220px;
+	padding: 5px 10px;
+	border: 1px solid var(--etch-border-color, rgb(255 255 255 / 0.1));
+	border-radius: var(--e-border-radius, 6px);
+	background: var(--etch-neutral, #27272b);
+	box-shadow:
+		0 1px 3px 0 rgb(0 0 0 / 0.2),
+		0 8px 16px 0 rgb(0 0 0 / 0.16);
+	color: var(--e-light, #fff);
+	font-family: var(--etch-font-interface, var(--e-font-interface));
+	font-size: 12px;
+	line-height: 16px;
+	white-space: nowrap;
+	pointer-events: none;
+	will-change: transform;
+
+	svg {
+		flex: none;
+		inline-size: 14px;
+		block-size: 14px;
+	}
+
+	span {
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+}
+
+.etk-sort__status {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}

@@ -240,10 +240,11 @@
 	/* General                                                             */
 	/* ------------------------------------------------------------------ */
 
-	let settings = config.settings || { deleteData: false };
+	let settings = config.settings || { deleteData: false, layerSorting: true };
 	const save = async ( changes, message ) => {
 		try {
-			settings = await api( 'settings', 'POST', changes );
+			// Kept on window.etchToolkitSettings too, where features read it as it changes.
+			settings = config.settings = await api( 'settings', 'POST', changes );
 			announce( message );
 		} catch ( error ) {
 			warn( errorText( error ) );
@@ -256,6 +257,15 @@
 		title: 'General',
 		order: 0,
 		render: () => [
+			group(
+				'Structure panel',
+				toggle(
+					'Enhanced layer sorting',
+					settings.layerSorting,
+					( on ) => save( { layerSorting: on }, on ? 'Enhanced layer sorting is on.' : 'Enhanced layer sorting is off.' ),
+					'Smooth dragging, even on big pages. A line shows where the layer will land, in the panel and on the canvas, and the page updates once you let go.'
+				)
+			),
 			group(
 				{ title: 'Uninstall', note: 'Fonts always stay, so the site’s fonts keep working: the Etch Toolkit Fonts stylesheet and the font files. So do changes the toolkit made in Etch, like renamed classes.' },
 				toggle(
