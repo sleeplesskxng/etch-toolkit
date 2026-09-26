@@ -46,23 +46,19 @@
 	const BUILDER_SCRIPT = /\/apps\/dist\/builder\/builder\.js\b/;
 
 	// A recipe list has { expandTo } values, and the first one is enough to tell. Automatic.css
-	// keeps lists like it too, so only one listed from Etch's builder script counts.
-	const isEtchRecipeList = ( object ) => {
-		if ( ! object || typeof object !== 'object' || Array.isArray( object ) ) return false;
-		for ( const key in object ) {
-			if ( ! Object.hasOwn( object, key ) || typeof object[ key ]?.expandTo !== 'string' ) return false;
-			return BUILDER_SCRIPT.test( new Error().stack ?? '' );
-		}
-		return false;
-	};
+	// keeps lists like it too, so only one listed from Etch's builder script counts. This
+	// checks what Object.entries() already returned: Etch's state is proxies, and reading
+	// one a second time on every call slowed the builder down on big pages.
+	const isEtchRecipeList = ( object, list ) =>
+		typeof object === 'object' && ! Array.isArray( object ) && typeof list[ 0 ]?.[ 1 ]?.expandTo === 'string' && BUILDER_SCRIPT.test( new Error().stack ?? '' );
 
 	const hook = ( object ) => {
-		if ( ! expansions && isEtchRecipeList( object ) ) {
-			expansions = object;
-			addToEtch();
-			// Put the original back, unless something else has wrapped it since.
-			if ( Object.entries === hook ) Object.entries = entries;
-		}
+		const list = entries( object );
+		if ( expansions || ! isEtchRecipeList( object, list ) ) return list;
+		expansions = object;
+		addToEtch();
+		// Put the original back, unless something else has wrapped it since.
+		if ( Object.entries === hook ) Object.entries = entries;
 		return entries( object );
 	};
 	Object.entries = hook;
