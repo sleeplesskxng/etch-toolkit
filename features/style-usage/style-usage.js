@@ -4,6 +4,7 @@
  * Etch has no UI extension API, so this watches the Style Manager DOM and
  * appends a count to each selector row. Counts come from the server (saved
  * content, site-wide) and are refetched each time the Style Manager opens.
+ * The last counts show meanwhile, and rows without one show a spinner.
  *
  * It also adds an "Unused" tab. Etch's tabs are a fixed list and its list is
  * virtual, so the tab shows its own list over Etch's (switched to "All").
@@ -29,9 +30,10 @@
 	const isCounted = ( style ) =>
 		[ 'class', 'id', 'custom' ].includes( style.type ) && style.selector.trim() !== ':root';
 
-	let counts = null; // { selector: number } | null
+	let counts = null; // { selector: number } | null. Kept between opens, since only a save changes them.
 	let request = 0; // Number of the usage request in flight, 0 for none.
 	let requests = 0;
+	let checked = false; // Asked for counts since the Style Manager opened.
 	let failed = false; // The last request failed. The Unused tab offers to try again.
 	let frame = 0;
 	let unusedOn = false;
@@ -58,9 +60,10 @@
 			} );
 	};
 
-	// Counted selectors => uses, in the Style Manager's order. Several styles can
-	// share a selector across collections, and the server counts by selector. It
-	// leaves out selectors it can't count, like `.card > p`, so they get no badge.
+	// Counted selectors => uses, in the Style Manager's order, or null while still
+	// counting. Several styles can share a selector across collections, and the
+	// server counts by selector. It leaves out selectors it can't count, like
+	// `.card > p`, so they get no badge.
 	const countsBySelector = () => {
 		const map = new Map();
 		let styles = [];
@@ -71,7 +74,9 @@
 		}
 		for ( const style of styles ) {
 			const selector = style.selector.trim();
-			if ( isCounted( style ) && Object.hasOwn( counts, selector ) ) map.set( selector, counts[ selector ] );
+			if ( ! isCounted( style ) ) continue;
+			if ( counts && Object.hasOwn( counts, selector ) ) map.set( selector, counts[ selector ] );
+			else if ( request ) map.set( selector, null );
 		}
 		return map;
 	};
@@ -84,7 +89,8 @@
 			return;
 		}
 
-		const label = `Used ${ count } ${ count === 1 ? 'time' : 'times' }`;
+		const loading = count === null;
+		const label = loading ? 'Counting uses' : `Used ${ count } ${ count === 1 ? 'time' : 'times' }`;
 		if ( badge?.dataset.count === String( count ) ) return;
 
 		if ( ! badge ) {
@@ -96,8 +102,9 @@
 
 		badge.dataset.count = String( count );
 		badge.classList.toggle( `${ BADGE }--unused`, count === 0 );
+		badge.classList.toggle( `${ BADGE }--loading`, loading );
 		badge.title = label;
-		badge.firstChild.textContent = String( count );
+		badge.firstChild.textContent = loading ? '' : String( count );
 		badge.lastChild.textContent = `, ${ label.toLowerCase() }`;
 	};
 
@@ -271,10 +278,10 @@
 	const update = () => {
 		frame = 0;
 
-		// Style Manager closed: drop the cache so the next open picks up saved changes,
-		// and any answer still on its way.
+		// Style Manager closed: the next open asks again, to pick up saved changes.
+		// Drop any answer still on its way.
 		if ( ! document.querySelector( MODAL ) ) {
-			counts = null;
+			checked = false;
 			request = 0;
 			failed = false;
 			unusedOn = false;
@@ -285,11 +292,14 @@
 		if ( ! tabs ) unusedOn = false; // Another mode, like Variables.
 		else renderTab( tabs );
 
-		if ( ! counts && ! request && ! failed ) fetchCounts();
+		if ( ! checked ) {
+			checked = true;
+			fetchCounts();
+		}
 
 		const list = document.querySelector( LIST );
 		renderList( list ?? document.querySelector( `${ LEFT } .etch-css-selectors` ) );
-		if ( ! counts || ! list ) return;
+		if ( ! list ) return;
 
 		const bySelector = countsBySelector();
 		for ( const button of list.querySelectorAll( ROW_BUTTON ) ) {

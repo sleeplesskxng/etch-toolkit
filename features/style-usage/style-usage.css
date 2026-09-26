@@ -38,9 +38,37 @@
 		opacity: 1;
 	}
 
+	/* Still counting: a spinner in the count's place. */
+	&.etk-usage--loading > :first-child {
+		inline-size: 0.9em;
+		block-size: 0.9em;
+		box-sizing: border-box;
+		border: 1.5px solid currentColor;
+		border-block-start-color: transparent;
+		border-radius: 50%;
+		animation: etk-usage-spin 0.8s linear infinite;
+
+		@media (prefers-reduced-motion: reduce) {
+			border-block-start-color: currentColor;
+			animation: etk-usage-pulse 1.6s ease-in-out infinite alternate;
+		}
+	}
+
 	/* Etch shows the delete button on hover. Hand the spot over to it. */
 	.list-item:hover & {
 		visibility: hidden;
+	}
+}
+
+@keyframes etk-usage-spin {
+	to {
+		rotate: 1turn;
+	}
+}
+
+@keyframes etk-usage-pulse {
+	to {
+		opacity: 0.3;
 	}
 }
 
