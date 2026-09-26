@@ -1,0 +1,55 @@
+/*
+ * Etch's tokens, as its builder sets them (Etch 1.6), for the settings page
+ * in WordPress, which Etch doesn't style. On <body>, so the toolkit's
+ * dialogs, which open there, get them too. Inter falls back to the system font.
+ */
+body.etch_page_etch-toolkit {
+	--e-base: #27272b;
+	--e-base-dark: #1d1d20;
+	--e-base-light: #36363a;
+	--e-base-semi-light: #3e3e41;
+	--e-base-ultra-light: #4a4a4f;
+	--e-border-color: #36363a;
+	--e-border-radius: 6px;
+	--e-danger: #f26060;
+	--e-danger-dark: #633636;
+	--e-font-code: "MonoLisa", monospace;
+	--e-font-interface: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	--e-font-size-m: 12px;
+	--e-font-size-s: 11px;
+	--e-foreground-color: #e1e1e5;
+	--e-hub-title-font-size: 16px;
+	--e-primary: oklch(85.19% .125 186.39);
+	--e-space-sm: 8px;
+	--e-success: #67d992;
+	--e-transition: .15s ease-in-out;
+	--e-warning: #f2c960;
+	--etch-border-color: #36363a;
+	--etch-border-radius: 6px;
+	--etch-danger: oklch(66% .21 25);
+	--etch-danger-trans-20: oklch(from oklch(66% .21 25) l c h / .2);
+	--etch-divider-color: #4b4b4e;
+	--etch-focus-box-shadow: 0 0 0 1px #28557b, 0 0 0 2px #469fea;
+	--etch-font-interface: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	--etch-font-size-l: 13px;
+	--etch-font-size-m: 12px;
+	--etch-font-size-s: 11px;
+	--etch-neutral: #27272b;
+	--etch-neutral-medium: #4b4b4e;
+	--etch-neutral-semi-dark: #3e3e41;
+	--etch-neutral-semi-light: #d6d6dc;
+	--etch-opacity-high: 75%;
+	--etch-opacity-medium: 55%;
+	--etch-panel-bg: #27272b;
+	--etch-primary: oklch(77% .09 189);
+	--etch-primary-hover: oklch(from oklch(77% .09 189) .71 c h);
+	--etch-radius-lg: 6px;
+	--etch-secondary-btn: #36363a;
+	--etch-space-lg: 10px;
+	--etch-space-md: 8px;
+	--etch-space-sm: 6px;
+	--etch-space-xl: 12px;
+	--etch-space-xs: 4px;
+	--etch-text-color: #f7f7f8;
+	--etch-warning: oklch(77% .12 70);
+}

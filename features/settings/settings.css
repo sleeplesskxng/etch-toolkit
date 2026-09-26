@@ -1,0 +1,559 @@
+/*
+ * Settings. Laid out like Etch's Content Hub and the Fonts manager: a 256px
+ * sidebar with the title and sections, then the section. In the builder it
+ * sits beside the settings bar. In WordPress it fills the page's content area.
+ * Colors and type come from Etch's tokens, which the WordPress page gets
+ * from settings-admin.css.
+ */
+.etk-settings {
+	/* Surfaces, darkest first. */
+	--etk-settings-field: var(--e-base-dark, #1d1d20);
+	--etk-settings-surface: var(--e-base, #27272b);
+	--etk-settings-view: color-mix(in srgb, var(--e-base, #27272b), var(--e-base-light, #36363a) 47%);
+	--etk-settings-raised: var(--e-base-light, #36363a);
+	--etk-settings-selected: var(--e-base-semi-light, #3e3e41);
+
+	/* Lines. */
+	--etk-settings-line: var(--e-border-color, #36363a);
+	--etk-settings-line-strong: var(--e-base-semi-light, #3e3e41);
+	--etk-settings-line-heavy: var(--e-base-ultra-light, #4a4a4f);
+
+	/* Text: the foreground at the opacities the Fonts manager uses. */
+	--etk-settings-text: var(--e-foreground-color, #e1e1e5);
+	--etk-settings-text-75: color-mix(in srgb, var(--etk-settings-text) 75%, transparent);
+	--etk-settings-text-60: color-mix(in srgb, var(--etk-settings-text) 60%, transparent);
+	--etk-settings-text-50: color-mix(in srgb, var(--etk-settings-text) 50%, transparent);
+
+	/* Accent and status. */
+	--etk-settings-accent: var(--e-primary, #57e9db);
+	--etk-settings-accent-soft: color-mix(in srgb, var(--etk-settings-accent) 12%, transparent);
+	--etk-settings-on-accent: var(--e-base-dark, #1d1d20);
+	--etk-settings-success: var(--e-success, #67d992);
+	--etk-settings-danger: var(--e-danger, #f26060);
+	--etk-settings-danger-line: var(--e-danger-dark, #633636);
+	/* No Etch token: the switch knob when off. */
+	--etk-settings-knob-off: #8a8a8f;
+
+	/* Shape. */
+	--etk-settings-radius: var(--e-border-radius, 6px);
+	--etk-settings-radius-lg: 8px;
+	--etk-settings-focus: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+
+	display: grid;
+	grid-template-columns: 256px minmax(0, 1fr);
+	background: var(--etk-settings-surface);
+	color: var(--etk-settings-text);
+	font-family: var(--e-font-interface, Inter, system-ui, sans-serif);
+	font-size: var(--e-font-size-m, 12px);
+	font-weight: 500;
+	line-height: 1.34;
+	-webkit-font-smoothing: antialiased;
+
+	&[hidden] {
+		display: none;
+	}
+
+	*,
+	*::before,
+	*::after {
+		box-sizing: border-box;
+	}
+
+	:focus-visible {
+		outline: none;
+		box-shadow: var(--etk-settings-focus);
+	}
+
+	/* Titles get focus on navigation, for screen readers, without a ring. */
+	[tabindex="-1"]:focus {
+		box-shadow: none;
+	}
+
+	h1,
+	h2,
+	h3,
+	p {
+		margin: 0;
+		color: inherit;
+	}
+
+	.screen-reader-text {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+}
+
+/* In the builder: beside the settings bar, above the action bar, like the Fonts manager. */
+.etk-settings--panel {
+	position: fixed;
+	inset: 0 0 var(--etch-action-bar-height, 48px) var(--e-settings-bar-width, 46.5px);
+	/* Above the builder panels, below Etch's tooltips and dialogs. */
+	z-index: 60;
+
+	/* Automatic.css's pinned dashboard moves the builder aside with a margin on <body>, which fixed positioning ignores. */
+	body.push-right & {
+		inset-inline-start: calc(var(--acss-dashboard-width, 0px) + var(--e-settings-bar-width, 46.5px));
+	}
+
+	body.push-left & {
+		inset-inline-end: var(--acss-dashboard-width, 0px);
+	}
+}
+
+/* In WordPress: the content area, down to the bottom of the window. */
+.etk-settings--page {
+	block-size: calc(100vh - var(--wp-admin--admin-bar--height, 32px) - 40px);
+	min-block-size: 420px;
+	margin-block-start: 20px;
+	overflow: hidden;
+	border-radius: var(--etk-settings-radius-lg);
+}
+
+.etk-settings__icon {
+	flex: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shell                                                               */
+/* ------------------------------------------------------------------ */
+
+.etk-settings__sidebar {
+	display: flex;
+	flex-direction: column;
+	min-block-size: 0;
+	background: var(--etk-settings-surface);
+}
+
+.etk-settings__header {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-block-size: 57px;
+	padding: 12px;
+	border-block-end: 1px solid var(--etk-settings-line);
+}
+
+.etk-settings__logo {
+	display: flex;
+	color: var(--etk-settings-text);
+}
+
+.etk-settings__title {
+	font-size: var(--e-hub-title-font-size, 16px);
+	font-weight: 400;
+	line-height: 20px;
+}
+
+.etk-settings__nav {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 16px;
+	overflow-y: auto;
+}
+
+.etk-settings__nav-item {
+	padding: 9px 14px;
+	border: 0;
+	border-radius: var(--etk-settings-radius);
+	background: none;
+	color: var(--etk-settings-text-60);
+	font: inherit;
+	line-height: 16px;
+	text-align: start;
+	cursor: pointer;
+	transition:
+		background-color var(--e-transition, 0.15s ease-in-out),
+		color var(--e-transition, 0.15s ease-in-out);
+
+	&:hover {
+		color: var(--etk-settings-text);
+	}
+
+	&[aria-current="page"] {
+		background: var(--etk-settings-raised);
+		color: var(--etk-settings-text);
+	}
+}
+
+.etk-settings__body {
+	display: flex;
+	flex-direction: column;
+	min-block-size: 0;
+	min-inline-size: 0;
+	background: var(--etk-settings-view);
+}
+
+.etk-settings__content {
+	flex: 1;
+	min-block-size: 0;
+	overflow-y: auto;
+	scrollbar-gutter: stable;
+}
+
+.etk-settings__main {
+	padding: 24px 32px;
+}
+
+.etk-settings__page {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+	inline-size: min(680px, 100%);
+	margin-inline: auto;
+	padding-block-start: 12px;
+}
+
+.etk-settings__page-title {
+	font-size: 18px;
+	font-weight: 500;
+	line-height: 24px;
+}
+
+/* Errors show above the section. Confirmations are for screen readers only. */
+.etk-settings__status:not(.is-error) {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.etk-settings__status.is-error {
+	padding: 8px 32px;
+	border-block-end: 1px solid var(--etk-settings-line);
+	color: var(--etk-settings-danger);
+	font-size: var(--e-font-size-s, 11px);
+}
+
+/* ------------------------------------------------------------------ */
+/* Groups and rows                                                     */
+/* ------------------------------------------------------------------ */
+
+.etk-settings__group {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.etk-settings__group-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding-inline-start: 2px;
+}
+
+.etk-settings__label {
+	color: var(--etk-settings-text-50);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 600;
+	line-height: 14px;
+}
+
+.etk-settings__card {
+	display: flex;
+	flex-direction: column;
+	overflow: clip;
+	border: 1px solid var(--etk-settings-line);
+	border-radius: var(--etk-settings-radius-lg);
+	background: var(--etk-settings-surface);
+}
+
+.etk-settings__row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px 16px;
+
+	& + & {
+		border-block-start: 1px solid var(--etk-settings-line);
+	}
+}
+
+.etk-settings__row-title {
+	flex: 1;
+	line-height: 16px;
+}
+
+.etk-settings__muted {
+	color: var(--etk-settings-text-60);
+	font-weight: 400;
+}
+
+.etk-settings__help {
+	max-inline-size: 70ch;
+	color: var(--etk-settings-text-50);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 400;
+	line-height: 16px;
+}
+
+.etk-settings__note {
+	padding-inline-start: 2px;
+}
+
+.etk-settings__dot {
+	inline-size: 6px;
+	block-size: 6px;
+	flex: none;
+	border-radius: 50%;
+	background: var(--etk-settings-success);
+}
+
+/* ------------------------------------------------------------------ */
+/* Controls                                                            */
+/* ------------------------------------------------------------------ */
+
+/* Buttons, after Etch's: outlined (secondary), filled (primary) and danger. */
+.etk-settings__btn {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	block-size: 28px;
+	margin: 0;
+	padding: 0 10px;
+	border: 1px solid var(--etk-settings-line-strong);
+	border-radius: var(--etk-settings-radius);
+	background: none;
+	color: var(--etk-settings-text);
+	font: inherit;
+	font-weight: 500;
+	line-height: 16px;
+	white-space: nowrap;
+	cursor: pointer;
+	transition:
+		background-color var(--e-transition, 0.15s ease-in-out),
+		border-color var(--e-transition, 0.15s ease-in-out);
+
+	&:hover {
+		border-color: var(--etk-settings-line-heavy);
+		background: var(--etk-settings-raised);
+	}
+
+	&:is(:disabled, [aria-disabled="true"]) {
+		opacity: var(--etch-opacity-medium, 0.55);
+		cursor: not-allowed;
+	}
+}
+
+.etk-settings__btn--primary {
+	border-color: transparent;
+	background: var(--etk-settings-accent);
+	color: var(--etk-settings-on-accent);
+	font-weight: 600;
+
+	&:hover {
+		border-color: transparent;
+		background: var(--etch-primary-hover, color-mix(in srgb, var(--etk-settings-accent), white 15%));
+	}
+}
+
+.etk-settings__btn--danger {
+	border-color: var(--etk-settings-danger-line);
+	color: var(--etk-settings-danger);
+
+	&:hover {
+		border-color: var(--etk-settings-danger-line);
+		background: color-mix(in srgb, var(--etk-settings-danger) 10%, transparent);
+	}
+}
+
+.etk-settings__icon-btn {
+	inline-size: 40px;
+	padding: 0;
+}
+
+/* A visually hidden file input inside a label styled as a button. */
+.etk-settings__file-btn {
+	position: relative;
+
+	&:focus-within {
+		box-shadow: var(--etk-settings-focus);
+	}
+}
+
+/* Switch rows: title and help on the left, the switch on the right. */
+.etk-settings__toggle {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.etk-settings__toggle-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-inline-size: 0;
+
+	label {
+		cursor: pointer;
+	}
+}
+
+.etk-settings .etk-settings__switch {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	inline-size: 28px;
+	block-size: 16px;
+	margin: 0;
+	padding: 2px;
+	border: 0;
+	border-radius: 8px;
+	background: var(--etk-settings-selected);
+	box-shadow: none;
+	cursor: pointer;
+	appearance: none;
+	transition: background-color var(--e-transition, 0.15s ease-in-out);
+
+	&::before {
+		content: "";
+		inline-size: 12px;
+		block-size: 12px;
+		margin: 0;
+		border-radius: 50%;
+		background: var(--etk-settings-knob-off);
+		transition:
+			translate var(--e-transition, 0.15s ease-in-out),
+			background-color var(--e-transition, 0.15s ease-in-out);
+	}
+
+	&:checked {
+		background: var(--etk-settings-accent);
+
+		&::before {
+			translate: 12px 0;
+			background: var(--etk-settings-on-accent);
+		}
+	}
+
+	&:disabled {
+		opacity: 0.4;
+		cursor: progress;
+	}
+
+	&:focus-visible {
+		box-shadow: var(--etk-settings-focus);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		&,
+		&::before {
+			transition: none;
+		}
+	}
+}
+
+.etk-settings__check {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: 8px;
+	cursor: pointer;
+}
+
+.etk-settings .etk-settings__check input[type="checkbox"] {
+	display: grid;
+	flex: none;
+	place-items: center;
+	inline-size: 14px;
+	min-inline-size: 0;
+	block-size: 14px;
+	margin: 0;
+	border: 1px solid var(--etk-settings-line-heavy);
+	border-radius: 3px;
+	background: none;
+	box-shadow: none;
+	cursor: pointer;
+	appearance: none;
+
+	&::before {
+		content: "";
+		inline-size: 10px;
+		block-size: 10px;
+		margin: 0;
+		background: var(--etk-settings-on-accent);
+		mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 13l4 4 10-10'/%3E%3C/svg%3E") center / contain no-repeat;
+		scale: 0;
+	}
+
+	&:is(:checked, :indeterminate) {
+		border-color: transparent;
+		background: var(--etk-settings-accent);
+
+		&::before {
+			scale: 1;
+		}
+	}
+
+	&:indeterminate::before {
+		block-size: 2px;
+		inline-size: 8px;
+		border-radius: 1px;
+		mask: none;
+	}
+
+	&:focus-visible {
+		box-shadow: var(--etk-settings-focus);
+	}
+}
+
+/* A dashed drop target. is-over while a file is dragged over it. */
+.etk-settings__dropzone {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	padding: 16px;
+	border: 1px dashed var(--etk-settings-line-heavy);
+	border-radius: var(--etk-settings-radius-lg);
+	transition:
+		background-color var(--e-transition, 0.15s ease-in-out),
+		border-color var(--e-transition, 0.15s ease-in-out);
+
+	&.is-over {
+		border-color: var(--etk-settings-accent);
+		background: var(--etk-settings-accent-soft);
+	}
+}
+
+.etk-settings__dropzone-icon {
+	display: flex;
+	color: var(--etk-settings-text-75);
+}
+
+.etk-settings__dropzone-text {
+	flex: 1;
+	color: var(--etk-settings-text-75);
+	font-weight: 400;
+}
+
+/* ------------------------------------------------------------------ */
+/* Import previews, in the toolkit's confirm dialog                    */
+/* ------------------------------------------------------------------ */
+
+.etk-settings-import {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	text-align: start;
+}
+
+.etk-settings-import__title {
+	font-weight: 600;
+	color: var(--e-foreground-color);
+}
+
+.etk-settings-import__list {
+	margin: 0;
+	padding-inline-start: 1.25em;
+}

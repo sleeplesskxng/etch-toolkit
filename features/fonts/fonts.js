@@ -223,6 +223,10 @@
 		const sheet = list.find( ( s ) => s.id === state.settings.stylesheetId ) || list.find( ( s ) => s.name === config.stylesheetName );
 		let id = sheet?.id;
 
+		// A stylesheet kept when the toolkit was deleted with its data, and no fonts here yet.
+		// Its fonts are still in use, so it's left as it is.
+		if ( sheet && ! saved.length && ! state.settings.stylesheetId ) return;
+
 		if ( sheet ) {
 			if ( sheet.css !== state.css || sheet.name !== config.stylesheetName ) {
 				await sheets.updateAsync( sheet.id, { css: state.css, name: config.stylesheetName } );
