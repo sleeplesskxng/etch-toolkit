@@ -174,9 +174,10 @@
 	flex-shrink: 0;
 }
 
+/* Same colors as Etch's Save button. */
 .etk-confirm__btn--primary {
-	background-color: var(--etch-primary);
-	color: var(--etch-text);
+	background-color: var(--e-primary);
+	color: var(--e-base);
 
 	&:hover:not(:disabled) {
 		background-color: var(--etch-primary-hover);
