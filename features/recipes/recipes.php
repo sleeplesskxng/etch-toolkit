@@ -22,20 +22,36 @@ add_action(
 			ETCH_TOOLKIT_REST_NAMESPACE,
 			'/recipes',
 			array(
-				'methods'             => 'PUT',
-				'callback'            => function ( WP_REST_Request $request ) {
-					$result = etch_toolkit_rest_try( fn() => etch_toolkit_recipes_save( $request->get_param( 'recipes' ) ) );
-					return is_wp_error( $result ) ? $result : rest_ensure_response( array( 'recipes' => $result ) );
-				},
-				'args'                => array(
-					'recipes' => array(
-						'type'     => 'array',
-						'required' => true,
-					),
+				array(
+					'methods'             => 'GET',
+					'callback'            => fn() => rest_ensure_response( array( 'recipes' => etch_toolkit_recipes() ) ),
+					'permission_callback' => 'etch_toolkit_can_manage',
 				),
-				'permission_callback' => 'etch_toolkit_can_manage',
+				array(
+					'methods'             => 'PUT',
+					'callback'            => function ( WP_REST_Request $request ) {
+						$result = etch_toolkit_rest_try( fn() => etch_toolkit_recipes_save( $request->get_param( 'recipes' ) ) );
+						return is_wp_error( $result ) ? $result : rest_ensure_response( array( 'recipes' => $result ) );
+					},
+					'args'                => array(
+						'recipes' => array(
+							'type'     => 'array',
+							'required' => true,
+						),
+					),
+					'permission_callback' => 'etch_toolkit_can_manage',
+				),
 			)
 		);
+	}
+);
+
+// Import and export, in the toolkit's settings, in the builder and in WordPress.
+add_action(
+	'etch_toolkit_settings_enqueue',
+	function () {
+		$path = ETCH_TOOLKIT_DIR . 'features/recipes/recipes-settings.js';
+		wp_enqueue_script( 'etch-toolkit-recipes-settings', ETCH_TOOLKIT_URL . 'features/recipes/recipes-settings.js', array( 'etch-toolkit-settings' ), (string) filemtime( $path ), true );
 	}
 );
 

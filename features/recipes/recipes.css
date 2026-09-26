@@ -52,16 +52,9 @@
 	padding-inline-end: 15px;
 }
 
-/* Search, then the import and export menu. */
-.etk-recipes__search-row {
-	position: relative;
-	display: flex;
-	gap: 8px;
-}
-
 .etk-recipes__search {
 	display: flex;
-	flex: 1;
+	flex: none;
 	align-items: center;
 	gap: 8px;
 	min-inline-size: 0;
@@ -99,61 +92,6 @@
 
 	&:focus-visible {
 		box-shadow: none;
-	}
-}
-
-.etk-recipes .etk-recipes__more {
-	flex: none;
-	justify-content: center;
-	inline-size: 29px;
-	block-size: 29px;
-	padding: 0;
-
-	&[aria-expanded="true"] {
-		border-color: var(--etch-primary);
-	}
-}
-
-.etk-recipes__menu {
-	position: absolute;
-	inset-block-start: calc(100% + 4px);
-	inset-inline-end: 0;
-	z-index: 10;
-	display: flex;
-	flex-direction: column;
-	min-inline-size: 175px;
-	padding: 4px;
-	border: 1px solid var(--etch-border-color);
-	border-radius: 8px;
-	background-color: var(--etch-neutral);
-	box-shadow:
-		0 4px 12px rgb(0 0 0 / 0.25),
-		0 1px 3px rgb(0 0 0 / 0.2);
-
-	&[hidden] {
-		display: none;
-	}
-}
-
-.etk-recipes .etk-recipes__menu-item {
-	padding: 6px 10px;
-	border: 0;
-	border-radius: 4px;
-	background: none;
-	color: var(--e-foreground-color);
-	font: inherit;
-	line-height: 14.4px;
-	text-align: start;
-	cursor: pointer;
-
-	&:is(:hover, :focus) {
-		background-color: var(--etch-neutral-dark);
-		box-shadow: none;
-	}
-
-	&[aria-disabled="true"] {
-		opacity: var(--etch-opacity-medium, 0.55);
-		cursor: default;
 	}
 }
 
@@ -229,15 +167,6 @@
 .etk-recipes .etk-recipes__add {
 	inline-size: 100%;
 	justify-content: center;
-}
-
-.etk-recipes__sr {
-	position: absolute;
-	inline-size: 1px;
-	block-size: 1px;
-	overflow: hidden;
-	clip-path: inset(50%);
-	white-space: nowrap;
 }
 
 /* ---- Detail side ---- */

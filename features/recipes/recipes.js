@@ -7,7 +7,8 @@
  * which Etch then offers after "?" like its own.
  *
  * Yours change as you edit them, like Etch's styles, and are saved with
- * Etch's Save.
+ * Etch's Save. Import and export are in the toolkit's settings, in
+ * recipes-settings.js, which saves an import at once.
  */
 ( () => {
 	const { api, el, confirmDialog, afterSave, unsaved } = window.etchToolkit || {};
@@ -171,6 +172,29 @@
 		}
 	} );
 
+	// An import from the toolkit's settings, saved. Recipes you haven't changed take the
+	// saved copy, and new ones are added. Your unsaved changes stay on top.
+	window.addEventListener( 'etk:recipes-saved', ( e ) => {
+		const was = new Map( saved.map( ( recipe ) => [ recipe.name, recipe ] ) );
+		const now = new Map( e.detail.map( ( recipe ) => [ recipe.name, recipe ] ) );
+		const refresh = selected?.kind === 'mine' && ! isDirty();
+		saved = e.detail;
+		mine = [
+			...mine.map( ( recipe ) => ( was.has( recipe.name ) && now.has( recipe.name ) && same( recipe, was.get( recipe.name ) ) ? now.get( recipe.name ) : recipe ) ),
+			...e.detail.filter( ( recipe ) => ! was.has( recipe.name ) && ! mine.some( ( m ) => m.name === recipe.name ) ),
+		];
+		addToEtch();
+		// A recipe open with nothing pending shows what was imported over it.
+		if ( refresh && ownRecipe() ) {
+			draft = { ...ownRecipe() };
+			renderDetail();
+		}
+		renderList();
+	} );
+
+	// For the settings' import preview: a name Etch has is skipped.
+	window.etchToolkit.recipes = { etchNames };
+
 	/* ---- Recipes tab ---- */
 
 	const INNER = '.style-overview-modal__inner'; // Where every Style Manager tab renders.
@@ -220,182 +244,6 @@
 	const addButton = button( 'Add recipe', 'etch-builder-button--variant-default etk-recipes__add', () => select( { kind: 'new' } ) );
 	const detail = el( 'div', { className: 'etk-recipes__detail' } );
 
-	/* ---- Import and export ---- */
-
-	const EXPORT_TYPE = 'etch-toolkit-recipes';
-	const plural = ( n ) => `${ n } ${ n === 1 ? 'recipe' : 'recipes' }`;
-
-	// For news that doesn't move focus, like an export. Emptied first so a repeat is read again.
-	const announcer = attrs( el( 'p', { className: 'etk-recipes__sr' } ), { role: 'status' } );
-	const announce = ( text ) => {
-		announcer.textContent = '';
-		setTimeout( () => ( announcer.textContent = text ), 100 );
-	};
-
-	const exportRecipes = () => {
-		const json = JSON.stringify( { type: EXPORT_TYPE, version: 1, recipes: mine.map( ( { name, css } ) => ( { name, css } ) ) }, null, '\t' );
-		const link = el( 'a', { href: URL.createObjectURL( new Blob( [ json ], { type: 'application/json' } ) ), download: 'etch-recipes.json' } );
-		link.click();
-		setTimeout( () => URL.revokeObjectURL( link.href ), 1000 );
-		announce( `Exported ${ plural( mine.length ) }.` );
-	};
-
-	// What importing a file's recipes would do, sorted by outcome. A name Etch has is skipped,
-	// since Etch's own would win after "?". Unusable entries, and repeats of a name, are counted.
-	const planImport = ( recipes ) => {
-		const plan = { added: [], replaced: [], same: [], etch: [], unusable: 0 };
-		const etch = etchNames();
-		const seen = new Set();
-		for ( const recipe of recipes ) {
-			const name = typeof recipe?.name === 'string' ? recipe.name.trim() : '';
-			const css = typeof recipe?.css === 'string' ? recipe.css.trim() : '';
-			if ( ! NAME.test( name ) || ! css || seen.has( name ) ) {
-				plan.unusable++;
-				continue;
-			}
-			seen.add( name );
-			const existing = mine.find( ( r ) => r.name === name );
-			if ( etch.has( name ) ) plan.etch.push( { name, css } );
-			else if ( ! existing ) plan.added.push( { name, css } );
-			else if ( existing.css === css ) plan.same.push( { name, css } );
-			else plan.replaced.push( { name, css } );
-		}
-		return plan;
-	};
-
-	const nameList = ( title, recipes ) =>
-		recipes.length ? [ el( 'p', { textContent: title } ), el( 'ul', { className: 'etk-confirm__list' }, recipes.map( ( r ) => el( 'li', {}, [ el( 'code', { textContent: `?${ r.name }` } ) ] ) ) ) ] : [];
-
-	// Preview what a file would change. Nothing changes until Import.
-	const importRecipes = async ( file ) => {
-		let data = null;
-		try {
-			data = JSON.parse( await file.text() );
-		} catch {}
-		if ( data?.type !== EXPORT_TYPE || ! Array.isArray( data.recipes ) ) {
-			confirmDialog( { title: '', failTitle: 'Can’t import that file', message: [], confirmLabel: 'Import' } ).fail( 'That file isn’t a recipes export.' );
-			return;
-		}
-
-		const plan = planImport( data.recipes );
-		const count = plan.added.length + plan.replaced.length;
-		const dialog = confirmDialog( {
-			title: count ? `Import ${ plural( count ) }?` : 'Nothing to import',
-			message: [
-				...nameList( 'New', plan.added ),
-				...nameList( 'Replaces yours', plan.replaced ),
-				...nameList( 'Skipped, you already have these', plan.same ),
-				...nameList( 'Skipped, Etch has recipes with these names', plan.etch ),
-				...( plan.unusable ? [ el( 'p', { textContent: `${ plural( plan.unusable ) } in the file couldn’t be used.` } ) ] : [] ),
-			],
-			confirmLabel: 'Import',
-			variant: 'primary',
-			form: true,
-		} );
-		if ( ! count ) dialog.setConfirmEnabled( false );
-		if ( ! ( await dialog.result ) ) return;
-
-		const incoming = new Map( plan.replaced.map( ( r ) => [ r.name, r ] ) );
-		// A recipe open with nothing pending shows what was imported over it.
-		const refresh = selected?.kind === 'mine' && ! isDirty();
-		mine = [ ...mine.map( ( r ) => incoming.get( r.name ) ?? r ), ...plan.added ];
-		addToEtch();
-		dialog.close();
-		if ( refresh && ownRecipe() ) {
-			draft = { ...ownRecipe() };
-			renderDetail();
-		}
-		renderList();
-		moreButton.focus();
-		announce( `Imported ${ plural( count ) }. Save to keep them.` );
-	};
-
-	const fileInput = el( 'input', {
-		type: 'file',
-		accept: '.json,application/json',
-		hidden: true,
-		onchange: () => {
-			const [ file ] = fileInput.files;
-			fileInput.value = '';
-			if ( file ) importRecipes( file );
-		},
-	} );
-
-	/* ---- Import and export menu ---- */
-
-	const moreButton = attrs( el( 'button', { type: 'button', className: 'etch-builder-button etch-builder-button--variant-outline etk-recipes__more' } ), {
-		'aria-label': 'Import and export',
-		'aria-haspopup': 'menu',
-		'aria-expanded': 'false',
-		'aria-controls': 'etk-recipes-menu',
-	} );
-	moreButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>';
-
-	const menuItem = ( label, onselect ) => {
-		const node = attrs( el( 'button', { type: 'button', className: 'etk-recipes__menu-item', textContent: label, tabIndex: -1 } ), { role: 'menuitem' } );
-		node.addEventListener( 'click', () => {
-			if ( node.getAttribute( 'aria-disabled' ) === 'true' ) return;
-			closeMenu( true );
-			onselect();
-		} );
-		return node;
-	};
-	const choices = [ menuItem( 'Import recipes…', () => fileInput.click() ), menuItem( 'Export my recipes', exportRecipes ) ];
-
-	const menu = attrs(
-		el(
-			'div',
-			{
-				className: 'etk-recipes__menu',
-				id: 'etk-recipes-menu',
-				hidden: true,
-				onkeydown: ( e ) => {
-					const i = choices.indexOf( document.activeElement );
-					const next = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: -1 }[ e.key ];
-					if ( next !== undefined ) {
-						e.preventDefault();
-						choices.at( next % choices.length ).focus();
-					} else if ( e.key === 'Escape' ) {
-						e.preventDefault();
-						closeMenu( true );
-					} else if ( e.key === 'Tab' ) {
-						// Back on the button first, so Tab moves on from there.
-						closeMenu( true );
-					}
-				},
-			},
-			choices
-		),
-		{ role: 'menu', 'aria-label': 'Import and export' }
-	);
-
-	const onOutside = ( e ) => {
-		if ( ! menu.contains( e.target ) && ! moreButton.contains( e.target ) ) closeMenu();
-	};
-
-	const openMenu = ( first ) => {
-		attrs( choices[ 1 ], { 'aria-disabled': ! mine.length && 'true' } );
-		menu.hidden = false;
-		moreButton.setAttribute( 'aria-expanded', 'true' );
-		choices.at( first ).focus();
-		document.addEventListener( 'pointerdown', onOutside, true );
-	};
-
-	function closeMenu( focus = false ) {
-		if ( menu.hidden ) return;
-		menu.hidden = true;
-		moreButton.setAttribute( 'aria-expanded', 'false' );
-		document.removeEventListener( 'pointerdown', onOutside, true );
-		if ( focus ) moreButton.focus();
-	}
-
-	moreButton.addEventListener( 'click', () => ( menu.hidden ? openMenu( 0 ) : closeMenu() ) );
-	moreButton.addEventListener( 'keydown', ( e ) => {
-		if ( e.key !== 'ArrowDown' && e.key !== 'ArrowUp' ) return;
-		e.preventDefault();
-		openMenu( e.key === 'ArrowUp' ? -1 : 0 );
-	} );
-
 	const panel = attrs(
 		el(
 			'section',
@@ -419,7 +267,7 @@
 				},
 				onkeyup: ( e ) => e.stopPropagation(),
 			},
-			[ el( 'div', { className: 'etk-recipes__side' }, [ el( 'div', { className: 'etk-recipes__search-row' }, [ searchBox, moreButton, menu ] ), list, addButton ] ), detail, fileInput, announcer ]
+			[ el( 'div', { className: 'etk-recipes__side' }, [ searchBox, list, addButton ] ), detail ]
 		),
 		{ 'aria-label': 'Recipes' }
 	);
@@ -709,7 +557,6 @@
 		// Style Manager closed. Your draft stays for next time.
 		if ( ! tabs ) {
 			on = false;
-			closeMenu();
 			panel.remove();
 			return;
 		}
@@ -720,7 +567,6 @@
 		body.classList.toggle( 'etk-recipes-on', on );
 		if ( on && panel.parentElement !== body ) body.append( panel );
 		if ( ! on ) {
-			closeMenu();
 			panel.remove();
 		}
 	};
