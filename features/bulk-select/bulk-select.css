@@ -42,334 +42,685 @@
 
 /* ---- Rename ---- */
 
-/*
- * The panel never outgrows the viewport: the header, action fields and footer stay
- * put, and the list of rows takes the rest, scrolling on its own. With dozens of
- * classes, the other lists fold behind a count so they don't push the buttons away.
- */
-.etk-confirm:has(.etk-rename) {
-	.etk-confirm__panel {
-		box-sizing: border-box;
-		inline-size: 760px;
-		max-inline-size: calc(100vw - 32px);
-		max-block-size: calc(100dvh - 32px);
+/* The rename view takes the Style Manager's place below its tabs. */
+.etk-renaming.etk-renaming > :not(.etch-advanced-switch, .etk-rn) {
+	display: none;
+}
+
+.etk-rn {
+	--etk-rn-card: color-mix(in srgb, var(--e-base-light) 92%, white);
+	--etk-rn-divider: rgb(0 0 0 / 0.25);
+	--etk-rn-edge: rgb(255 255 255 / 0.08);
+	--etk-rn-muted: color-mix(in srgb, var(--e-foreground-color) 50%, transparent);
+	--etk-rn-soft: color-mix(in srgb, var(--e-foreground-color) 80%, transparent);
+	--etk-rn-added: var(--e-primary, var(--etch-primary));
+	--etk-rn-danger: color-mix(in srgb, var(--etch-danger) 70%, white);
+	--etk-rn-warning: var(--etch-warning, var(--e-warning));
+	--etk-gap-inner: 12px;
+
+	flex: 1 1 0;
+	min-block-size: 0;
+	display: flex;
+	flex-direction: column;
+	border: 1px solid var(--etch-border-color);
+	border-radius: 10px;
+	background-color: color-mix(in srgb, var(--e-base) 80%, var(--e-base-light));
+	color: var(--e-foreground-color);
+	font-size: var(--etch-font-size-m);
+	font-weight: 500;
+	line-height: 16px;
+
+	[hidden] {
+		display: none !important;
 	}
 
-	.etk-confirm__message {
-		flex: 1 1 auto;
-		min-block-size: 0;
-		overflow-y: auto;
-	}
-
-	.etk-confirm__actions {
-		flex: none;
-		margin-block-start: 0;
+	:focus-visible {
+		outline: 2px solid var(--etch-primary);
+		outline-offset: 1px;
 	}
 }
 
-.etk-rename {
+.etk-rn__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+	padding: 16px 16px 16px 20px;
+	border-block-end: 1px solid var(--etch-border-color);
+}
+
+.etk-rn__heading {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-inline-size: 0;
+}
+
+.etk-rn__title {
+	margin: 0;
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 20px;
+}
+
+.etk-rn__sub {
+	margin: 0;
+	font-weight: 400;
+	color: var(--etk-rn-muted);
+}
+
+.etk-rn__actions {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: 8px;
+}
+
+.etk-rn__state {
+	display: flex;
+	align-items: center;
+	margin-inline-end: 8px;
+}
+
+/* "2 names need fixing", which takes you to the first. */
+.etk-rn__problem {
+	all: unset;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--etk-rn-danger);
+	text-decoration: underline 1px color-mix(in srgb, currentColor 50%, transparent);
+	text-underline-offset: 3px;
+	cursor: pointer;
+
+	&::before {
+		content: '';
+		inline-size: 6px;
+		block-size: 6px;
+		border-radius: 50%;
+		background-color: currentColor;
+	}
+
+	&:hover {
+		text-decoration-color: currentColor;
+	}
+}
+
+.etk-rn__note {
+	max-inline-size: 360px;
+	margin: 0;
+	color: var(--etk-rn-danger);
+}
+
+.etk-rn__body {
 	flex: 1 1 auto;
 	min-block-size: 0;
 	display: flex;
 	flex-direction: column;
-	gap: var(--etk-gap-inner);
+	gap: 20px;
+	padding: 20px 20px 16px;
+}
 
-	[hidden] {
+/* ---- Rename: bulk action ---- */
+
+.etk-rn__bar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px;
+}
+
+.etk-rn__mode,
+.etk-rn__action-input {
+	box-sizing: border-box;
+	block-size: 34px;
+	border: 1px solid transparent;
+	border-radius: var(--etch-radius-lg);
+	color: var(--e-foreground-color);
+	font: inherit;
+}
+
+.etk-rn__mode {
+	appearance: none;
+	padding: 0 28px 0 12px;
+	background: var(--etch-neutral-semi-dark)
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a1a1a8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E")
+		no-repeat right 10px center / 12px;
+	cursor: pointer;
+}
+
+.etk-rn__action-input {
+	inline-size: 200px;
+	padding: 0 12px;
+	border-color: var(--etch-neutral-medium);
+	background-color: var(--e-base);
+	font-family: var(--e-font-code);
+
+	&:focus {
+		border-color: var(--etch-primary);
+		outline: none;
+	}
+
+	&::placeholder {
+		color: var(--etk-rn-muted);
+	}
+}
+
+.etk-rn__hint {
+	margin: 0;
+	font-weight: 400;
+	color: var(--etk-rn-muted);
+}
+
+/* What the rename touches, at the top right of the table. */
+.etk-rn__summary {
+	margin: 0 0 0 auto;
+	font-weight: 400;
+	color: var(--etk-rn-soft);
+	text-align: end;
+}
+
+/* ---- Rename: the table ---- */
+
+.etk-rn__table {
+	flex: 1 1 auto;
+	min-block-size: 0;
+	display: flex;
+	flex-direction: column;
+	border-radius: var(--etch-radius-lg);
+	overflow: hidden;
+}
+
+.etk-rn__thead,
+.etk-rn__row {
+	display: grid;
+	grid-template-columns: 38px 30px minmax(0, 1fr) minmax(0, 1.6fr) 120px 220px;
+	align-items: center;
+}
+
+.etk-rn__thead {
+	flex: none;
+	block-size: 35px;
+	background-color: var(--e-base);
+}
+
+.etk-rn__th {
+	padding-inline: 8px;
+}
+
+.etk-rn__rows {
+	flex: 1 1 auto;
+	min-block-size: 0;
+	margin: 0;
+	padding: 0;
+	overflow-y: auto;
+	list-style: none;
+	scroll-padding-block: 8px;
+}
+
+/*
+ * Rows never change size or place. A card is painted on a layer behind each row,
+ * which pulls in from the row's edge to leave the gap between two cards, so
+ * ticking a row fades its card in without moving anything.
+ */
+.etk-rn__row {
+	--etk-rn-bg: transparent;
+	--etk-rn-shade: transparent;
+	--etk-rn-gap-top: 0px;
+	--etk-rn-gap-bottom: 0px;
+	--etk-rn-round-top: 0px;
+	--etk-rn-round-bottom: 0px;
+	--etk-rn-sides: 0 0 transparent;
+	--etk-rn-top: 0 0 transparent;
+	--etk-rn-bottom: 0 0 transparent;
+
+	position: relative;
+	isolation: isolate;
+	block-size: 46px;
+
+	&::before {
+		content: '';
+		position: absolute;
+		inset: var(--etk-rn-gap-top) 0 var(--etk-rn-gap-bottom);
+		border-radius: var(--etk-rn-round-top) var(--etk-rn-round-top) var(--etk-rn-round-bottom) var(--etk-rn-round-bottom);
+		background-color: var(--etk-rn-bg);
+		background-image: linear-gradient(var(--etk-rn-shade), var(--etk-rn-shade));
+		box-shadow: var(--etk-rn-sides), var(--etk-rn-top), var(--etk-rn-bottom);
+		transition-property: inset, border-radius, background-color, box-shadow;
+		transition-duration: 0.18s;
+		transition-timing-function: ease;
+
+		@media (prefers-reduced-motion: reduce) {
+			transition: none;
+		}
+	}
+
+	/* Above the card, in order rather than with a negative z-index, which Safari can paint over form controls with. */
+	> * {
+		position: relative;
+		min-inline-size: 0;
+	}
+}
+
+.etk-rn__check {
+	display: flex;
+	padding-inline-start: 12px;
+}
+
+.etk-rn__fold {
+	display: flex;
+	justify-content: center;
+}
+
+.etk-rn__old,
+.etk-rn__count,
+.etk-rn__status {
+	padding-inline: 8px;
+}
+
+.etk-rn__old {
+	overflow: hidden;
+	font-family: var(--e-font-code);
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.etk-rn__count {
+	color: var(--etk-rn-muted);
+}
+
+/* Cards: a run of ticked rows, or an open block with its classes. Two cards meet 4px apart. */
+.etk-rn__row--card {
+	--etk-rn-bg: var(--etk-rn-card);
+
+	&:not(.etk-rn__row--bottom) {
+		--etk-rn-bottom: inset 0 -1px var(--etk-rn-divider);
+	}
+}
+
+.etk-rn__row--top {
+	--etk-rn-round-top: var(--etch-radius-lg);
+
+	&:not(:first-child) {
+		--etk-rn-gap-top: 2px;
+	}
+}
+
+.etk-rn__row--bottom {
+	--etk-rn-round-bottom: var(--etch-radius-lg);
+
+	&:not(:last-child) {
+		--etk-rn-gap-bottom: 2px;
+	}
+}
+
+.etk-rn__row--block {
+	--etk-rn-sides: inset 1px 0 var(--etk-rn-edge), inset -1px 0 var(--etk-rn-edge);
+
+	&.etk-rn__row--top {
+		--etk-rn-top: inset 0 1px var(--etk-rn-edge);
+	}
+
+	&.etk-rn__row--bottom {
+		--etk-rn-bottom: inset 0 -1px var(--etk-rn-edge);
+	}
+}
+
+/* A block's classes: a step in, on a slightly deeper band. */
+.etk-rn__row--child {
+	--etk-rn-shade: rgb(0 0 0 / 0.1);
+
+	block-size: 40px;
+
+	&:not(.etk-rn__row--bottom) {
+		--etk-rn-bottom: inset 0 -1px rgb(0 0 0 / 0.18);
+	}
+
+	.etk-rn__old {
+		padding-inline-start: 22px;
+		color: var(--etk-rn-soft);
+	}
+}
+
+.etk-rn__row--off {
+	.etk-rn__old {
+		color: var(--etk-rn-muted);
+	}
+
+	.etk-rn__field {
 		display: none;
 	}
 }
 
-.etk-confirm__message > .etk-preview__errors:empty {
+.etk-rn__row:not(.etk-rn__row--off) .etk-rn__kept {
 	display: none;
 }
 
-.etk-field--wide {
-	grid-column: 1 / -1;
+.etk-rn__kept {
+	padding-inline: 7px;
+	font-weight: 400;
+	color: var(--etk-rn-muted);
 }
 
-/* Bulk action: radios styled as a segmented control. */
-.etk-seg {
-	display: flex;
-	gap: 2px;
-	inline-size: fit-content;
-	margin: 0;
-	padding: 3px;
-	border: 0;
-	border-radius: var(--etch-radius-lg);
-	background-color: var(--etch-neutral-ultra-dark);
-
-	label {
-		padding: 6px 10px;
-		border-radius: 6px;
-		font-size: var(--etch-font-size-m);
-		font-weight: 500;
-		color: var(--e-foreground-color);
-		opacity: 0.6;
-		cursor: pointer;
-
-		&:hover {
-			opacity: 1;
-		}
-
-		&:has(input:checked) {
-			background-color: var(--etch-neutral-semi-dark);
-			opacity: 1;
-		}
-
-		&:has(input:focus-visible) {
-			outline: 2px solid var(--etch-primary);
-		}
-	}
-}
-
-.etk-seg__legend,
-.etk-seg input {
-	position: absolute;
-	inline-size: 1px;
-	block-size: 1px;
+/* A selector like .card:hover follows its class, so it has no field. */
+.etk-rn__static {
+	display: block;
 	overflow: hidden;
-	clip-path: inset(50%);
-	white-space: nowrap;
-}
-
-.etk-rename__rows {
-	flex: 1 1 auto;
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	min-block-size: min(160px, 30dvh);
-	overflow-y: auto;
-	margin: 0;
-	padding: 0;
-	list-style: none;
-	/* Room for a focus ring on the first and last rows. */
-	scroll-padding-block: 4px;
-}
-
-.etk-rename__row {
-	display: grid;
-	grid-template-columns: minmax(0, 16rem) auto 1fr 28px 28px;
-	align-items: center;
-	gap: 4px 10px;
-
-	input {
-		box-sizing: border-box;
-		inline-size: 100%;
-		padding: 7px 12px;
-		border: 1px solid var(--etch-border-color);
-		border-radius: var(--etch-radius-lg);
-		background-color: var(--etch-neutral-semi-dark);
-		color: var(--e-foreground-color);
-		font-family: var(--e-font-code);
-		font-size: var(--etch-font-size-l);
-
-		&:focus-visible {
-			outline: 2px solid var(--etch-primary);
-			outline-offset: 0;
-		}
-
-		&[aria-invalid='true'] {
-			border-color: var(--etch-danger);
-		}
-	}
-}
-
-.etk-rename__old {
-	overflow: hidden;
+	padding-inline: 7px;
 	font-family: var(--e-font-code);
-	font-size: var(--etch-font-size-l);
-	white-space: nowrap;
+	white-space: pre;
 	text-overflow: ellipsis;
-	opacity: 0.6;
 }
 
-.etk-rename__reset,
-.etk-rename__remove {
+/* The fold chevron. */
+.etk-rn__toggle {
 	all: unset;
-	grid-column: 4;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	inline-size: 28px;
-	block-size: 28px;
-	border-radius: 6px;
-	background-color: var(--etch-neutral-dark);
-	color: var(--e-foreground-color);
+	display: grid;
+	place-items: center;
+	inline-size: 22px;
+	block-size: 22px;
+	border-radius: 4px;
+	color: var(--etk-rn-muted);
 	cursor: pointer;
 
-	&:hover {
-		background-color: var(--etch-neutral-medium);
+	svg {
+		transition: rotate 0.15s ease;
 	}
 
-	&:focus-visible {
-		outline: 2px solid var(--etch-primary);
+	&[aria-expanded='true'] {
+		color: var(--etk-rn-soft);
+
+		svg {
+			rotate: 90deg;
+		}
+	}
+
+	&:hover {
+		background-color: rgb(255 255 255 / 0.06);
+		color: var(--e-foreground-color);
+	}
+}
+
+/* Checkboxes like Etch's: light when ticked. */
+.etk-rn__checkbox {
+	appearance: none;
+	flex: none;
+	inline-size: 14px;
+	block-size: 14px;
+	margin: 0;
+	border: 1px solid rgb(255 255 255 / 0.35);
+	border-radius: 3px;
+	background: transparent no-repeat center / 10px;
+	cursor: pointer;
+
+	&:checked {
+		border-color: var(--e-foreground-color);
+		background-color: var(--e-foreground-color);
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d1d20' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 13l4 4 10-10'/%3E%3C/svg%3E");
+	}
+
+	&:indeterminate {
+		border-color: var(--e-foreground-color);
+		background-color: var(--e-foreground-color);
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d1d20' stroke-width='3.5' stroke-linecap='round'%3E%3Cpath d='M7 12h10'/%3E%3C/svg%3E");
 	}
 
 	&:disabled {
 		cursor: default;
-		opacity: 0.4;
+		opacity: 0.5;
 	}
 }
 
-.etk-rename__remove {
-	grid-column: 5;
-	background-color: transparent;
-	opacity: 0.6;
+/*
+ * The new name: a field that reads as text until you hover or type. Over it, a copy
+ * of its text picks out what changed. It hides while you type in the field.
+ */
+.etk-rn__new {
+	padding-inline: 1px 8px;
+}
 
-	&:hover,
-	&:focus-visible {
-		opacity: 1;
+.etk-rn__field {
+	position: relative;
+	display: block;
+	max-inline-size: 420px;
+}
+
+.etk-rn__input,
+.etk-rn__mirror {
+	box-sizing: border-box;
+	block-size: 28px;
+	padding: 0 7px;
+	font-family: var(--e-font-code);
+	font-size: var(--etch-font-size-m);
+	font-weight: 500;
+	white-space: pre;
+}
+
+.etk-rn__input {
+	inline-size: 100%;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	background: transparent;
+	color: transparent;
+	caret-color: var(--e-foreground-color);
+	padding-inline: 6px;
+
+	&:hover {
+		border-color: rgb(255 255 255 / 0.1);
+	}
+
+	&:focus {
+		border-color: var(--etch-primary);
+		background-color: rgb(0 0 0 / 0.2);
+		color: var(--e-foreground-color);
+		outline: none;
+	}
+
+	&[aria-invalid='true'] {
+		border-color: color-mix(in srgb, var(--etch-danger) 70%, transparent);
+		background-color: rgb(0 0 0 / 0.2);
 	}
 }
 
-.etk-rename__error {
-	grid-column: 3 / -1;
+.etk-rn__mirror {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	overflow: hidden;
+	color: var(--e-foreground-color);
+	pointer-events: none;
+
+	.etk-rn__input:focus + & {
+		visibility: hidden;
+	}
+}
+
+.etk-rn__added {
+	color: var(--etk-rn-added);
+}
+
+.etk-rn__inherited {
+	color: var(--etk-rn-muted);
+}
+
+/* ---- Rename: status ---- */
+
+.etk-rn__status {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.etk-rn__pill {
+	overflow: hidden;
+	padding: 4px 6px;
+	border-radius: 3px;
+	background-color: rgb(255 255 255 / 0.08);
+	color: var(--etk-rn-soft);
+	line-height: 14px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.etk-rn__pill--danger {
+	background-color: color-mix(in srgb, var(--etch-danger) 22%, transparent);
+	color: var(--etk-rn-danger);
+}
+
+.etk-rn__pill--warning {
+	background-color: color-mix(in srgb, var(--etk-rn-warning) 18%, transparent);
+	color: var(--etk-rn-warning);
+}
+
+.etk-rn__message {
+	color: var(--etk-rn-danger);
+}
+
+.etk-rn__reset {
+	all: unset;
+	color: var(--etk-rn-soft);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	cursor: pointer;
+
+	&:hover {
+		color: var(--e-foreground-color);
+	}
+}
+
+/* ---- Rename: what else changes ---- */
+
+/* A label row between the list and what else it renames. */
+.etk-rn__section {
+	display: flex;
+	align-items: flex-end;
+	block-size: 36px;
+	padding: 0 8px 8px 76px;
+	box-sizing: border-box;
 	font-size: var(--etch-font-size-s, 11px);
-	color: var(--etch-danger);
+	font-weight: 500;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	color: var(--etk-rn-muted);
 }
 
-/* ---- Rename: folded lists ---- */
+.etk-rn__row--extra .etk-rn__old {
+	color: var(--etk-rn-soft);
+}
 
-.etk-fold {
+/* Room to scroll the last rows out from under the toolbar. */
+.etk-rn__rows {
+	padding-block-end: 76px;
+	scroll-padding-block-end: 76px;
+}
+
+.etk-rn {
+	position: relative;
+}
+
+/* The toolbar: the bulk bar's look, inside the rename view. */
+.etk-rn__toolbar.etk-bulk-bar {
+	bottom: 24px;
+	gap: var(--etch-space-lg, 16px);
+	max-inline-size: calc(100% - 48px);
+	padding: 8px 12px 8px 16px;
+	font-weight: 500;
+
+	.etk-bulk-bar__divider:has(+ [hidden]),
+	[hidden] + .etk-bulk-bar__divider {
+		display: none;
+	}
+}
+
+
+.etk-rn__warn {
+	all: unset;
+	color: var(--etk-rn-warning);
+	white-space: nowrap;
+	cursor: pointer;
+	text-decoration: underline 1px color-mix(in srgb, currentColor 50%, transparent);
+	text-underline-offset: 3px;
+
+	&:hover {
+		text-decoration-color: currentColor;
+	}
+}
+
+/* The warnings open above the toolbar. */
+.etk-rn__warnings {
+	position: absolute;
+	inset-inline: 0;
+	bottom: calc(100% + 8px);
 	display: flex;
 	flex-direction: column;
-	gap: var(--etch-space-sm);
-	color: var(--e-foreground-color);
-
-	&[hidden] {
-		display: none;
-	}
+	gap: 8px;
+	max-block-size: 240px;
+	margin: 0;
+	padding: 12px 16px;
+	overflow-y: auto;
+	border: 1px solid var(--etch-border-color);
+	border-radius: 12px;
+	background-color: var(--etch-panel-bg);
+	box-shadow: 0 6px 12px 0 rgb(0 0 0 / 0.2);
+	list-style: none;
+	font-weight: 400;
+	line-height: 18px;
 }
 
-.etk-fold__summary {
-	inline-size: fit-content;
+.etk-rn__option {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: 10px;
+	white-space: nowrap;
+}
+
+.etk-rn__switch-label {
 	cursor: pointer;
-	list-style: none;
+}
 
-	&::-webkit-details-marker {
-		display: none;
-	}
+/* The same switch as the toolkit's settings. */
+.etk-rn__switch {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	inline-size: 28px;
+	block-size: 16px;
+	margin: 0;
+	padding: 2px;
+	border: 0;
+	border-radius: 8px;
+	background: var(--etch-neutral-semi-dark);
+	cursor: pointer;
+	appearance: none;
+	transition: background-color 0.15s ease-in-out;
 
-	/* A chevron that turns when open. */
 	&::before {
 		content: '';
-		display: inline-block;
-		inline-size: 6px;
-		block-size: 6px;
-		margin-inline-end: 0.75ch;
-		border: solid currentColor;
-		border-width: 0 1.5px 1.5px 0;
-		rotate: -45deg;
-		translate: 0 -2px;
-		opacity: 0.6;
-		transition: rotate 0.15s ease;
+		inline-size: 12px;
+		block-size: 12px;
+		border-radius: 50%;
+		background: #8a8a8f;
+		transition:
+			translate 0.15s ease-in-out,
+			background-color 0.15s ease-in-out;
 	}
 
-	.etk-fold[open] > &::before {
-		rotate: 45deg;
-		translate: 0 -3px;
+	&:checked {
+		background: var(--e-primary, var(--etch-primary));
+
+		&::before {
+			translate: 12px 0;
+			background: var(--e-base-dark);
+		}
 	}
 
-	&:hover {
-		text-decoration: underline;
-	}
-
-	&:focus-visible {
-		outline: 2px solid var(--etch-primary);
-		outline-offset: 2px;
-		border-radius: 3px;
-	}
-}
-
-.etk-fold--warning .etk-fold__summary {
-	color: var(--etch-warning, var(--e-warning));
-}
-
-.etk-fold__list {
-	max-block-size: 160px;
-}
-
-.etk-fold__line {
-	display: flex;
-	align-items: center;
-	gap: var(--etk-gap-inner);
-}
-
-.etk-fold__label {
-	display: flex;
-	align-items: center;
-	gap: var(--etch-space-sm);
-	cursor: pointer;
-
-	input {
-		margin: 0;
-		accent-color: var(--e-primary, var(--etch-primary));
-	}
-}
-
-.etk-fold__toggle {
-	all: unset;
-	cursor: pointer;
-	font-size: var(--etch-font-size-s, 11px);
-	text-decoration: underline;
-	opacity: 0.7;
-
-	&:hover {
-		opacity: 1;
-	}
-
-	&:focus-visible {
-		outline: 2px solid var(--etch-primary);
-		outline-offset: 2px;
-		border-radius: 3px;
-	}
-}
-
-.etk-preview__errors {
-	max-block-size: 80px;
-	overflow-y: auto;
-}
-
-/* ---- Rename: footer status ---- */
-
-.etk-rename__status {
-	display: flex;
-	align-items: baseline;
-	gap: var(--etk-gap-inner);
-	padding-block-start: var(--etk-gap-inner);
-	border-block-start: 1px solid var(--etch-border-color);
-	font-size: var(--etch-font-size-m);
-	color: var(--e-foreground-color);
-	line-height: 1.4;
-
-	p {
-		margin: 0;
-	}
-}
-
-.etk-rename__status--problem {
-	color: var(--etch-danger);
-}
-
-.etk-rename__summary {
-	flex: 1 1 auto;
-}
-
-.etk-rename__goto {
-	all: unset;
-	flex: none;
-	cursor: pointer;
-	font-weight: 500;
-	text-decoration: underline;
-
-	&[hidden] {
-		display: none;
-	}
-
-	&:focus-visible {
-		outline: 2px solid var(--etch-danger);
-		outline-offset: 2px;
-		border-radius: 3px;
+	@media (prefers-reduced-motion: reduce) {
+		&,
+		&::before {
+			transition: none;
+		}
 	}
 }
 

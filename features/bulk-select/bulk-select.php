@@ -129,7 +129,8 @@ function etch_toolkit_rename_classes_in( string $text, array $map ): string {
  *
  * @param string[]              $ids       Selected style IDs.
  * @param array<string, string> $requested Old class name => new class name, unescaped.
- *                                         Names not in the selected selectors are ignored.
+ *                                         Names not in the selected selectors are ignored,
+ *                                         except BEM children, as new names for them.
  * @param bool                  $bem       Also rename BEM children and modifiers of renamed classes.
  * @param string[]              $keep      Class names to leave alone, even as BEM children.
  * @return array{
@@ -261,12 +262,18 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 				continue;
 			}
 			if ( null !== $new ) {
-				$bem_map[ $name ] = $new . substr( $name, strlen( $old ) );
-				$bem_found[]      = array(
+				$to          = $new . substr( $name, strlen( $old ) );
+				$bem_found[] = array(
 					'from'   => $name,
-					'to'     => $bem_map[ $name ],
+					'to'     => $to,
 					'styled' => isset( $styled[ $name ] ),
 				);
+				// A name edited by hand in the preview, or set back to itself to keep it.
+				$to = isset( $requested[ $name ] ) ? (string) $requested[ $name ] : $to;
+				if ( $to === $name ) {
+					break;
+				}
+				$bem_map[ $name ] = $to;
 				if ( $bem && ! isset( $styled[ $name ] ) ) {
 					$also[] = $name;
 				}
