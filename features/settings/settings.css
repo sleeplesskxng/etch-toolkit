@@ -132,8 +132,9 @@
 	display: flex;
 	align-items: center;
 	gap: 10px;
-	min-block-size: 57px;
-	padding: 12px;
+	box-sizing: border-box;
+	block-size: 57px;
+	padding: 0 12px;
 	border-block-end: 1px solid var(--etk-settings-line);
 }
 
@@ -148,7 +149,11 @@
 	line-height: 20px;
 }
 
+/* The current section's highlight slides between them (.etk-track, in the core styles). */
 .etk-settings__nav {
+	--etk-track-item-radius: var(--etk-settings-radius);
+	--etk-track-highlight: var(--etk-settings-raised);
+
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
@@ -157,9 +162,11 @@
 }
 
 .etk-settings__nav-item {
-	padding: 9px 14px;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 9px 14px 9px 12px;
 	border: 0;
-	border-radius: var(--etk-settings-radius);
 	background: none;
 	color: var(--etk-settings-text-60);
 	font: inherit;
@@ -170,12 +177,8 @@
 		background-color var(--e-transition, 0.15s ease-in-out),
 		color var(--e-transition, 0.15s ease-in-out);
 
-	&:hover {
-		color: var(--etk-settings-text);
-	}
-
+	&:hover,
 	&[aria-current="page"] {
-		background: var(--etk-settings-raised);
 		color: var(--etk-settings-text);
 	}
 }

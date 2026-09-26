@@ -277,6 +277,237 @@
 	color: var(--etch-warning, var(--e-warning));
 }
 
+/* ---- Table checkboxes ---- */
+
+/* White when ticked, in the rename and font files tables. */
+.etk-checkbox {
+	appearance: none;
+	flex: none;
+	inline-size: 14px;
+	block-size: 14px;
+	margin: 0;
+	border: 1px solid rgb(255 255 255 / 0.35);
+	border-radius: 3px;
+	background: transparent no-repeat center / 10px;
+	cursor: pointer;
+
+	&:checked {
+		border-color: var(--e-foreground-color);
+		background-color: var(--e-foreground-color);
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d1d20' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 13l4 4 10-10'/%3E%3C/svg%3E");
+	}
+
+	&:indeterminate {
+		border-color: var(--e-foreground-color);
+		background-color: var(--e-foreground-color);
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d1d20' stroke-width='3.5' stroke-linecap='round'%3E%3Cpath d='M7 12h10'/%3E%3C/svg%3E");
+	}
+
+	&:disabled {
+		cursor: default;
+		opacity: 0.5;
+	}
+}
+
+/* ---- Tabs, segmented controls and navs ---- */
+
+/*
+ * .etk-track: the picked item's highlight is the track's ::before, anchored
+ * to the item, so it slides over when the pick moves. Its corners are the
+ * track's less the space around the item, so the two curves are concentric.
+ * Set --etk-track-inset to the track's border plus padding.
+ */
+.etk-track {
+	--etk-track-radius: var(--e-border-radius, 6px);
+	--etk-track-inset: 3px;
+	--etk-track-item-radius: max(2px, var(--etk-track-radius) - var(--etk-track-inset));
+
+	position: relative;
+	isolation: isolate;
+	border-radius: var(--etk-track-radius);
+
+	> * {
+		border-radius: var(--etk-track-item-radius);
+	}
+
+	> :is([aria-selected="true"], [aria-current="page"], :has(> input:checked)) {
+		anchor-name: --etk-track-pick;
+	}
+
+	&::before {
+		content: "";
+		position: absolute;
+		z-index: -1;
+		position-anchor: --etk-track-pick;
+		inset: anchor(top) anchor(right) anchor(bottom) anchor(left);
+		border-radius: var(--etk-track-item-radius);
+		background: var(--etk-track-highlight, var(--e-base-semi-light, #3e3e41));
+		transition: inset 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+
+		@media (prefers-reduced-motion: reduce) {
+			transition: none;
+		}
+	}
+
+	/* A track that was just rebuilt starts where the old one's highlight was. See etchToolkit.rebuild(). */
+	@starting-style {
+		&::before {
+			inset: var(--etk-track-from-top) calc(100% - var(--etk-track-from-left) - var(--etk-track-from-width)) calc(100% - var(--etk-track-from-top) - var(--etk-track-from-height)) var(--etk-track-from-left);
+		}
+	}
+}
+
+/* Without anchor positioning, the picked item is lit instead. */
+@supports not (anchor-name: --etk-track-pick) {
+	.etk-track > :is([aria-selected="true"], [aria-current="page"], :has(> input:checked)) {
+		background: var(--etk-track-highlight, var(--e-base-semi-light, #3e3e41));
+	}
+}
+
+/* ---- Sliders ---- */
+
+/*
+ * etchToolkit.slider(): the whole box is the slider. The fill (::before) runs
+ * up to the thumb (::after), both placed by --etk-slider-p, 0 to 1. It's
+ * registered so a change eases, except while you drag. The thumb stops
+ * --etk-slider-inset in from each side, clear of the name and value at
+ * either end.
+ */
+@property --etk-slider-p {
+	syntax: "<number>";
+	inherits: true;
+	initial-value: 0;
+}
+
+.etk-slider {
+	--etk-slider-inset: 4px;
+	--etk-slider-x: calc(var(--etk-slider-inset) + (100% - 2 * var(--etk-slider-inset)) * var(--etk-slider-p));
+
+	position: relative;
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	inline-size: 176px;
+	block-size: 32px;
+	padding-inline: 12px;
+	overflow: hidden;
+	border: 1px solid var(--e-border-color, #36363a);
+	border-radius: var(--e-border-radius, 6px);
+	background: var(--e-base, #27272b);
+	color: var(--e-foreground-color, #e1e1e5);
+	font-size: var(--e-font-size-s, 11px);
+	line-height: 14px;
+	cursor: ew-resize;
+	/* Sideways is the slider's, up and down still scrolls. */
+	touch-action: pan-y;
+	user-select: none;
+	transition: --etk-slider-p 0.36s cubic-bezier(0.16, 1, 0.3, 1);
+
+	&::before,
+	&::after {
+		content: "";
+		position: absolute;
+		pointer-events: none;
+	}
+
+	&::before {
+		inset-block: 0;
+		inset-inline-start: 0;
+		inline-size: var(--etk-slider-x);
+		background: color-mix(in srgb, var(--e-foreground-color, #e1e1e5) 7%, transparent);
+	}
+
+	/* Taller and brighter while you're on it. */
+	&::after {
+		inset-block-start: 50%;
+		inset-inline-start: var(--etk-slider-x);
+		inline-size: 3px;
+		block-size: 12px;
+		border-radius: 2px;
+		background: var(--e-foreground-color, #e1e1e5);
+		box-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+		translate: -50% -50%;
+		transition:
+			block-size 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+			background-color 0.2s ease-out;
+	}
+
+	&:is(:hover, .is-dragging, :has(:focus-visible))::after {
+		block-size: 18px;
+		background: var(--etch-text-color, #f7f7f8);
+	}
+
+	&.is-dragging {
+		transition: none;
+	}
+
+	&:has(:focus-visible) {
+		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		&,
+		&::after {
+			transition: none;
+		}
+	}
+}
+
+/* A tick at each step along the bottom, under the text, while you're on it. */
+.etk-slider__ticks {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.12s ease-out;
+
+	.etk-slider:is(:hover, .is-dragging, :has(:focus-visible)) & {
+		opacity: 1;
+	}
+}
+
+.etk-slider__tick {
+	position: absolute;
+	inset-block-end: 3px;
+	inset-inline-start: calc(var(--etk-slider-inset) + (100% - 2 * var(--etk-slider-inset)) * var(--etk-slider-at));
+	inline-size: 1px;
+	block-size: 4px;
+	border-radius: 1px;
+	background: color-mix(in srgb, var(--e-foreground-color, #e1e1e5) 35%, transparent);
+	translate: -50% 0;
+}
+
+.etk-slider__name,
+.etk-slider__value {
+	position: relative;
+	pointer-events: none;
+	white-space: nowrap;
+}
+
+.etk-slider__name {
+	color: color-mix(in srgb, var(--e-foreground-color, #e1e1e5) 45%, transparent);
+	font-weight: 600;
+}
+
+.etk-slider__value {
+	font-family: var(--e-font-code, monospace);
+	font-variant-numeric: tabular-nums;
+}
+
+/* The native input, for the keyboard and screen readers. The box handles the pointer. */
+.etk-slider__input {
+	position: absolute;
+	inset: 0;
+	inline-size: 100%;
+	block-size: 100%;
+	margin: 0;
+	opacity: 0;
+	appearance: none;
+	cursor: inherit;
+}
+
 /* ---- Bulk action bar ---- */
 
 /*

@@ -137,7 +137,9 @@
 	display: flex;
 	align-items: center;
 	gap: 10px;
-	padding: 12px;
+	box-sizing: border-box;
+	block-size: 57px;
+	padding: 0 12px;
 	border-block-end: 1px solid var(--etk-fonts-line);
 }
 
@@ -153,6 +155,9 @@
 }
 
 .etk-fonts__nav {
+	--etk-track-item-radius: var(--etk-fonts-radius);
+	--etk-track-highlight: var(--etk-fonts-raised);
+
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
@@ -161,9 +166,11 @@
 }
 
 .etk-fonts__nav-item {
-	padding: 9px 14px;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 9px 14px 9px 12px;
 	border: 0;
-	border-radius: var(--etk-fonts-radius);
 	background: none;
 	color: var(--etk-fonts-text-60);
 	font: inherit;
@@ -174,12 +181,8 @@
 		background-color var(--e-transition, 0.15s ease-in-out),
 		color var(--e-transition, 0.15s ease-in-out);
 
-	&:hover {
-		color: var(--etk-fonts-text);
-	}
-
+	&:hover,
 	&[aria-current="page"] {
-		background: var(--etk-fonts-raised);
 		color: var(--etk-fonts-text);
 	}
 }
@@ -305,10 +308,11 @@
 	max-inline-size: none;
 }
 
-/* The 52px bar over a split view. */
+/* The bar over a split view, as tall as the sidebar header. */
 .etk-fonts__page-header--bar {
 	flex-wrap: nowrap;
-	block-size: 52px;
+	box-sizing: border-box;
+	block-size: 57px;
 	padding: 0 24px;
 
 	.etk-fonts__page-lead {
@@ -723,6 +727,20 @@
 	}
 }
 
+/* Header Add font: quiet until hovered. */
+.etk-fonts .etk-fonts__add-font.etch-builder-button {
+	block-size: 32px;
+	padding-inline: 12px;
+	border: 1px solid transparent;
+	background: transparent;
+	color: var(--etk-fonts-text);
+
+	&:is(:hover, :focus-visible, [aria-expanded="true"]) {
+		border-color: var(--etk-fonts-line-heavy);
+		background: var(--etk-fonts-line-soft);
+	}
+}
+
 .etk-fonts .etk-fonts__btn--danger.etch-builder-button {
 	border-color: var(--etk-fonts-danger-line);
 	color: var(--etk-fonts-danger);
@@ -848,19 +866,32 @@
 /* Tabs and segmented controls                                         */
 /* ------------------------------------------------------------------ */
 
+/*
+ * The picked one's highlight slides between them (.etk-track, in the core
+ * styles). --etk-track-inset is each track's border plus padding.
+ */
+.etk-fonts__tabs,
+.etk-fonts__seg {
+	--etk-track-radius: var(--etk-fonts-radius);
+	--etk-track-highlight: var(--etk-fonts-selected);
+}
+
 /* Page tabs: a bordered track. */
 .etk-fonts__tabs {
+	--etk-track-inset: 4px;
+
 	display: inline-flex;
 	flex: none;
 	gap: 2px;
 	padding: 3px;
 	border: 1px solid var(--etk-fonts-line);
-	border-radius: var(--etk-fonts-radius);
 	background: var(--etk-fonts-surface);
 }
 
 /* Filters and options: a filled track. */
 .etk-fonts__seg {
+	--etk-track-inset: 3px;
+
 	display: inline-flex;
 	flex: none;
 	gap: 2px;
@@ -868,7 +899,6 @@
 	margin: 0;
 	padding: 3px;
 	border: 0;
-	border-radius: var(--etk-fonts-radius);
 	background: var(--etk-fonts-field);
 
 	input {
@@ -890,6 +920,8 @@
 }
 
 .etk-fonts__seg--boxed {
+	--etk-track-inset: 4px;
+
 	border: 1px solid var(--etk-fonts-line);
 	background: var(--etk-fonts-surface);
 }
@@ -902,7 +934,6 @@
 	gap: 6px;
 	padding: 5px 12px;
 	border: 0;
-	border-radius: var(--etk-fonts-radius-sm);
 	background: none;
 	color: var(--etk-fonts-text-60);
 	font: inherit;
@@ -939,7 +970,6 @@
 
 .etk-fonts__tab[aria-selected="true"],
 .etk-fonts__seg label:has(input:checked) {
-	background: var(--etk-fonts-selected);
 	color: var(--etk-fonts-text);
 }
 
@@ -1180,7 +1210,7 @@
 
 /*
  * Checkboxes. Also in the shared confirm dialog, outside the panel, so these
- * use Etch's tokens directly. .etk-fonts__pick is a bare one, as in the Files table.
+ * use Etch's tokens directly.
  */
 .etk-fonts__check {
 	display: flex;
@@ -1194,8 +1224,7 @@
 	}
 }
 
-.etk-fonts__check input[type="checkbox"],
-.etk-fonts__pick {
+.etk-fonts__check input[type="checkbox"] {
 	display: grid;
 	flex: none;
 	place-items: center;
@@ -1408,111 +1437,6 @@
 	border-radius: var(--etk-fonts-radius-lg);
 	color: var(--etk-fonts-muted);
 	text-align: center;
-}
-
-/*
- * Sliders: a native range input with its track and thumb restyled. --v is
- * the current step (1-9). The thumb travels one thumb-width less than the
- * track, so the fill is inset by half a thumb to line up with it. --ring is
- * the background it sits on.
- */
-.etk-range {
-	--thumb: 14px;
-	--track: 4px;
-	--fill: var(--e-primary, #57e9db);
-	--rail: var(--etk-fonts-selected, var(--e-base-light, #36363a));
-	--ring: var(--etk-fonts-view, var(--e-base, #27272b));
-	--pos: calc(var(--thumb) / 2 + (100% - var(--thumb)) * (var(--v) - 1) / 8);
-
-	position: relative;
-	flex: 1;
-	min-inline-size: 120px;
-	block-size: 28px;
-
-	input {
-		position: absolute;
-		inset: 0 0 auto;
-		inline-size: 100%;
-		block-size: 18px;
-		margin: 0;
-		background: none;
-		appearance: none;
-		cursor: pointer;
-
-		&:focus-visible {
-			box-shadow: none;
-		}
-	}
-
-	/* Track: primary up to the thumb, the rail after it. */
-	input::-webkit-slider-runnable-track {
-		block-size: var(--track);
-		border-radius: var(--track);
-		background: linear-gradient(to right, var(--fill) var(--pos), var(--rail) var(--pos));
-	}
-
-	input::-moz-range-track {
-		block-size: var(--track);
-		border-radius: var(--track);
-		background: linear-gradient(to right, var(--fill) var(--pos), var(--rail) var(--pos));
-	}
-
-	input::-webkit-slider-thumb {
-		inline-size: var(--thumb);
-		block-size: var(--thumb);
-		margin-block-start: calc((var(--track) - var(--thumb)) / 2);
-		border: 0;
-		border-radius: 50%;
-		background: var(--e-foreground-color, #e1e1e5);
-		box-shadow:
-			0 0 0 3px var(--ring),
-			0 1px 3px 3px rgb(0 0 0 / 0.25);
-		appearance: none;
-		transition: box-shadow var(--e-transition, 0.15s ease-in-out);
-	}
-
-	input::-moz-range-thumb {
-		inline-size: var(--thumb);
-		block-size: var(--thumb);
-		border: 0;
-		border-radius: 50%;
-		background: var(--e-foreground-color, #e1e1e5);
-		box-shadow:
-			0 0 0 3px var(--ring),
-			0 1px 3px 3px rgb(0 0 0 / 0.25);
-		transition: box-shadow var(--e-transition, 0.15s ease-in-out);
-	}
-
-	/* A halo in the primary color on hover and while dragging, and Etch's focus ring from the keyboard. */
-	input:hover::-webkit-slider-thumb,
-	input:active::-webkit-slider-thumb {
-		box-shadow:
-			0 0 0 3px var(--ring),
-			0 0 0 7px color-mix(in srgb, var(--fill) 30%, transparent);
-	}
-
-	input:hover::-moz-range-thumb,
-	input:active::-moz-range-thumb {
-		box-shadow:
-			0 0 0 3px var(--ring),
-			0 0 0 7px color-mix(in srgb, var(--fill) 30%, transparent);
-	}
-
-	input:active {
-		cursor: grabbing;
-	}
-
-	input:focus-visible::-webkit-slider-thumb {
-		box-shadow:
-			0 0 0 3px var(--ring),
-			0 0 0 5px var(--etch-focus-color, #469fea);
-	}
-
-	input:focus-visible::-moz-range-thumb {
-		box-shadow:
-			0 0 0 3px var(--ring),
-			0 0 0 5px var(--etch-focus-color, #469fea);
-	}
 }
 
 /* Dialogs: the shared confirm dialog sits outside the panel. */
@@ -2002,6 +1926,8 @@
 	padding-block-end: 12px;
 
 	.etk-fonts__seg {
+		--etk-track-inset: 2px;
+
 		padding: 2px;
 	}
 
@@ -2037,15 +1963,6 @@
 		line-height: 0;
 	}
 
-	.etk-fonts__pick {
-		margin: 0;
-
-		&:disabled {
-			opacity: 0.4;
-			cursor: default;
-		}
-	}
-
 	.etk-fonts__files-icon {
 		inline-size: 18px;
 		text-align: center;
@@ -2067,13 +1984,82 @@
 		inline-size: 140px;
 	}
 
-	/* Content-box cells, so 45px plus the divider. */
-	tbody td {
-		block-size: 45px;
+	/*
+	 * Picked rows join into rounded cards. The body sits 4px in from the table's
+	 * edges: transparent borders on the outer cells, the header's bottom and the
+	 * table's own padding. The header pads its outer cells to match.
+	 */
+	--inset: 4px;
+	--card-radius: var(--etk-fonts-radius);
+	padding-block-end: var(--inset);
+
+	thead > tr > * {
+		border-block-end: var(--inset) solid transparent;
+		background-clip: padding-box;
 	}
 
-	tr.is-picked td {
-		background: var(--etk-fonts-selected);
+	thead > tr > :first-child {
+		padding-inline-start: calc(8px + var(--inset));
+	}
+
+	thead > tr > :last-child {
+		padding-inline-end: calc(8px + var(--inset));
+	}
+
+	/*
+	 * Every row stays 46px, so nothing moves as rows are picked. Picking only
+	 * fades the card's fill, corners and dividers, like the bulk rename table.
+	 * Dividers are inset shadows, so they stop at the transparent borders.
+	 */
+	tbody td {
+		box-sizing: border-box;
+		block-size: 46px;
+		border: 0 solid transparent;
+		background-clip: padding-box;
+		transition-property: background-color, border-radius, box-shadow;
+		transition-duration: 0.18s;
+		transition-timing-function: ease;
+
+		@media (prefers-reduced-motion: reduce) {
+			transition: none;
+		}
+	}
+
+	tbody td:first-child {
+		border-inline-start-width: var(--inset);
+	}
+
+	tbody td:last-child {
+		border-inline-end-width: var(--inset);
+	}
+
+	tbody tr:not(.is-picked):has(+ tr:not(.is-picked)) > td {
+		box-shadow: inset 0 -1px var(--etk-fonts-line-soft);
+	}
+
+	tr.is-picked > td {
+		background-color: var(--etk-fonts-raised);
+	}
+
+	tr.is-picked:has(+ .is-picked) > td {
+		box-shadow: inset 0 -1px rgb(0 0 0 / 0.25);
+	}
+
+	/* The outer cells' 4px side border would flatten the curve, so their radii are 4px wider across. */
+	tr.is-picked:not(.is-picked + tr) > td:first-child {
+		border-top-left-radius: calc(var(--card-radius) + var(--inset)) var(--card-radius);
+	}
+
+	tr.is-picked:not(.is-picked + tr) > td:last-child {
+		border-top-right-radius: calc(var(--card-radius) + var(--inset)) var(--card-radius);
+	}
+
+	tr.is-picked:not(:has(+ .is-picked)) > td:first-child {
+		border-bottom-left-radius: calc(var(--card-radius) + var(--inset)) var(--card-radius);
+	}
+
+	tr.is-picked:not(:has(+ .is-picked)) > td:last-child {
+		border-bottom-right-radius: calc(var(--card-radius) + var(--inset)) var(--card-radius);
 	}
 
 	td:last-child,
@@ -2396,31 +2382,6 @@
 	}
 }
 
-/* Weight and Size: a value box with its slider. */
-.etk-fonts__valuebox {
-	flex: none;
-
-	.etk-range {
-		--thumb: 12px;
-		--ring: var(--etk-fonts-surface);
-
-		flex: none;
-		inline-size: 64px;
-		min-inline-size: 0;
-		block-size: 18px;
-	}
-}
-
-.etk-fonts__valuebox-value {
-	min-inline-size: 3ch;
-	font-family: var(--e-font-code);
-	font-size: var(--e-font-size-s, 11px);
-	font-weight: 400;
-	line-height: 14px;
-	font-variant-numeric: tabular-nums;
-	text-align: end;
-}
-
 /* The count is for screen readers, unless there's an error or nothing to show. */
 .etk-fonts__google-summary:not(.is-shown) {
 	position: absolute;
@@ -2498,6 +2459,16 @@
 
 	.etk-fonts__inputbox-control {
 		font-size: var(--e-font-size-l, 13px);
+	}
+}
+
+/* Its size slider matches it. */
+.etk-fonts__inputbox--lg + .etk-slider {
+	block-size: 36px;
+
+	.etk-slider__name {
+		color: var(--etk-fonts-text-50);
+		font-weight: 500;
 	}
 }
 

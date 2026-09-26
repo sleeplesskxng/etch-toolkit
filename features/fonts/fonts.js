@@ -22,7 +22,7 @@
  * with DecompressionStream before that.
  */
 ( () => {
-	const { api, afterSave, unsaved, confirmDialog, DELETE_ICON } = window.etchToolkit || {};
+	const { api, afterSave, unsaved, confirmDialog, slider, rebuild, DELETE_ICON } = window.etchToolkit || {};
 	const config = window.etchToolkitFonts || {};
 	if ( ! confirmDialog ) return;
 
@@ -95,6 +95,9 @@
 		trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
 		grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
 		list: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+		// Hugeicons free library and google, for the nav.
+		library: '<path d="M2 7c0-1.4 0-2.1.272-2.635a2.5 2.5 0 0 1 1.093-1.093C3.9 3 4.6 3 6 3s2.1 0 2.635.272a2.5 2.5 0 0 1 1.093 1.093C10 4.9 10 5.6 10 7v10c0 1.4 0 2.1-.272 2.635a2.5 2.5 0 0 1-1.093 1.092C8.1 21 7.4 21 6 21s-2.1 0-2.635-.273a2.5 2.5 0 0 1-1.093-1.092C2 19.1 2 18.4 2 17z"/><path d="M6.125 17H6m.25 0a.25.25 0 1 1-.5 0a.25.25 0 0 1 .5 0m11.656-.307h-.125m.25 0a.25.25 0 1 1-.5 0a.25.25 0 0 1 .5 0M2 7h8"/><path d="M11.449 8.268c-.355-1.33-.533-1.995-.41-2.572a2.46 2.46 0 0 1 .756-1.316c.437-.395 1.1-.573 2.424-.93c1.324-.356 1.987-.534 2.561-.411a2.44 2.44 0 0 1 1.31.76c.394.438.572 1.103.927 2.433l2.534 9.5c.355 1.33.533 1.995.41 2.572a2.46 2.46 0 0 1-.756 1.316c-.437.395-1.1.573-2.424.93c-1.324.356-1.986.534-2.561.411a2.45 2.45 0 0 1-1.31-.76c-.394-.438-.572-1.103-.927-2.433zM12 8l6.5-2"/>',
+		google: '<circle cx="12" cy="12" r="10"/><path d="M12 12h5a5 5 0 1 1-1.464-3.536"/>',
 	};
 
 	// Hugeicons free "text-font" (MIT). Etch bundles its own, different drawing under the same
@@ -630,7 +633,7 @@
 		return h(
 			'div',
 			{
-				class: 'etk-fonts__tabs',
+				class: 'etk-fonts__tabs etk-track',
 				role: 'tablist',
 				'aria-label': label,
 				onkeydown: ( e ) => {
@@ -655,7 +658,7 @@
 	const segmented = ( { name, legend, options, value, onchange, fill = false, boxed = false } ) =>
 		h(
 			'fieldset',
-			{ class: `etk-fonts__seg${ fill ? ' etk-fonts__seg--fill' : '' }${ boxed ? ' etk-fonts__seg--boxed' : '' }` },
+			{ class: `etk-fonts__seg etk-track${ fill ? ' etk-fonts__seg--fill' : '' }${ boxed ? ' etk-fonts__seg--boxed' : '' }` },
 			h( 'legend', { class: 'screen-reader-text', textContent: legend } ),
 			options.map( ( option ) =>
 				h(
@@ -945,7 +948,7 @@
 		{ label: 'Upload files', icon: 'upload', onselect: chooseFiles },
 		{ label: 'Browse Google Fonts', icon: 'search', onselect: () => go( 'google' ) },
 	];
-	const addFontMenu = () => menu( button( 'Add font', null, { variant: 'primary', iconName: 'plus', iconAfter: 'chevron-down' } ), ADD_FONT, { label: 'Add font' } );
+	const addFontMenu = () => menu( button( 'Add font', null, { variant: 'ghost', iconName: 'plus', iconAfter: 'chevron-down', attrs: { class: 'etk-fonts__add-font' } } ), ADD_FONT, { label: 'Add font' } );
 
 	/**
 	 * Font files dropped anywhere on node upload and show on the Files tab.
@@ -1084,7 +1087,7 @@
 	const pickBox = ( file ) =>
 		h( 'input', {
 			type: 'checkbox',
-			class: 'etk-fonts__pick',
+			class: 'etk-fonts__pick etk-checkbox',
 			'data-file': file.name,
 			checked: picked.has( file.name ),
 			'aria-label': `Select ${ file.name }`,
@@ -1245,7 +1248,7 @@
 			const body = h( 'div', { class: 'etk-fonts__popover-body' } );
 			const fill = () => {
 				title.textContent = variantLabel( edited );
-				body.replaceChildren( weightFields( edited, fill ) );
+				rebuild( body, () => body.replaceChildren( weightFields( edited, fill ) ) );
 			};
 			fill();
 			const popup = h(
@@ -1384,7 +1387,7 @@
 									{ class: 'etk-fonts__files-pick' },
 									h( 'input', {
 										type: 'checkbox',
-										class: 'etk-fonts__pick etk-fonts__pick-all',
+										class: 'etk-fonts__pick etk-fonts__pick-all etk-checkbox',
 										'aria-label': 'Select all files',
 										onclick: ( e ) => {
 											const on = e.target.checked;
@@ -2034,41 +2037,12 @@
 		useStylesheet( 'etk-gf-detail', googleCss( font, spec ) );
 	};
 
-	/**
-	 * A native range input of nine steps from min, styled, in a bordered value
-	 * box: the label first and the value last, as in the Google toolbar. CSS
-	 * reads --v (1-9) for the fill.
-	 */
-	const valueSlider = ( { name, label, min, step, value, text, spoken, onchange } ) => {
-		const output = h( 'output', { class: 'etk-fonts__valuebox-value', textContent: text( value ) } );
-		const range = h(
-			'span',
-			{ class: 'etk-range', style: `--v: ${ ( value - min ) / step + 1 }` },
-			h( 'input', {
-				type: 'range',
-				min: String( min ),
-				max: String( min + step * 8 ),
-				step: String( step ),
-				value: String( value ),
-				'aria-label': label,
-				'aria-valuetext': spoken( value ),
-				oninput: ( e ) => {
-					const next = Number( e.target.value );
-					output.textContent = text( next );
-					e.target.setAttribute( 'aria-valuetext', spoken( next ) );
-					range.style.setProperty( '--v', ( next - min ) / step + 1 );
-					onchange( next );
-				},
-			} )
-		);
-		return h( 'div', { class: 'etk-fonts__inputbox etk-fonts__valuebox' }, h( 'span', { class: 'etk-fonts__inputbox-label', 'aria-hidden': 'true', textContent: name } ), range, output );
-	};
-
 	const weightSlider = () =>
-		valueSlider( {
+		slider( {
 			name: 'Weight',
 			label: 'Preview weight',
 			min: 100,
+			max: 900,
 			step: 100,
 			value: google.weight,
 			text: String,
@@ -2082,10 +2056,11 @@
 
 	// The Google results preview size, remembered once you pick one.
 	const sizeSlider = () =>
-		valueSlider( {
+		slider( {
 			name: 'Size',
 			label: 'Preview size',
 			min: 16,
+			max: 80,
 			step: 8,
 			value: prefs.size ?? 40,
 			text: String,
@@ -2099,10 +2074,11 @@
 
 	// A single font's size, remembered once you pick one.
 	const detailSizeSlider = () =>
-		valueSlider( {
+		slider( {
 			name: 'Size',
 			label: 'Preview size',
 			min: 16,
+			max: 80,
 			step: 8,
 			value: prefs.detailSize ?? 32,
 			text: String,
@@ -2656,7 +2632,7 @@
 			main.replaceChildren( ...views[ view ]() );
 			renderGoogleResults();
 		};
-		inPlace ? keepFocus( update ) : update();
+		inPlace ? keepFocus( () => rebuild( main, update ) ) : update();
 		syncPicks();
 	};
 
@@ -2694,8 +2670,8 @@
 				h( 'header', { class: 'etk-fonts__header' }, iconButton( 'Back to the builder', 'exit', () => close(), { variant: 'secondary' } ), h( 'h1', { id: 'etk-fonts-title', class: 'etk-fonts__title', textContent: 'Fonts' } ) ),
 				h(
 					'nav',
-					{ class: 'etk-fonts__nav', 'aria-label': 'Fonts' },
-					NAV.map( ( key ) => h( 'button', { type: 'button', class: 'etk-fonts__nav-item', 'data-view': key, textContent: VIEWS[ key ], onclick: () => ( view === 'family' ? leaveFamily( key ) : go( key ) ) } ) )
+					{ class: 'etk-fonts__nav etk-track', 'aria-label': 'Fonts' },
+					NAV.map( ( key ) => h( 'button', { type: 'button', class: 'etk-fonts__nav-item', 'data-view': key, html: icon( key ), onclick: () => ( view === 'family' ? leaveFamily( key ) : go( key ) ) }, VIEWS[ key ] ) )
 				)
 			),
 			h( 'div', { class: 'etk-fonts__body' }, status, h( 'div', { class: 'etk-fonts__content' }, main ), buildBulkBar() )

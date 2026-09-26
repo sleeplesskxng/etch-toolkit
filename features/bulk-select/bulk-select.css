@@ -442,35 +442,6 @@
 }
 
 /* Checkboxes like Etch's: light when ticked. */
-.etk-rn__checkbox {
-	appearance: none;
-	flex: none;
-	inline-size: 14px;
-	block-size: 14px;
-	margin: 0;
-	border: 1px solid rgb(255 255 255 / 0.35);
-	border-radius: 3px;
-	background: transparent no-repeat center / 10px;
-	cursor: pointer;
-
-	&:checked {
-		border-color: var(--e-foreground-color);
-		background-color: var(--e-foreground-color);
-		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d1d20' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 13l4 4 10-10'/%3E%3C/svg%3E");
-	}
-
-	&:indeterminate {
-		border-color: var(--e-foreground-color);
-		background-color: var(--e-foreground-color);
-		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d1d20' stroke-width='3.5' stroke-linecap='round'%3E%3Cpath d='M7 12h10'/%3E%3C/svg%3E");
-	}
-
-	&:disabled {
-		cursor: default;
-		opacity: 0.5;
-	}
-}
-
 /*
  * The new name: a field that reads as text until you hover or type. Over it, a copy
  * of its text picks out what changed. It hides while you type in the field.

@@ -282,6 +282,124 @@
 		};
 	};
 
+	/**
+	 * Runs update(), which replaces what's in root, and starts each new
+	 * .etk-track's highlight where the old one's was, so a pick that rebuilds
+	 * the view still slides. Tracks match by name and order.
+	 */
+	const rebuild = ( root, update ) => {
+		const tracks = () => {
+			const seen = {};
+			return [ ...root.querySelectorAll( '.etk-track' ) ].map( ( track ) => {
+				const name = track.getAttribute( 'aria-label' ) || track.querySelector( ':scope > legend' )?.textContent || '';
+				seen[ name ] = ( seen[ name ] || 0 ) + 1;
+				return [ `${ name } ${ seen[ name ] }`, track ];
+			} );
+		};
+		const sides = [ 'top', 'left', 'width', 'height' ];
+		const spots = new Map();
+		for ( const [ key, track ] of tracks() ) {
+			const highlight = getComputedStyle( track, '::before' );
+			if ( parseFloat( highlight.width ) > 0 ) spots.set( key, sides.map( ( side ) => highlight[ side ] ) );
+		}
+		update();
+		const started = tracks().filter( ( [ key ] ) => spots.has( key ) );
+		for ( const [ key, track ] of started ) sides.forEach( ( side, i ) => track.style.setProperty( `--etk-track-from-${ side }`, spots.get( key )[ i ] ) );
+		// Only for their first frame. A track shown again later, say in a panel that was hidden, starts in place.
+		requestAnimationFrame( () => requestAnimationFrame( () => started.forEach( ( [ , track ] ) => sides.forEach( ( side ) => track.style.removeProperty( `--etk-track-from-${ side }` ) ) ) ) );
+	};
+
+	/**
+	 * A slider you can press or drag anywhere on: a bordered box with the name
+	 * on the left, the value on the right and a fill up to the thumb. A native
+	 * range input in it keeps the keyboard and screen readers. The box handles
+	 * the pointer, so all of it maps to the range: a press glides to the
+	 * nearest step, a drag follows the pointer and settles on the nearest
+	 * step when you let go. onchange( value ) runs as the value changes.
+	 * name shows, label is spoken. text( value ) shows the value, spoken( value ) is read out.
+	 */
+	const slider = ( { name, label = name, min, max, step = 1, value, text = String, spoken = text, onchange = () => {} } ) => {
+		const steps = Math.round( ( max - min ) / step );
+		const fraction = ( v ) => ( v - min ) / ( max - min );
+		const snap = ( p ) => min + Math.round( p * steps ) * step;
+
+		const input = el( 'input', { type: 'range', className: 'etk-slider__input', min, max, step, value } );
+		input.setAttribute( 'aria-label', label );
+		input.setAttribute( 'aria-valuetext', spoken( value ) );
+		const nameEl = el( 'span', { className: 'etk-slider__name', textContent: name } );
+		const output = el( 'span', { className: 'etk-slider__value', textContent: text( value ) } );
+		// A tick at each step between the ends, while they fit.
+		const ticks = el(
+			'span',
+			{ className: 'etk-slider__ticks' },
+			steps > 20
+				? []
+				: Array.from( { length: steps - 1 }, ( _, i ) => {
+						const tick = el( 'span', { className: 'etk-slider__tick' } );
+						tick.style.setProperty( '--etk-slider-at', ( i + 1 ) / steps );
+						return tick;
+				  } )
+		);
+		[ ticks, nameEl, output ].forEach( ( node ) => node.setAttribute( 'aria-hidden', 'true' ) );
+		const root = el( 'div', { className: 'etk-slider' }, [ ticks, nameEl, output, input ] );
+
+		let current = value;
+		const place = ( p ) => root.style.setProperty( '--etk-slider-p', p );
+		const set = ( next ) => {
+			if ( next === current ) return;
+			current = next;
+			input.value = next;
+			output.textContent = text( next );
+			input.setAttribute( 'aria-valuetext', spoken( next ) );
+			onchange( next );
+		};
+		place( fraction( value ) );
+
+		let press = null;
+		// Where x falls on the thumb's travel, 0 to 1.
+		const along = ( x ) => Math.min( 1, Math.max( 0, ( x - press.start ) / press.travel ) );
+		root.addEventListener( 'pointerdown', ( event ) => {
+			if ( event.button !== 0 ) return;
+			// No text selection, and the native input stays out of it. It still takes focus, for the keyboard.
+			event.preventDefault();
+			input.focus( { preventScroll: true } );
+			root.setPointerCapture( event.pointerId );
+			const inset = parseFloat( getComputedStyle( root ).getPropertyValue( '--etk-slider-inset' ) ) || 0;
+			const start = root.getBoundingClientRect().left + root.clientLeft + inset;
+			press = { id: event.pointerId, x: event.clientX, from: current, dragging: false, start, travel: root.clientWidth - 2 * inset };
+			const next = snap( along( event.clientX ) );
+			place( fraction( next ) );
+			set( next );
+		} );
+		root.addEventListener( 'pointermove', ( event ) => {
+			if ( event.pointerId !== press?.id ) return;
+			// A few pixels first, so a press that wobbles stays a press.
+			if ( ! press.dragging && Math.abs( event.clientX - press.x ) < 3 ) return;
+			press.dragging = true;
+			root.classList.add( 'is-dragging' );
+			const p = along( event.clientX );
+			place( p );
+			set( snap( p ) );
+		} );
+		// Letting go settles on the step. A cancelled press, like a touch that became a scroll, puts the value back.
+		const release = ( event ) => {
+			if ( event.pointerId !== press?.id ) return;
+			if ( event.type === 'pointercancel' ) set( press.from );
+			press = null;
+			root.classList.remove( 'is-dragging' );
+			place( fraction( current ) );
+		};
+		root.addEventListener( 'pointerup', release );
+		root.addEventListener( 'pointercancel', release );
+		// Arrow keys, Page Up and Down, Home and End.
+		input.addEventListener( 'input', () => {
+			const next = Number( input.value );
+			place( fraction( next ) );
+			set( next );
+		} );
+		return root;
+	};
+
 	// Etch always reopens in the builder. reload() remembers where you were (e.g. the
 	// Style Manager) and goes back there once Etch's API is up.
 	const PLACE_KEY = 'etk-return-place';
@@ -310,6 +428,6 @@
 		if ( place && place !== 'builder' ) tick();
 	} catch {}
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, confirmDialog, reload, classesIn, isClassSelector, DELETE_ICON } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, confirmDialog, slider, rebuild, reload, classesIn, isClassSelector, DELETE_ICON } );
 	window.etchToolkit = toolkit;
 } )();

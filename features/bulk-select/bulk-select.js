@@ -301,7 +301,7 @@
 		let count = 0;
 		const makeRow = ( name, parent = null ) => {
 			const id = `etk-rn-${ ++count }`;
-			const check = el( 'input', { type: 'checkbox', className: 'etk-rn__checkbox', checked: true } );
+			const check = el( 'input', { type: 'checkbox', className: 'etk-checkbox', checked: true } );
 			check.setAttribute( 'aria-label', `Rename .${ name }` );
 			const input = el( 'input', { id, type: 'text', className: 'etk-rn__input', value: name, spellcheck: false, autocomplete: 'off' } );
 			input.setAttribute( 'aria-label', `New name for .${ name }` );
@@ -418,7 +418,7 @@
 
 		/* ---- The view ---- */
 
-		const allBox = el( 'input', { type: 'checkbox', className: 'etk-rn__checkbox' } );
+		const allBox = el( 'input', { type: 'checkbox', className: 'etk-checkbox' } );
 		allBox.setAttribute( 'aria-label', 'Rename all' );
 		const list = el( 'ul', { className: 'etk-rn__rows' } );
 		list.setAttribute( 'aria-label', 'Classes to rename' );

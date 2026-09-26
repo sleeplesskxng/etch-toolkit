@@ -35,7 +35,8 @@ function etch_toolkit_rest_try( callable $callback ) {
 
 /**
  * Register the core script and styles every feature builds on:
- * `window.etchToolkit` (REST URLs, nonce, api(), save(), el(), confirmDialog()).
+ * `window.etchToolkit` (REST URLs, nonce, api(), save(), el(), confirmDialog(),
+ * slider(), rebuild()).
  */
 function etch_toolkit_register_core(): void {
 	if ( wp_script_is( 'etch-toolkit', 'registered' ) ) {
