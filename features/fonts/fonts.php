@@ -66,6 +66,16 @@ const ETCH_TOOLKIT_FONTS_WEIGHT_WORDS = array(
 
 require __DIR__ . '/fonts-acss.php';
 
+// The Fonts section of the toolkit's settings, in the builder and in WordPress.
+add_action(
+	'etch_toolkit_settings_enqueue',
+	function () {
+		$path = ETCH_TOOLKIT_DIR . 'features/fonts/fonts-settings.js';
+		wp_enqueue_script( 'etch-toolkit-fonts-settings', ETCH_TOOLKIT_URL . 'features/fonts/fonts-settings.js', array( 'etch-toolkit-settings' ), (string) filemtime( $path ), true );
+		wp_add_inline_script( 'etch-toolkit-fonts-settings', 'window.etchToolkitFontsSettings = ' . wp_json_encode( array( 'stylesheetName' => ETCH_TOOLKIT_FONTS_STYLESHEET ) ) . ';', 'before' );
+	}
+);
+
 add_action(
 	'wp_enqueue_scripts',
 	function () {
@@ -178,7 +188,14 @@ add_action(
 				'POST',
 				function ( WP_REST_Request $r ) {
 					$result = etch_toolkit_fonts_import( (array) $r->get_json_params() );
-					return is_wp_error( $result ) ? $result : etch_toolkit_fonts_state();
+					if ( is_wp_error( $result ) ) {
+						return $result;
+					}
+					// Away from the builder, nothing else writes the stylesheet.
+					if ( $r['stylesheet'] ) {
+						etch_toolkit_fonts_write_stylesheet();
+					}
+					return etch_toolkit_fonts_state();
 				},
 			),
 			'/fonts/google'         => array(
@@ -343,6 +360,49 @@ function etch_toolkit_fonts_save_settings( array $input ): void {
 		$settings['stylesheetId'] = preg_replace( '/[^\w-]/', '', (string) $input['stylesheetId'] );
 	}
 	update_option( ETCH_TOOLKIT_FONTS_SETTINGS, $settings, false );
+}
+
+/**
+ * Write the fonts' CSS into Etch's "Etch Toolkit Fonts" stylesheet, the way
+ * the builder does, for changes made away from it. Found by the stored ID,
+ * then by name, and created if there are fonts and no stylesheet. A kept
+ * stylesheet with no fonts here yet is left alone, as the builder leaves it.
+ */
+function etch_toolkit_fonts_write_stylesheet(): void {
+	$sheets   = get_option( 'etch_global_stylesheets', array() );
+	$sheets   = is_array( $sheets ) ? $sheets : array();
+	$settings = etch_toolkit_fonts_settings();
+	$families = etch_toolkit_fonts_families();
+
+	$id = isset( $sheets[ $settings['stylesheetId'] ] ) ? $settings['stylesheetId'] : '';
+	if ( '' === $id ) {
+		foreach ( $sheets as $key => $sheet ) {
+			if ( ETCH_TOOLKIT_FONTS_STYLESHEET === ( $sheet['name'] ?? null ) ) {
+				$id = (string) $key;
+				break;
+			}
+		}
+	}
+	if ( ( '' !== $id && ! $families && '' === $settings['stylesheetId'] ) || ( '' === $id && ! $families ) ) {
+		return;
+	}
+	if ( '' === $id ) {
+		do {
+			$id = strtolower( wp_generate_password( 7, false ) );
+		} while ( isset( $sheets[ $id ] ) );
+	}
+
+	$sheets[ $id ] = array_merge(
+		is_array( $sheets[ $id ] ?? null ) ? $sheets[ $id ] : array( 'type' => 'default' ),
+		array(
+			'name' => ETCH_TOOLKIT_FONTS_STYLESHEET,
+			'css'  => etch_toolkit_fonts_css( $families ),
+		)
+	);
+	update_option( 'etch_global_stylesheets', $sheets );
+	if ( $id !== $settings['stylesheetId'] ) {
+		etch_toolkit_fonts_save_settings( array( 'stylesheetId' => $id ) );
+	}
 }
 
 /**

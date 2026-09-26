@@ -3,7 +3,8 @@
  *
  * A Settings Bar control (Etch's Controls API) opens a manager beside the bar,
  * like Etch's own Style Manager. Views: Library (families and files), family
- * editor, Google Fonts and Settings.
+ * editor and Google Fonts. Its settings, export and import are a section of
+ * the toolkit's settings, in fonts-settings.js.
  *
  * Changes to families wait for Etch's Save, like Etch's own changes: the
  * editor, roles, weights, and adding, moving or removing files change them
@@ -66,8 +67,8 @@
 	// Subsets Google serves in many small slices per style, which aren't downloaded here.
 	const SLICED = { japanese: 'Japanese', korean: 'Korean', 'chinese-simplified': 'Chinese', 'chinese-traditional': 'Chinese', 'chinese-hongkong': 'Chinese', emoji: 'Emoji' };
 	// Every view's name. The sidebar lists NAV.
-	const VIEWS = { library: 'Library', google: 'Google Fonts', settings: 'Settings' };
-	const NAV = [ 'library', 'google', 'settings' ];
+	const VIEWS = { library: 'Library', google: 'Google Fonts' };
+	const NAV = [ 'library', 'google' ];
 	// Views that light up another view's nav item.
 	const PARENTS = { family: 'library', 'google-font': 'google' };
 
@@ -2592,220 +2593,6 @@
 	};
 
 	/* ------------------------------------------------------------------ */
-	/* Settings                                                            */
-	/* ------------------------------------------------------------------ */
-
-	// Families left out of the export. New families start in it.
-	const exportSkip = new Set();
-	let exporting = false;
-
-	// Download the chosen families with their files as one JSON file.
-	const exportFonts = async ( names ) => {
-		if ( exporting || ! names.length ) return;
-		exporting = true;
-		render();
-		try {
-			const params = new URLSearchParams();
-			names.forEach( ( name ) => params.append( 'families[]', name ) );
-			const data = await api( `fonts/export?${ params }` );
-			const url = URL.createObjectURL( new Blob( [ JSON.stringify( data ) ], { type: 'application/json' } ) );
-			h( 'a', { href: url, download: `fonts-${ location.hostname }.json` } ).click();
-			// Revoking straight away can cancel the download in some browsers.
-			window.setTimeout( () => URL.revokeObjectURL( url ), 60000 );
-			announce( `Exported ${ plural( data.families.length, 'family', 'families' ) }.` );
-		} catch ( error ) {
-			warn( errorText( error ) );
-		}
-		exporting = false;
-		render();
-	};
-
-	/**
-	 * Preview what an import changes, from the file alone, before anything is
-	 * sent. Families are added or replaced by name, never removed. A family
-	 * already here keeps its typography token, as the server decides it.
-	 */
-	const importFonts = async ( file ) => {
-		if ( ! file ) return;
-		let data;
-		try {
-			data = JSON.parse( await file.text() );
-			if ( data.etchToolkitFonts !== 1 || ! Array.isArray( data.families ) ) throw new Error();
-		} catch {
-			return warn( 'That file isn’t a fonts export.' );
-		}
-
-		// The server skips nameless families too.
-		const families = data.families.filter( ( f ) => typeof f?.name === 'string' && f.name.trim() );
-		const incoming = ( name ) => families.some( ( f ) => f.name?.toLowerCase() === name.toLowerCase() );
-		const added = families.filter( ( f ) => ! installed( f.name ) );
-		const replaced = families.filter( ( f ) => installed( f.name ) );
-		const bytes = Object.values( data.files || {} ).reduce( ( sum, encoded ) => sum + Math.floor( ( String( encoded ).length * 3 ) / 4 ), 0 );
-
-		const tokens = Object.entries( ROLES ).flatMap( ( [ role, label ] ) => {
-			const claim = families.find( ( f ) => f.enabled !== false && f.roles?.includes( role ) );
-			const keeper = state.families.find( ( f ) => f.enabled && f.roles.includes( role ) && ! incoming( f.name ) );
-			if ( claim ) return keeper ? [ `${ label } stays with ${ keeper.name }. ${ claim.name } is imported without it.` ] : [ `${ claim.name } becomes the ${ label.toLowerCase() } font.` ];
-			const lost = state.families.find( ( f ) => f.roles.includes( role ) && incoming( f.name ) );
-			return lost && ! keeper ? [ `${ label } is cleared. The imported ${ lost.name } isn’t used for it.` ] : [];
-		} );
-
-		const summary = ( f ) => `${ f.name } · ${ plural( f.variants?.length || 0, 'file', 'files' ) }`;
-		const group = ( title, items, help ) =>
-			items.length
-				? h(
-						'div',
-						{ class: 'etk-fonts__import-group' },
-						h( 'p', { class: 'etk-fonts__import-title', textContent: title } ),
-						h( 'ul', { class: 'etk-fonts__import-list' }, items.map( ( text ) => h( 'li', { textContent: text } ) ) ),
-						help ? h( 'p', { class: 'etk-fonts__help', textContent: help } ) : null
-				  )
-				: null;
-
-		const dialog = confirmDialog( {
-			title: `Import ${ plural( families.length, 'family', 'families' ) }?`,
-			message: [
-				group( 'Adds', added.map( summary ) ),
-				group( 'Replaces', replaced.map( summary ), 'Their current files stay in the fonts folder, unused.' ),
-				group( 'Typography tokens', tokens ),
-				h( 'p', { class: 'etk-fonts__help', textContent: `${ size( bytes ) } of font files. Nothing changes until you import.` } ),
-			].filter( Boolean ),
-			confirmLabel: 'Import',
-			busyLabel: 'Importing…',
-			variant: 'primary',
-		} );
-		if ( ! ( await dialog.result ) ) return;
-		try {
-			const next = await api( 'fonts/import', 'POST', data );
-			// Closed before re-rendering, so focus is back on the import button to be kept.
-			dialog.close();
-			await apply( next, `Imported ${ plural( families.length, 'family', 'families' ) }.` );
-		} catch ( error ) {
-			dialog.fail( errorText( error ) );
-		}
-	};
-
-	const renderSettings = () => {
-		const families = state.families;
-		const chosen = families.filter( ( f ) => ! exportSkip.has( f.name ) );
-		const bytesOf = ( family ) => family.variants.reduce( ( sum, v ) => sum + ( state.files.find( ( f ) => f.name === v.file )?.size || 0 ), 0 );
-		const total = chosen.reduce( ( sum, f ) => sum + bytesOf( f ), 0 );
-		const enabled = families.filter( ( f ) => f.enabled ).length;
-
-		const all = h( 'input', {
-			type: 'checkbox',
-			checked: chosen.length === families.length,
-			indeterminate: chosen.length > 0 && chosen.length < families.length,
-			onchange: ( e ) => {
-				families.forEach( ( f ) => ( e.target.checked ? exportSkip.delete( f.name ) : exportSkip.add( f.name ) ) );
-				render();
-			},
-		} );
-
-		const importInput = h( 'input', { type: 'file', accept: '.json,application/json', class: 'screen-reader-text', onchange: ( e ) => importFonts( e.target.files[ 0 ] ) } );
-		const drop = h(
-			'div',
-			{
-				class: 'etk-fonts__dropzone',
-				ondragover: ( e ) => {
-					e.preventDefault();
-					drop.classList.add( 'is-over' );
-				},
-				ondragleave: () => drop.classList.remove( 'is-over' ),
-				ondrop: ( e ) => {
-					e.preventDefault();
-					drop.classList.remove( 'is-over' );
-					importFonts( e.dataTransfer.files[ 0 ] );
-				},
-			},
-			h( 'span', { class: 'etk-fonts__dropzone-icon', html: icon( 'upload' ) } ),
-			h( 'p', { class: 'etk-fonts__dropzone-text', textContent: 'Drop a fonts .json export, or choose a file. You’ll see what changes first.' } ),
-			h( 'label', { class: btnClass( 'secondary', 'etk-fonts__file-btn' ) }, importInput, 'Choose file' )
-		);
-
-		return [
-			h(
-				'div',
-				{ class: 'etk-fonts__settings' },
-				pageHeader( 'Settings' ),
-				h(
-					'div',
-					{ class: 'etk-fonts__settings-group' },
-					section(
-						{ title: 'Output', variant: 'rows' },
-						h( 'div', { class: 'etk-fonts__card-row etk-fonts__setting' }, h( 'span', { class: 'etk-fonts__setting-title', textContent: 'Stylesheet' } ), h( 'span', { class: 'etk-fonts__setting-value', textContent: config.stylesheetName } ) ),
-						h(
-							'div',
-							{ class: 'etk-fonts__card-row etk-fonts__setting' },
-							h( 'span', { class: 'etk-fonts__setting-title', textContent: 'Status' } ),
-							h( 'span', { class: 'etk-fonts__setting-status' }, h( 'span', { class: 'etk-fonts__dot', 'aria-hidden': 'true' } ), enabled ? `${ plural( enabled, 'family', 'families' ) }, loaded by Etch` : 'No families loaded' )
-						)
-					),
-					h( 'p', { class: 'etk-fonts__help etk-fonts__settings-note', textContent: 'Fonts keep working without Etch Toolkit. Direct edits are overwritten when fonts change.' } )
-				),
-				section(
-					{ title: 'Privacy', variant: 'rows' },
-					h(
-						'div',
-						{ class: 'etk-fonts__card-row' },
-						toggle(
-							'Block Google Fonts from other plugins',
-							state.settings.blockGoogle,
-							async ( value ) => {
-								try {
-									await apply( await api( 'fonts/settings', 'POST', { blockGoogle: value } ), value ? 'Google Fonts from other plugins are now blocked.' : 'Google Fonts are no longer blocked.' );
-								} catch ( error ) {
-									warn( errorText( error ) );
-								}
-							},
-							'Removes fonts.googleapis.com requests on the front end.'
-						)
-					)
-				),
-				families.length
-					? section(
-							{ title: 'Export', variant: 'rows' },
-							h(
-								'fieldset',
-								{ class: 'etk-fonts__export' },
-								h( 'legend', { class: 'screen-reader-text', textContent: 'Families to export' } ),
-								h(
-									'div',
-									{ class: 'etk-fonts__card-row etk-fonts__export-head' },
-									h( 'label', { class: 'etk-fonts__check' }, all, h( 'span', { textContent: `${ chosen.length } of ${ plural( families.length, 'family', 'families' ) }` } ) ),
-									h( 'span', { class: 'etk-fonts__help', textContent: chosen.length ? `About ${ size( total ) }` : '' } )
-								),
-								h(
-									'div',
-									{ class: 'etk-fonts__export-list' },
-									families.map( ( family ) =>
-										h(
-											'div',
-											{ class: 'etk-fonts__export-row' },
-											check( h( 'span', { class: 'etk-fonts__export-name', style: `font-family: "${ family.name }", var(--e-font-interface)`, textContent: family.name } ), ! exportSkip.has( family.name ), ( value ) => {
-												value ? exportSkip.delete( family.name ) : exportSkip.add( family.name );
-												render();
-											} ),
-											h( 'span', { class: 'etk-fonts__help', textContent: plural( family.variants.length, 'file', 'files' ) } )
-										)
-									)
-								)
-							),
-							h(
-								'div',
-								{ class: 'etk-fonts__card-row etk-fonts__export-foot' },
-								button( exporting ? 'Exporting…' : chosen.length ? `Export ${ plural( chosen.length, 'family', 'families' ) }` : 'Export', () => exportFonts( chosen.map( ( f ) => f[ ORIGIN ] ).filter( Boolean ) ), {
-									attrs: { disabled: ! chosen.length, 'aria-disabled': exporting ? 'true' : null },
-								} )
-							)
-					  )
-					: section( { title: 'Export', variant: 'rows' }, h( 'p', { class: 'etk-fonts__card-row etk-fonts__help', textContent: 'Add a family to export it.' } ) ),
-				h( 'section', { class: 'etk-fonts__section etk-fonts__section--card' }, h( 'div', { class: 'etk-fonts__section-head' }, h( 'h3', { class: 'etk-fonts__label', textContent: 'Import' } ) ), drop )
-			),
-		];
-	};
-
-	/* ------------------------------------------------------------------ */
 	/* Shell                                                               */
 	/* ------------------------------------------------------------------ */
 
@@ -2851,7 +2638,7 @@
 	const render = () => {
 		if ( ! panel || panel.hidden || ! state ) return;
 		relink();
-		const views = { library: renderLibrary, family: renderFamily, google: renderGoogle, 'google-font': renderGoogleFont, settings: renderSettings };
+		const views = { library: renderLibrary, family: renderFamily, google: renderGoogle, 'google-font': renderGoogleFont };
 		if ( view === 'family' && ! draft ) view = 'library';
 		// Its button may be about to go.
 		closeMenu();
@@ -2969,6 +2756,10 @@
 			warn( `Couldn't load fonts: ${ errorText( error ) }` );
 		}
 	};
+
+	// Fonts changed on the server from the toolkit's settings, like an import. Take them,
+	// with your unsaved changes on top, and write them into the stylesheet.
+	window.addEventListener( 'etk:fonts-state', ( e ) => ( state ? apply( e.detail ) : load() ) );
 
 	/* ------------------------------------------------------------------ */
 	/* Boot                                                                */

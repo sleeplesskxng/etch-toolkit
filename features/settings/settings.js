@@ -68,14 +68,15 @@
 		return h( 'button', { type: 'button', class: `etk-settings__btn etk-settings__btn--${ variant }${ extra ? ` ${ extra }` : '' }`, onclick, ...rest }, label );
 	};
 
-	// A labelled group: the label, then a card of rows. action sits at the end of the label row.
+	// A labelled group: the label, then a card of rows, or the children as they are with
+	// bare. action sits at the end of the label row, note under the card.
 	const group = ( title, ...rows ) => {
-		const { title: text, action, note } = title && typeof title === 'object' ? title : { title };
+		const { title: text, action, note, bare } = title && typeof title === 'object' ? title : { title };
 		return h(
 			'section',
 			{ class: 'etk-settings__group' },
 			h( 'div', { class: 'etk-settings__group-head' }, h( 'h3', { class: 'etk-settings__label', textContent: text } ), action || null ),
-			h( 'div', { class: 'etk-settings__card' }, ...rows ),
+			bare ? rows : h( 'div', { class: 'etk-settings__card' }, ...rows ),
 			note ? h( 'p', { class: 'etk-settings__help etk-settings__note', textContent: note } ) : null
 		);
 	};

@@ -298,6 +298,27 @@
 	padding-inline-start: 2px;
 }
 
+.etk-settings__status-value {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--etk-settings-text-75);
+	font-weight: 400;
+}
+
+.etk-settings__fieldset {
+	min-inline-size: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+
+	/* Its rows divide like the card's. */
+	+ .etk-settings__row,
+	.etk-settings__row + .etk-settings__row {
+		border-block-start: 1px solid var(--etk-settings-line);
+	}
+}
+
 .etk-settings__dot {
 	inline-size: 6px;
 	block-size: 6px;

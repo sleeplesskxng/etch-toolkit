@@ -1367,14 +1367,6 @@
 	color: var(--etk-fonts-warning);
 }
 
-.etk-fonts__dot {
-	inline-size: 6px;
-	block-size: 6px;
-	flex: none;
-	border-radius: 50%;
-	background: var(--etk-fonts-success);
-}
-
 .etk-fonts__chip {
 	display: inline-flex;
 	align-items: center;
@@ -1539,23 +1531,6 @@
 	font-size: 32px;
 	font-weight: 400;
 	color: var(--e-foreground-color);
-}
-
-.etk-fonts__import-group {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	text-align: start;
-}
-
-.etk-fonts__import-title {
-	font-weight: 600;
-	color: var(--e-foreground-color);
-}
-
-.etk-fonts__import-list {
-	margin: 0;
-	padding-inline-start: 1.25em;
 }
 
 /* === View: Family === */
@@ -1755,7 +1730,6 @@
 		color: var(--etk-fonts-text);
 	}
 }
-
 
 .etk-fonts .etk-fonts__family-actions .etk-fonts__btn--primary.etch-builder-button {
 	padding-inline: 14px;
@@ -2627,100 +2601,3 @@
 	}
 }
 
-/* Settings: one 680px column. */
-.etk-fonts__settings {
-	display: flex;
-	flex-direction: column;
-	gap: 20px;
-	inline-size: min(680px, 100%);
-	margin-inline: auto;
-	padding-block-start: 12px;
-}
-
-.etk-fonts__settings-group {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-}
-
-.etk-fonts__settings-note {
-	padding-inline-start: 2px;
-}
-
-.etk-fonts__setting-title {
-	flex: 1;
-}
-
-.etk-fonts__setting-value {
-	color: var(--etk-fonts-text-60);
-	font-weight: 400;
-}
-
-.etk-fonts__setting-status {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	color: var(--etk-fonts-text-70);
-	font-weight: 400;
-}
-
-.etk-fonts__settings .etk-fonts__toggle {
-	flex: 1;
-	gap: 16px;
-}
-
-.etk-fonts__export {
-	min-inline-size: 0;
-	margin: 0;
-	padding: 0;
-	border: 0;
-
-	.etk-fonts__check {
-		flex: 1;
-		align-items: center;
-
-		input[type="checkbox"] {
-			margin: 0;
-		}
-	}
-}
-
-.etk-fonts__card-row.etk-fonts__export-head {
-	padding-block: 10px;
-	border-block-end: 1px solid var(--etk-fonts-line);
-}
-
-.etk-fonts__export-row {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	padding: 10px 16px;
-}
-
-.etk-fonts__export-name {
-	color: var(--etk-fonts-text);
-	font-size: 15px;
-	font-weight: 400;
-	line-height: 18px;
-}
-
-.etk-fonts__export-row:has(input:not(:checked)) .etk-fonts__export-name {
-	color: var(--etk-fonts-text-55);
-}
-
-.etk-fonts__card-row.etk-fonts__export-foot {
-	justify-content: end;
-	padding-block: 10px;
-	border-block-start: 1px solid var(--etk-fonts-line);
-}
-
-.etk-fonts__dropzone-icon {
-	display: flex;
-	color: var(--etk-fonts-text-70);
-}
-
-.etk-fonts__dropzone-text {
-	flex: 1;
-	color: var(--etk-fonts-text-70);
-	font-weight: 400;
-}
