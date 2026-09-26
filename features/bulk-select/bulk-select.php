@@ -320,8 +320,10 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 		);
 	}
 
-	// Two styles in one collection can't end up with the same selector. Only renamed
-	// ones are checked, so a duplicate that's already there doesn't block every rename.
+	// Two styles in one collection can't end up with the same selector. Only a clash
+	// the rename makes counts: styles that had different selectors before and the
+	// same one after. Duplicates that are there already, renamed together or left
+	// alone, don't block the rename.
 	$groups = array();
 	foreach ( $new_styles as $id => $style ) {
 		if ( $has_selector( $style ) ) {
@@ -330,6 +332,10 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 	}
 	foreach ( $groups as $group ) {
 		if ( count( $group ) < 2 || ! array_intersect_key( $changes, array_flip( $group ) ) ) {
+			continue;
+		}
+		$before = array_unique( array_map( fn( $id ) => $styles[ $id ]['selector'], $group ) );
+		if ( count( $before ) < 2 ) {
 			continue;
 		}
 		$selector = $new_styles[ $group[0] ]['selector'];
