@@ -27,6 +27,7 @@
 	const { api, save, afterSave, syncStyles, el, confirmDialog, reload, classesIn, isClassSelector } = window.etchToolkit || {};
 	if ( ! confirmDialog ) return;
 
+	const MODAL = '.style-overview-modal__inner'; // Where every Style Manager tab renders.
 	const ROOT = '.style-overview-modal__left';
 	const SEARCH = '.searchbar input';
 	const ACTIVE_TAB = '.css-input-tabs__trigger[data-state="active"]';
@@ -83,9 +84,10 @@
 	const listable = ( styles ) => styles.filter( ( s ) => s.selector !== ':root' && s.type !== 'element' );
 
 	// Find the selector list root. The collections view has no search bar, so it's skipped.
+	// So is Recipes, which covers Etch's view without removing it.
 	const getRoot = () => {
 		const root = document.querySelector( ROOT );
-		return root?.querySelector( SEARCH ) ? root : null;
+		return root?.querySelector( SEARCH ) && ! root.closest( '.etk-recipes-on' ) ? root : null;
 	};
 
 	// The list's full order as Etch computes it, including rows scrolled out of view.
@@ -1091,9 +1093,10 @@
 		// The Style Manager closed under the rename view.
 		if ( renaming && ! renaming.panel.isConnected ) renaming.close();
 
-		// Style Manager closed or on another view: drop the selection.
+		// On another tab the bar goes away until Selectors is back. Closing the
+		// Style Manager drops the selection.
 		if ( ! root ) {
-			if ( selected.size ) clear();
+			if ( selected.size && ! document.querySelector( MODAL ) ) clear();
 			renderBar( null );
 			return;
 		}
