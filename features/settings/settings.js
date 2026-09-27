@@ -243,7 +243,7 @@
 	/* General                                                             */
 	/* ------------------------------------------------------------------ */
 
-	let settings = config.settings || { deleteData: false, layerSorting: true };
+	let settings = config.settings || { deleteData: false, layerSorting: true, componentManager: false };
 	const save = async ( changes, message ) => {
 		try {
 			// Kept on window.etchToolkitSettings too, where features read it as it changes.
@@ -269,6 +269,15 @@
 					settings.layerSorting,
 					( on ) => save( { layerSorting: on }, on ? 'Enhanced layer sorting is on.' : 'Enhanced layer sorting is off.' ),
 					'Smooth dragging, even on big pages. A line shows where the layer will land, in the panel and on the canvas, and the page updates once you let go.'
+				)
+			),
+			group(
+				'Components',
+				toggle(
+					'Component manager',
+					settings.componentManager,
+					( on ) => save( { componentManager: on }, on ? 'The component manager is on.' : 'The component manager is off.' ),
+					'Update a component from a JSON file or pasted JSON. You review what changed in each layer and its props, then take or keep each change. Opens from the Settings Bar.'
 				)
 			),
 			group(
