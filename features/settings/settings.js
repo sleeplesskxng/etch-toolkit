@@ -39,7 +39,7 @@
 	// Variants: secondary (outlined), primary and danger. attrs.class adds to its classes.
 	const button = ( label, onclick, { variant = 'secondary', attrs = {} } = {} ) => {
 		const { class: extra, ...rest } = attrs;
-		return el( 'button', { type: 'button', class: `etk-settings__btn etk-settings__btn--${ variant }${ extra ? ` ${ extra }` : '' }`, onclick, ...rest }, label );
+		return el( 'button', { type: 'button', class: `etk-btn etk-btn--${ variant }${ extra ? ` ${ extra }` : '' }`, onclick, ...rest }, label );
 	};
 
 	// A labelled group: the label, then a card of rows, or the children as they are with
@@ -93,42 +93,8 @@
 	const check = ( label, checked, onchange, extra ) =>
 		el( 'label', { class: 'etk-settings__check' }, el( 'input', { type: 'checkbox', class: 'etk-checkbox etk-checkbox--accent', checked, onchange: ( e ) => onchange( e.target.checked ) } ), label, extra || null );
 
-	// A dashed drop target for one .json file, with a Choose file button.
-	const dropzone = ( text, onfile ) => {
-		const input = el( 'input', { type: 'file', accept: '.json,application/json', class: 'etk-sr', onchange: ( e ) => {
-			const [ file ] = e.target.files;
-			e.target.value = '';
-			if ( file ) onfile( file );
-		} } );
-		const zone = el(
-			'div',
-			{
-				class: 'etk-dropzone',
-				ondragover: ( e ) => {
-					e.preventDefault();
-					zone.classList.add( 'is-over' );
-				},
-				ondragleave: () => zone.classList.remove( 'is-over' ),
-				ondrop: ( e ) => {
-					e.preventDefault();
-					zone.classList.remove( 'is-over' );
-					if ( e.dataTransfer.files[ 0 ] ) onfile( e.dataTransfer.files[ 0 ] );
-				},
-			},
-			el( 'span', { class: 'etk-dropzone__icon', html: icon( 'upload' ) } ),
-			el( 'p', { class: 'etk-dropzone__text', textContent: text } ),
-			el( 'label', { class: 'etk-settings__btn etk-settings__btn--secondary etk-settings__file-btn' }, input, 'Choose file' )
-		);
-		return zone;
-	};
-
-	// Save JSON as a file.
-	const download = ( data, name ) => {
-		const url = URL.createObjectURL( new Blob( [ typeof data === 'string' ? data : JSON.stringify( data ) ], { type: 'application/json' } ) );
-		el( 'a', { href: url, download: name } ).click();
-		// Revoking straight away can cancel the download in some browsers.
-		window.setTimeout( () => URL.revokeObjectURL( url ), 60000 );
-	};
+	// A drop target for one .json file, and saving JSON as a file, from the core.
+	const { jsonDropzone: dropzone, downloadJson: download } = toolkit;
 
 	/* ------------------------------------------------------------------ */
 	/* Sections                                                            */
@@ -277,7 +243,7 @@
 				el(
 					'header',
 					{ class: 'etk-manager__header' },
-					builder ? el( 'button', { type: 'button', class: 'etk-settings__btn etk-settings__btn--secondary etk-settings__icon-btn', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: icon( 'arrow-left' ), onclick: () => close() } ) : null,
+					builder ? el( 'button', { type: 'button', class: 'etk-btn etk-btn--secondary etk-btn--icon', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: icon( 'arrow-left' ), onclick: () => close() } ) : null,
 					el( 'span', { class: 'etk-settings__logo', html: `<svg viewBox="0 0 88 88" width="18" height="18" aria-hidden="true" focusable="false">${ LOGO }</svg>` } ),
 					el( 'h1', { id: 'etk-settings-title', class: 'etk-manager__title', textContent: 'Etch Toolkit' } )
 				),

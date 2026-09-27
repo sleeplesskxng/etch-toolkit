@@ -750,6 +750,48 @@
 		panel.hidden = false;
 	};
 
+	// Save data as a .json file. A string goes as it is, anything else as JSON.
+	const downloadJson = ( data, name ) => {
+		const url = URL.createObjectURL( new Blob( [ typeof data === 'string' ? data : JSON.stringify( data ) ], { type: 'application/json' } ) );
+		el( 'a', { href: url, download: name } ).click();
+		// Revoking straight away can cancel the download in some browsers.
+		window.setTimeout( () => URL.revokeObjectURL( url ), 60000 );
+	};
+
+	// A dashed drop target for one .json file, with a Choose file button. onfile( file ) gets it.
+	const jsonDropzone = ( text, onfile ) => {
+		const input = el( 'input', {
+			type: 'file',
+			accept: '.json,application/json',
+			class: 'etk-sr',
+			onchange: ( e ) => {
+				const [ file ] = e.target.files;
+				e.target.value = '';
+				if ( file ) onfile( file );
+			},
+		} );
+		const zone = el(
+			'div',
+			{
+				class: 'etk-dropzone',
+				ondragover: ( e ) => {
+					e.preventDefault();
+					zone.classList.add( 'is-over' );
+				},
+				ondragleave: () => zone.classList.remove( 'is-over' ),
+				ondrop: ( e ) => {
+					e.preventDefault();
+					zone.classList.remove( 'is-over' );
+					if ( e.dataTransfer.files[ 0 ] ) onfile( e.dataTransfer.files[ 0 ] );
+				},
+			},
+			el( 'span', { class: 'etk-dropzone__icon', html: icon( 'upload' ) } ),
+			el( 'p', { class: 'etk-dropzone__text', textContent: text } ),
+			el( 'label', { class: 'etk-btn etk-btn--file' }, input, 'Choose file' )
+		);
+		return zone;
+	};
+
 	/**
 	 * Tell screen readers what happened, through a manager's status line.
 	 * Confirmations are announced only, errors also show there.
@@ -790,6 +832,6 @@
 		if ( place && place !== 'builder' ) tick();
 	} catch {}
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, onMenu, menuItem, findMenuItem, settingsBarButton, managerKeys, openManager, announce, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, onMenu, menuItem, findMenuItem, settingsBarButton, managerKeys, openManager, announce, downloadJson, jsonDropzone, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
 	window.etchToolkit = toolkit;
 } )();

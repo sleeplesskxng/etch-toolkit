@@ -34,101 +34,8 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* Controls                                                            */
-/* ------------------------------------------------------------------ */
-
-/* Buttons, after Etch's: outlined (secondary) and filled (primary). */
-.etk-components__btn {
-	display: inline-flex;
-	flex: none;
-	align-items: center;
-	justify-content: center;
-	gap: 6px;
-	block-size: 28px;
-	margin: 0;
-	padding: 0 10px;
-	border: 1px solid var(--etk-line-strong);
-	border-radius: var(--etk-radius);
-	background: none;
-	color: var(--etk-text);
-	font: inherit;
-	font-weight: 500;
-	line-height: 16px;
-	white-space: nowrap;
-	cursor: pointer;
-	transition:
-		background-color var(--e-transition, 0.15s ease-in-out),
-		border-color var(--e-transition, 0.15s ease-in-out);
-
-	&:hover {
-		border-color: var(--etk-line-heavy);
-		background: var(--etk-raised);
-	}
-
-	&:is(:disabled, [aria-disabled="true"]) {
-		opacity: var(--etch-opacity-medium, 0.55);
-		cursor: not-allowed;
-	}
-}
-
-.etk-components__btn--primary {
-	border-color: transparent;
-	background: var(--etk-accent);
-	color: var(--etk-on-accent);
-	font-weight: 600;
-
-	&:hover {
-		border-color: transparent;
-		background: var(--etch-primary-hover, color-mix(in srgb, var(--etk-accent), white 15%));
-	}
-}
-
-.etk-components__icon-btn {
-	inline-size: 40px;
-	padding: 0;
-}
-
-/* A visually hidden file input inside a label styled as a button. */
-.etk-components__file-btn {
-	position: relative;
-
-	&:has(:focus-visible) {
-		box-shadow: var(--etk-focus);
-	}
-}
-
-/* ------------------------------------------------------------------ */
 /* Import                                                              */
 /* ------------------------------------------------------------------ */
-
-/* A dashed drop target. is-over while a file is dragged over it. */
-.etk-components__dropzone {
-	display: flex;
-	align-items: center;
-	gap: 14px;
-	padding: 16px;
-	border: 1px dashed var(--etk-line-heavy);
-	border-radius: var(--etk-radius-lg);
-	transition:
-		background-color var(--e-transition, 0.15s ease-in-out),
-		border-color var(--e-transition, 0.15s ease-in-out);
-
-	&.is-over {
-		border-color: var(--etk-accent);
-		background: var(--etk-accent-soft);
-	}
-}
-
-.etk-components__dropzone-icon {
-	display: flex;
-	color: var(--etk-text-75);
-}
-
-.etk-components__dropzone-text {
-	flex: 1;
-	color: var(--etk-text-75);
-	font-weight: 400;
-}
 
 .etk-components__paste {
 	display: flex;
@@ -181,47 +88,15 @@
  * All, In use or Unused: the Fonts manager's file filter, a filled track
  * whose highlight slides to the picked one (.etk-track, in the core styles).
  */
+/* The core's .etk-seg, a little tighter, with the Fonts manager's raised highlight. */
 .etk-components__seg {
-	--etk-track-radius: var(--etk-radius);
 	--etk-track-inset: 2px;
 	--etk-track-highlight: var(--etk-raised);
 
-	display: inline-flex;
-	flex: none;
-	gap: 2px;
-	margin: 0;
 	padding: 2px;
-	border: 0;
-	background: var(--etk-field);
-
-	input {
-		position: absolute;
-		inline-size: 1px;
-		block-size: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
-	}
 
 	label {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		padding: 4px 10px;
 		color: var(--etk-text-60);
-		line-height: 16px;
-		white-space: nowrap;
-		cursor: pointer;
-		transition: color var(--e-transition, 0.15s ease-in-out);
-
-		&:hover,
-		&:has(input:checked) {
-			color: var(--etk-text);
-		}
-
-		&:has(input:focus-visible) {
-			box-shadow: var(--etk-focus);
-		}
 	}
 }
 

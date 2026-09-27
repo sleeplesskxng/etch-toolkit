@@ -836,6 +836,76 @@
 	}
 }
 
+/* Buttons in a manager, after Etch's: outlined (the default), --primary (filled) and --danger. --icon is square-ish, for an icon alone. */
+.etk-btn {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	block-size: 28px;
+	margin: 0;
+	padding: 0 10px;
+	border: 1px solid var(--etk-line-strong);
+	border-radius: var(--etk-radius);
+	background: none;
+	color: var(--etk-text);
+	font: inherit;
+	font-weight: 500;
+	line-height: 16px;
+	white-space: nowrap;
+	cursor: pointer;
+	transition:
+		background-color var(--e-transition, 0.15s ease-in-out),
+		border-color var(--e-transition, 0.15s ease-in-out);
+
+	&:hover {
+		border-color: var(--etk-line-heavy);
+		background: var(--etk-raised);
+	}
+
+	&:is(:disabled, [aria-disabled="true"]) {
+		opacity: var(--etch-opacity-medium, 0.55);
+		cursor: not-allowed;
+	}
+}
+
+.etk-btn--primary {
+	border-color: transparent;
+	background: var(--etk-accent);
+	color: var(--etk-on-accent);
+	font-weight: 600;
+
+	&:hover {
+		border-color: transparent;
+		background: var(--etch-primary-hover, color-mix(in srgb, var(--etk-accent), white 15%));
+	}
+}
+
+.etk-btn--danger {
+	border-color: var(--etk-danger-line);
+	color: var(--etk-danger);
+
+	&:hover {
+		border-color: var(--etk-danger-line);
+		background: color-mix(in srgb, var(--etk-danger) 10%, transparent);
+	}
+}
+
+.etk-btn--icon {
+	inline-size: 40px;
+	padding: 0;
+}
+
+/* A visually hidden file input inside a label styled as a button. */
+.etk-btn--file {
+	position: relative;
+
+	&:has(:focus-visible) {
+		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+	}
+}
+
 /* ---- Checkboxes and switches ---- */
 
 /*

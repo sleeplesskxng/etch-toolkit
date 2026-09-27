@@ -1255,7 +1255,7 @@
 				el( 'p', { class: 'etk-fonts__upload-eyebrow', textContent: 'Upload' } ),
 				el( 'h3', { class: 'etk-fonts__upload-title', textContent: 'Drop font files anywhere.' } ),
 				el( 'p', { class: 'etk-fonts__upload-body', textContent: 'Files group by name, like Inter-BoldItalic.woff2. Other formats convert to WOFF2.' } ),
-				el( 'div', { class: 'etk-fonts__upload-actions' }, el( 'label', { class: btnClass( 'primary', 'etk-fonts__file-btn' ) }, input, btnIcon( 'upload' ), 'Choose files' ), el( 'span', { class: 'etk-fonts__upload-formats', textContent: '.woff2 .woff .ttf .otf' } ) )
+				el( 'div', { class: 'etk-fonts__upload-actions' }, el( 'label', { class: btnClass( 'primary', 'etk-btn--file' ) }, input, btnIcon( 'upload' ), 'Choose files' ), el( 'span', { class: 'etk-fonts__upload-formats', textContent: '.woff2 .woff .ttf .otf' } ) )
 			),
 			el( 'div', { class: 'etk-fonts__upload-art', html: GLYPH_STACK } )
 		);

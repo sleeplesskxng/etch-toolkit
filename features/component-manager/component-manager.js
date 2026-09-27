@@ -24,7 +24,7 @@
 	if ( ! toolkit.api ) return;
 
 	const CONTROL_ID = 'etch-toolkit-component-manager';
-	const { el, plural, errorText, settingsBarButton, managerKeys, openManager } = toolkit;
+	const { el, plural, errorText, settingsBarButton, managerKeys, openManager, downloadJson, jsonDropzone } = toolkit;
 	const icon = ( name, size ) => toolkit.icon( name, { size, className: 'etk-components__icon' } );
 
 	const enabled = () => window.etchToolkitSettings?.settings?.componentManager === true && typeof window.etch?.components?.updateAsync === 'function';
@@ -458,7 +458,7 @@
 	const announce = ( message, options ) => toolkit.announce( status, message, options );
 	const warn = ( message ) => announce( message, { error: true } );
 
-	const button = ( label, onclick, { variant = 'secondary', ...attrs } = {} ) => el( 'button', { type: 'button', class: `etk-components__btn etk-components__btn--${ variant }`, onclick, ...attrs }, label );
+	const button = ( label, onclick, { variant = 'secondary', ...attrs } = {} ) => el( 'button', { type: 'button', class: `etk-btn etk-btn--${ variant }`, onclick, ...attrs }, label );
 
 	const read = ( text ) => {
 		try {
@@ -477,38 +477,7 @@
 
 	const readFile = async ( file ) => read( await file.text() );
 
-	const dropzone = () => {
-		const input = el( 'input', {
-			type: 'file',
-			accept: '.json,application/json',
-			class: 'etk-sr',
-			onchange: ( e ) => {
-				const [ file ] = e.target.files;
-				e.target.value = '';
-				if ( file ) readFile( file );
-			},
-		} );
-		const zone = el(
-			'div',
-			{
-				class: 'etk-components__dropzone',
-				ondragover: ( e ) => {
-					e.preventDefault();
-					zone.classList.add( 'is-over' );
-				},
-				ondragleave: () => zone.classList.remove( 'is-over' ),
-				ondrop: ( e ) => {
-					e.preventDefault();
-					zone.classList.remove( 'is-over' );
-					if ( e.dataTransfer.files[ 0 ] ) readFile( e.dataTransfer.files[ 0 ] );
-				},
-			},
-			el( 'span', { class: 'etk-components__dropzone-icon', html: icon( 'upload' ) } ),
-			el( 'p', { class: 'etk-components__dropzone-text', textContent: 'Drop a .json file here' } ),
-			el( 'label', { class: 'etk-components__btn etk-components__btn--secondary etk-components__file-btn' }, input, 'Choose file' )
-		);
-		return zone;
-	};
+	const dropzone = () => jsonDropzone( 'Drop a .json file here', readFile );
 
 	/* ---- Components ---- */
 
@@ -621,7 +590,7 @@
 		const unused = usedOn ? window.etch.components.list().filter( ( c ) => ! isUsed( c ) ).length : 0;
 		return el(
 			'fieldset',
-			{ class: 'etk-components__seg etk-track' },
+			{ class: 'etk-seg etk-track etk-components__seg' },
 			el( 'legend', { class: 'etk-sr', textContent: 'Show' } ),
 			[
 				[ 'all', 'All' ],
@@ -652,7 +621,7 @@
 	const componentRow = ( component ) => {
 		const used = usedOn ? isUsed( component ) : null;
 		const action = ( key, label, title, icon, onclick, extra = '' ) =>
-			button( '', onclick, { class: `etk-components__btn etk-components__btn--secondary etk-components__row-action${ extra }`, 'aria-label': label, title, html: icon, 'data-focus': `${ key }:${ component.id }` } );
+			button( '', onclick, { class: `etk-btn etk-btn--secondary etk-components__row-action${ extra }`, 'aria-label': label, title, html: icon, 'data-focus': `${ key }:${ component.id }` } );
 		return el(
 			'tr',
 			{ class: used === false ? 'is-unused' : null },
@@ -731,7 +700,7 @@
 			el(
 				'div',
 				{ class: 'etk-components__review-head' },
-				button( '', () => showList(), { class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to components', title: 'Back to components', html: icon( 'arrow-left' ), 'data-focus': 'back' } ),
+				button( '', () => showList(), { class: 'etk-btn etk-btn--secondary etk-btn--icon', 'aria-label': 'Back to components', title: 'Back to components', html: icon( 'arrow-left' ), 'data-focus': 'back' } ),
 				el( 'h2', { class: 'etk-manager__page-title', tabindex: '-1', textContent: `Update ${ target.name }` } )
 			),
 			el( 'p', { class: 'etk-components__help', textContent: `Drop or paste JSON for ${ target.name }. In Etch, select it and press Cmd+C. You’ll review changes before saving.` } ),
@@ -779,7 +748,7 @@
 				el(
 					'div',
 					{ class: 'etk-components__review-head' },
-					button( '', () => go( 'import' ), { class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to the JSON', title: 'Back to the JSON', html: icon( 'arrow-left' ), 'data-focus': 'back' } ),
+					button( '', () => go( 'import' ), { class: 'etk-btn etk-btn--secondary etk-btn--icon', 'aria-label': 'Back to the JSON', title: 'Back to the JSON', html: icon( 'arrow-left' ), 'data-focus': 'back' } ),
 					el(
 						'div',
 						{ class: 'etk-components__review-title' },
@@ -1096,12 +1065,7 @@
 		}
 	};
 
-	const download = () => {
-		const url = URL.createObjectURL( new Blob( [ JSON.stringify( previous.json, null, 2 ) ], { type: 'application/json' } ) );
-		el( 'a', { href: url, download: `${ previous.json.key || 'component' }-before-update.json` } ).click();
-		// Revoking straight away can cancel the download in some browsers.
-		window.setTimeout( () => URL.revokeObjectURL( url ), 60000 );
-	};
+	const download = () => downloadJson( JSON.stringify( previous.json, null, 2 ), `${ previous.json.key || 'component' }-before-update.json` );
 
 	/* ---- Class usage, for how far a CSS change reaches ---- */
 
@@ -1170,7 +1134,7 @@
 				render();
 				announce( showAll[ key ] ? `Showing every ${ what }.` : `Showing changed ${ what }s only.` );
 			},
-			{ class: 'etk-components__btn etk-components__btn--secondary etk-components__btn--small', 'data-focus': `show:${ key }` }
+			{ class: 'etk-btn etk-btn--secondary etk-components__btn--small', 'data-focus': `show:${ key }` }
 		);
 
 	// A group on the left: its label, Show all, and its rows.
@@ -1878,7 +1842,7 @@
 			el(
 				'header',
 				{ class: 'etk-manager__header' },
-				el( 'button', { type: 'button', class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: icon( 'arrow-left' ), onclick: () => close() } ),
+				el( 'button', { type: 'button', class: 'etk-btn etk-btn--secondary etk-btn--icon', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: icon( 'arrow-left' ), onclick: () => close() } ),
 				el( 'h1', { id: 'etk-components-title', class: 'etk-manager__title', textContent: 'Components' } )
 			),
 			el( 'div', { class: 'etk-manager__body' }, status, el( 'div', { class: 'etk-manager__content' }, main ) )
