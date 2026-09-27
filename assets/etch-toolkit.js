@@ -530,6 +530,78 @@
 		return { bar, scrim, update };
 	};
 
+	/*
+	 * Etch's right-click menus take no outside items, so features clone rows
+	 * from them. onMenu( from, className, add ): when a menu opens from an
+	 * element in `from` (a selector), add( menu, element ) runs, until the menu
+	 * has an item with className. menuItem( menu, label, run, { className,
+	 * like } ) copies a row (like, or the menu's first plain one) as label,
+	 * which closes the menu and runs run.
+	 */
+	const MENU = '.right-click-menu__content';
+	const MENU_ITEM = '.right-click-menu__item';
+	const MENU_LABEL = '.right-click-menu__item-label';
+	const menus = [];
+	let opened = null; // { at, hits }: when the last right-click was, and what it hit for each of menus.
+
+	const onMenu = ( from, className, add ) => {
+		if ( ! menus.length ) {
+			document.addEventListener(
+				'contextmenu',
+				( event ) => ( opened = { at: Date.now(), hits: menus.map( ( m ) => event.target.closest?.( m.from ) || null ) } ),
+				true
+			);
+			new MutationObserver( () => {
+				// Only a menu opened within the last second.
+				if ( ! opened || Date.now() - opened.at > 1000 ) return;
+				const menu = document.querySelector( MENU );
+				if ( ! menu ) return;
+				menus.forEach( ( m, i ) => opened.hits[ i ] && ! menu.querySelector( `.${ m.className }` ) && m.add( menu, opened.hits[ i ] ) );
+			} ).observe( document.body, { childList: true, subtree: true } );
+		}
+		menus.push( { from, className, add } );
+	};
+
+	// Esc closes Etch's menu. The keyup follows, or Etch, which tracks held keys, takes
+	// Esc as still held and reads the next key pressed as Esc too, deselecting the block.
+	const closeMenu = ( menu ) => {
+		for ( const type of [ 'keydown', 'keyup' ] ) {
+			menu.dispatchEvent( new KeyboardEvent( type, { key: 'Escape', bubbles: true, cancelable: true } ) );
+		}
+	};
+
+	const findMenuItem = ( menu, label ) => [ ...menu.querySelectorAll( MENU_ITEM ) ].find( ( item ) => item.querySelector( MENU_LABEL )?.textContent.trim() === label );
+
+	const menuItem = ( menu, label, run, { className, like } = {} ) => {
+		const source = like || [ ...menu.querySelectorAll( MENU_ITEM ) ].find( ( item ) => ! item.matches( '.danger, [aria-haspopup]' ) );
+		if ( ! source ) return null;
+
+		const item = source.cloneNode( true );
+		item.classList.add( className );
+		item.removeAttribute( 'id' );
+		item.removeAttribute( 'data-highlighted' );
+		item.removeAttribute( 'textvalue' );
+		item.querySelector( `${ MENU_ITEM }-shortcut` )?.remove();
+
+		// Keep the label's icon (if any), replace only its text.
+		const labelEl = item.querySelector( MENU_LABEL );
+		const text = [ ...labelEl.childNodes ].find( ( n ) => n.nodeType === Node.TEXT_NODE && n.textContent.trim() );
+		if ( text ) text.textContent = ` ${ label }`;
+		else labelEl.append( ` ${ label }` );
+
+		const activate = ( event ) => {
+			event.preventDefault();
+			event.stopPropagation();
+			closeMenu( menu );
+			run();
+		};
+		item.addEventListener( 'click', activate );
+		item.addEventListener( 'keydown', ( event ) => {
+			if ( event.key === 'Enter' || event.key === ' ' ) activate( event );
+		} );
+		return item;
+	};
+
 	// Etch always reopens in the builder. reload() remembers where you were (e.g. the
 	// Style Manager) and goes back there once Etch's API is up.
 	const PLACE_KEY = 'etk-return-place';
@@ -558,6 +630,6 @@
 		if ( place && place !== 'builder' ) tick();
 	} catch {}
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, slider, rebuild, barButton, bulkBar, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, slider, rebuild, barButton, bulkBar, onMenu, menuItem, findMenuItem, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
 	window.etchToolkit = toolkit;
 } )();

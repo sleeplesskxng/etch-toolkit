@@ -11,21 +11,17 @@
  * another page too, and goes on the clipboard as text.
  */
 ( () => {
-	const { isClassSelector, classNames: split } = window.etchToolkit || {};
+	const { isClassSelector, classNames: split, onMenu, menuItem, findMenuItem } = window.etchToolkit || {};
 	if ( ! isClassSelector ) return;
 
 	const LAYER = '.etch-builder-accordion__header[data-blockid]';
 	const BADGE = '.etch-css-selectors .etch-badges > *';
-	const MENU = '.right-click-menu__content';
-	const ITEM = '.right-click-menu__item';
-	const LABEL = '.right-click-menu__item-label';
 	const SEPARATOR = '.right-click-menu__separator';
 	const OURS = 'etk-copy-classes';
 	const STORE = 'etk-copied-classes';
 	// Blocks with a class attribute. Components take classes through their properties.
 	const ELEMENTS = new Set( [ 'etch/element', 'etch/svg', 'etch/dynamic-element', 'etch/dynamic-image' ] );
 
-	let target = null; // { blockId } or { selector }, with `at`, for what was last right-clicked
 	let copied = [];
 	try {
 		const stored = JSON.parse( localStorage.getItem( STORE ) );
@@ -57,46 +53,7 @@
 		if ( added.length ) window.etch.blocks.update( id, { attributes: { class: [ ...names, ...added ].join( ' ' ) } } );
 	};
 
-	// Esc closes Etch's menu. The keyup follows, or Etch, which tracks held keys, takes
-	// Esc as still held and reads the next key pressed as Esc too, deselecting the block.
-	const closeMenu = ( menu ) => {
-		for ( const type of [ 'keydown', 'keyup' ] ) {
-			menu.dispatchEvent( new KeyboardEvent( type, { key: 'Escape', bubbles: true, cancelable: true } ) );
-		}
-	};
-
-	// A copy of one of the menu's plain rows, labelled and wired to run.
-	const makeItem = ( menu, label, run ) => {
-		const source = [ ...menu.querySelectorAll( ITEM ) ].find( ( item ) => ! item.matches( '.danger, [aria-haspopup]' ) );
-		if ( ! source ) return null;
-
-		const item = source.cloneNode( true );
-		item.classList.add( OURS );
-		item.removeAttribute( 'id' );
-		item.removeAttribute( 'data-highlighted' );
-		item.removeAttribute( 'textvalue' );
-		item.querySelector( `${ ITEM }-shortcut` )?.remove();
-
-		// Keep the label's icon (if any), replace only its text.
-		const labelEl = item.querySelector( LABEL );
-		const text = [ ...labelEl.childNodes ].find( ( n ) => n.nodeType === Node.TEXT_NODE && n.textContent.trim() );
-		if ( text ) text.textContent = ` ${ label }`;
-		else labelEl.append( ` ${ label }` );
-
-		const activate = ( event ) => {
-			event.preventDefault();
-			event.stopPropagation();
-			closeMenu( menu );
-			run();
-		};
-		item.addEventListener( 'click', activate );
-		item.addEventListener( 'keydown', ( event ) => {
-			if ( event.key === 'Enter' || event.key === ' ' ) activate( event );
-		} );
-		return item;
-	};
-
-	const findItem = ( menu, label ) => [ ...menu.querySelectorAll( ITEM ) ].find( ( item ) => item.querySelector( LABEL )?.textContent.trim() === label );
+	const makeItem = ( menu, label, run ) => menuItem( menu, label, run, { className: OURS } );
 
 	// After Generate BEM Classes, Etch's class item, or at the top.
 	const addLayerItems = ( menu, id ) => {
@@ -109,7 +66,7 @@
 		].filter( Boolean );
 		if ( ! items.length ) return;
 
-		const bem = findItem( menu, 'Generate BEM Classes' );
+		const bem = findMenuItem( menu, 'Generate BEM Classes' );
 		if ( bem ) bem.after( ...items );
 		else menu.prepend( ...items );
 	};
@@ -119,29 +76,13 @@
 		if ( ! isClassSelector( selector ) ) return;
 		const name = selector.trim().slice( 1 );
 		const item = makeItem( menu, 'Copy Class', () => copy( [ name ] ) );
-		const deleteItem = findItem( menu, 'Delete' );
+		const deleteItem = findMenuItem( menu, 'Delete' );
 		if ( ! item || ! deleteItem ) return;
 
 		const before = deleteItem.previousElementSibling?.matches( SEPARATOR ) ? deleteItem.previousElementSibling : deleteItem;
 		before.before( item );
 	};
 
-	document.addEventListener(
-		'contextmenu',
-		( event ) => {
-			const layer = event.target.closest?.( LAYER );
-			const badge = ! layer && event.target.closest?.( BADGE );
-			target = layer ? { blockId: layer.dataset.blockid, at: Date.now() } : badge ? { selector: badge.textContent.trim(), at: Date.now() } : null;
-		},
-		true
-	);
-
-	new MutationObserver( () => {
-		// Only menus opened from a layer or class badge within the last second.
-		if ( ! target || Date.now() - target.at > 1000 ) return;
-		const menu = document.querySelector( MENU );
-		if ( ! menu || menu.querySelector( `.${ OURS }` ) ) return;
-		if ( target.blockId ) addLayerItems( menu, target.blockId );
-		else addBadgeItem( menu, target.selector );
-	} ).observe( document.body, { childList: true, subtree: true } );
+	onMenu( LAYER, OURS, ( menu, layer ) => addLayerItems( menu, layer.dataset.blockid ) );
+	onMenu( BADGE, OURS, ( menu, badge ) => addBadgeItem( menu, badge.textContent.trim() ) );
 } )();

@@ -12,16 +12,12 @@
  * undo brings the style back, saving puts the class back where it came off.
  */
 ( () => {
-	const { restUrl, api, save, afterSave, el, plural, editPageClasses, confirmDialog } = window.etchToolkit || {};
+	const { restUrl, api, save, afterSave, el, plural, editPageClasses, confirmDialog, onMenu, menuItem, findMenuItem } = window.etchToolkit || {};
 	if ( ! restUrl || ! confirmDialog ) return;
 
 	const BADGE = '.etch-css-selectors .etch-badges > *';
-	const MENU = '.right-click-menu__content';
-	const ITEM = '.right-click-menu__item';
-	const LABEL = '.right-click-menu__item-label';
 	const OUR_ITEM = 'etk-delete-everywhere';
 
-	let target = null; // { selector, at } for the class badge last right-clicked
 	let running = false;
 
 	// The selected block's style IDs.
@@ -153,61 +149,11 @@
 		}
 	};
 
-	// Esc closes Etch's menu. The keyup follows, or Etch, which tracks held keys, takes
-	// Esc as still held and reads the next key pressed as Esc too, deselecting the block.
-	const closeMenu = ( menu ) => {
-		for ( const type of [ 'keydown', 'keyup' ] ) {
-			menu.dispatchEvent( new KeyboardEvent( type, { key: 'Escape', bubbles: true, cancelable: true } ) );
-		}
-	};
-
-	const addItem = ( menu ) => {
-		if ( menu.querySelector( `.${ OUR_ITEM }` ) ) return;
-
-		const deleteItem = [ ...menu.querySelectorAll( ITEM ) ].find(
-			( item ) => item.querySelector( LABEL )?.textContent.trim() === 'Delete'
-		);
-		const style = findClassStyle( target.selector );
+	// Under the class badge menu's Delete.
+	onMenu( BADGE, OUR_ITEM, ( menu, badge ) => {
+		const deleteItem = findMenuItem( menu, 'Delete' );
+		const style = findClassStyle( badge.textContent.trim() );
 		if ( ! deleteItem || ! style ) return;
-
-		const item = deleteItem.cloneNode( true );
-		item.classList.add( OUR_ITEM );
-		item.removeAttribute( 'id' );
-		item.removeAttribute( 'data-highlighted' );
-
-		// Keep the label's icon (if any), replace only its text.
-		const label = item.querySelector( LABEL );
-		const text = [ ...label.childNodes ].find( ( n ) => n.nodeType === Node.TEXT_NODE && n.textContent.trim() );
-		if ( text ) text.textContent = 'Delete Everywhere';
-		else label.append( 'Delete Everywhere' );
-
-		const activate = ( event ) => {
-			event.preventDefault();
-			event.stopPropagation();
-			closeMenu( menu );
-			run( style.id );
-		};
-		item.addEventListener( 'click', activate );
-		item.addEventListener( 'keydown', ( event ) => {
-			if ( event.key === 'Enter' || event.key === ' ' ) activate( event );
-		} );
-
-		deleteItem.after( item );
-	};
-
-	document.addEventListener(
-		'contextmenu',
-		( event ) => {
-			const badge = event.target.closest?.( BADGE );
-			target = badge ? { selector: badge.textContent.trim(), at: Date.now() } : null;
-		},
-		true
-	);
-
-	new MutationObserver( () => {
-		// Only menus opened from a class badge within the last second.
-		if ( ! target || Date.now() - target.at > 1000 ) return;
-		const menu = document.querySelector( MENU );
-		if ( menu ) addItem( menu );
-	} ).observe( document.body, { childList: true, subtree: true } );
+		deleteItem.after( menuItem( menu, 'Delete Everywhere', () => run( style.id ), { className: OUR_ITEM, like: deleteItem } ) );
+	} );
 } )();
