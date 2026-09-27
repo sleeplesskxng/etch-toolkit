@@ -387,6 +387,20 @@
 	gap: 8px;
 }
 
+/* Layers, props and the component's details, each under a label. */
+.etk-components__group {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.etk-components__group-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+}
+
 /*
  * The layer tree, drawn like Etch's Structure panel (its values, from Etch's
  * builder), with the change cues on top.
@@ -757,6 +771,10 @@
 	}
 }
 
+.etk-components__field--bare {
+	grid-template-columns: minmax(0, 1fr);
+}
+
 .etk-components__field-name {
 	color: var(--etk-components-text-60);
 	font-family: var(--e-font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
@@ -855,5 +873,99 @@
 
 	&.is-wide {
 		color: var(--e-warning, #f2c960);
+	}
+}
+
+/* ------------------------------------------------------------------ */
+/* Props                                                               */
+/* ------------------------------------------------------------------ */
+
+.etk-components__props {
+	margin: 0;
+	padding: 0;
+	overflow: clip;
+	border: 1px solid var(--etk-components-line);
+	border-radius: var(--etk-components-radius-lg);
+	background: var(--etk-components-surface);
+	list-style: none;
+}
+
+.etk-components__prop {
+	margin: 0;
+
+	& + & {
+		border-block-start: 1px solid var(--etk-components-line);
+	}
+
+	> .etk-components__details {
+		margin: 0;
+		border-radius: 0;
+	}
+}
+
+.etk-components__prop-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	inline-size: 100%;
+	min-block-size: 36px;
+	padding: 8px 12px;
+}
+
+.etk-components .etk-components__prop-toggle {
+	margin: 0;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-align: start;
+	cursor: pointer;
+
+	&:hover,
+	&.is-showing {
+		background: var(--etk-components-raised);
+	}
+}
+
+.etk-components__prop-name {
+	display: flex;
+	flex: 1;
+	align-items: baseline;
+	gap: 8px;
+	min-inline-size: 0;
+}
+
+.etk-components__prop-key {
+	color: var(--etk-components-text-50);
+	font-family: var(--e-font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
+	font-size: var(--e-font-size-s, 11px);
+}
+
+.etk-components__prop--added {
+	box-shadow: inset 2px 0 0 var(--e-success, #67d992);
+}
+
+.etk-components__prop--removed {
+	box-shadow: inset 2px 0 0 var(--e-danger, #f26060);
+
+	.etk-components__prop-name {
+		opacity: 0.6;
+		text-decoration: line-through;
+	}
+}
+
+.etk-components__prop.is-rejected {
+	box-shadow: inset 2px 0 0 var(--etk-components-line-heavy);
+}
+
+/* The component's name and description: a card of changes, like a layer's. */
+.etk-components__details--card {
+	margin: 0;
+	border: 1px solid var(--etk-components-line);
+	border-radius: var(--etk-components-radius-lg);
+
+	> .etk-components__change:first-child {
+		padding-block-start: 0;
+		border-block-start: 0;
 	}
 }

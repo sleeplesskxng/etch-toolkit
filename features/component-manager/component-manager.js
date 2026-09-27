@@ -341,6 +341,48 @@
 		}
 	};
 
+	const PROP_FIELDS = { name: 'Name', type: 'Type', default: 'Default', description: 'Description', selectOptionsString: 'Options', properties: 'Props inside' };
+
+	// A prop's fields as text, key aside. Its type reads like Etch's picker: "string, select".
+	const propFields = ( prop ) => {
+		const fields = new Map();
+		for ( const [ key, value ] of Object.entries( prop || {} ) ) {
+			if ( key === 'key' ) continue;
+			const text = key === 'type' && value && typeof value === 'object' && ! Array.isArray( value ) ? Object.values( value ).join( ', ' ) : asText( value );
+			fields.set( key, { label: PROP_FIELDS[ key ] || key, value: text } );
+		}
+		return fields;
+	};
+
+	/**
+	 * Compare two components' props, matched by key. Returns them in the
+	 * incoming order, with removed ones where they were: { key, status,
+	 * current, incoming, fields }, fields the ones that differ.
+	 */
+	const compareProps = ( ours, theirs ) => {
+		const byKey = ( list ) => new Map( list.filter( ( prop ) => prop?.key ).map( ( prop ) => [ prop.key, prop ] ) );
+		const now = byKey( ours );
+		const next = byKey( theirs );
+		const result = [];
+		for ( const { op, text: key } of diffLines( [ ...now.keys() ].join( '\n' ), [ ...next.keys() ].join( '\n' ) ) ) {
+			// A prop that moved shows once, where it's going.
+			if ( op === '-' && next.has( key ) ) continue;
+			const current = now.get( key ) ?? null;
+			const incoming = next.get( key ) ?? null;
+			const a = propFields( current );
+			const b = propFields( incoming );
+			const fields = [];
+			for ( const field of new Set( [ ...a.keys(), ...b.keys() ] ) ) {
+				const from = a.get( field )?.value ?? '';
+				const to = b.get( field )?.value ?? '';
+				if ( from !== to ) fields.push( { key: field, label: ( a.get( field ) || b.get( field ) ).label, from, to } );
+			}
+			const status = ! current ? 'added' : ! incoming ? 'removed' : fields.length ? 'changed' : 'same';
+			result.push( { key, status, current, incoming, fields } );
+		}
+		return result;
+	};
+
 	/**
 	 * A line diff by longest common subsequence: [ { op, text } ], op ' ' for
 	 * a line both have, '-' for one only from has, '+' for one only to has.
@@ -534,7 +576,14 @@
 						  )
 						: null
 				),
-				h( 'section', { class: 'etk-components__tree', 'aria-label': 'Layers' }, h( 'ul', { class: 'etk-components__layers', role: 'list' }, tree.map( layerRow ) ) ),
+				h(
+					'section',
+					{ class: 'etk-components__group', 'aria-labelledby': 'etk-components-layers-title' },
+					h( 'h3', { id: 'etk-components-layers-title', class: 'etk-components__label', textContent: 'Layers' } ),
+					h( 'div', { class: 'etk-components__tree' }, h( 'ul', { class: 'etk-components__layers', role: 'list' }, tree.map( layerRow ) ) )
+				),
+				propsView(),
+				metaView(),
 			];
 		},
 	};
@@ -548,10 +597,10 @@
 	 * layers inside it go with it. CSS is decided per class, since a class is
 	 * the same everywhere it's used.
 	 */
-	let decisions = { layers: new Map(), css: new Map() };
+	let decisions = { layers: new Map(), css: new Map(), props: new Map(), meta: new Map() };
 
-	const resetDecisions = ( tree ) => {
-		decisions = { layers: new Map(), css: new Map() };
+	const resetDecisions = ( { tree, props, meta } ) => {
+		decisions = { layers: new Map(), css: new Map(), props: new Map( props.filter( ( prop ) => prop.status !== 'same' ).map( ( prop ) => [ prop.key, true ] ) ), meta: new Map( meta.map( ( field ) => [ field.key, true ] ) ) };
 		for ( const node of walk( tree ) ) {
 			decisions.layers.set( node.id, { html: true, js: true, layer: true } );
 			for ( const change of node.css ) decisions.css.set( change.selector, true );
@@ -579,6 +628,7 @@
 			decisions.layers.set( node.id, { html: value, js: value, layer: value } );
 			for ( const change of node.css ) decisions.css.set( change.selector, value );
 		}
+		for ( const map of [ decisions.props, decisions.meta ] ) for ( const key of map.keys() ) map.set( key, value );
 		render();
 		announce( value ? 'Approved every change.' : 'Rejected every change.' );
 	};
@@ -601,7 +651,7 @@
 				count( choice.layer );
 			}
 		}
-		for ( const yes of decisions.css.values() ) count( yes );
+		for ( const map of [ decisions.css, decisions.props, decisions.meta ] ) for ( const yes of map.values() ) count( yes );
 		return { approved, total };
 	};
 
@@ -746,13 +796,13 @@
 		return h( 'div', { class: 'etk-components__diff' }, rows );
 	};
 
-	// One HTML field: short values as before and after, longer ones as a line diff.
+	// One field: a one-line value as before and after, more lines as a line diff.
 	const fieldView = ( { label, from, to } ) => {
-		const short = ! from.includes( '\n' ) && ! to.includes( '\n' ) && from.length + to.length < 160;
+		const short = ! from.includes( '\n' ) && ! to.includes( '\n' );
 		return h(
 			'div',
-			{ class: 'etk-components__field' },
-			h( 'span', { class: 'etk-components__field-name', textContent: label } ),
+			{ class: `etk-components__field${ label ? '' : ' etk-components__field--bare' }` },
+			label ? h( 'span', { class: 'etk-components__field-name', textContent: label } ) : null,
 			short
 				? h(
 						'span',
@@ -825,6 +875,88 @@
 		return h( 'div', { class: 'etk-components__details', id, role: 'region', 'aria-label': `Changes to ${ title }` }, parts );
 	};
 
+	/* ---- Props, and the component's name and description ---- */
+
+	const PROP_STATUS = { added: 'Added', removed: 'Removed', changed: 'Changed' };
+	let openProps = new Set();
+
+	const propRow = ( prop ) => {
+		const source = prop.incoming || prop.current;
+		const title = source.name ? `${ source.name } (${ prop.key })` : prop.key;
+		const approved = decisions.props.get( prop.key );
+		const showing = openProps.has( prop.key );
+		const id = `etk-prop-${ CSS.escape( prop.key ) }-changes`;
+		const head = [
+			h( 'span', { class: 'etk-components__prop-name' }, h( 'span', { textContent: source.name || prop.key } ), source.name ? h( 'code', { class: 'etk-components__prop-key', textContent: prop.key } ) : null ),
+			prop.status === 'same' ? null : h( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, chip( prop.status === 'changed' ? 'html' : prop.status, PROP_STATUS[ prop.status ], approved ) ),
+		];
+		if ( prop.status === 'same' ) return h( 'li', { class: 'etk-components__prop' }, h( 'div', { class: 'etk-components__prop-head' }, head ) );
+
+		const fields =
+			prop.status === 'changed'
+				? prop.fields
+				: [ ...propFields( source ).values() ].filter( ( field ) => field.value ).map( ( field ) => ( { label: field.label, from: prop.status === 'removed' ? field.value : '', to: prop.status === 'added' ? field.value : '' } ) );
+		const verb = { added: 'Approving adds this prop.', removed: 'Approving removes this prop.', changed: 'Approving takes the incoming version.' }[ prop.status ];
+		return h(
+			'li',
+			{ class: `etk-components__prop etk-components__prop--${ prop.status }${ approved ? '' : ' is-rejected' }` },
+			h(
+				'button',
+				{ type: 'button', class: `etk-components__prop-head etk-components__prop-toggle${ showing ? ' is-showing' : '' }`, 'aria-expanded': String( showing ), 'aria-controls': showing ? id : null, 'data-focus': `prop:${ prop.key }:toggle`, onclick: () => toggleProp( prop ) },
+				head,
+				h( 'span', { class: 'screen-reader-text', textContent: `, ${ prop.status }${ approved ? '' : ', rejected' }` } )
+			),
+			showing
+				? h(
+						'div',
+						{ class: 'etk-components__details', id, role: 'region', 'aria-label': `Changes to the ${ title } prop` },
+						h( 'div', { class: 'etk-components__details-head' }, h( 'span', { class: 'etk-components__muted', textContent: verb } ), choice( `${ PROP_STATUS[ prop.status ] } prop ${ title }`, approved, ( yes ) => ( decisions.props.set( prop.key, yes ), render() ), `prop:${ prop.key }` ) ),
+						fields.map( fieldView )
+				  )
+				: null
+		);
+	};
+
+	const propsView = () => {
+		const { props } = reviewing;
+		if ( ! props.length ) return null;
+		const changed = props.filter( ( prop ) => prop.status !== 'same' ).length;
+		return h(
+			'section',
+			{ class: 'etk-components__group', 'aria-labelledby': 'etk-components-props-title' },
+			h( 'div', { class: 'etk-components__group-head' }, h( 'h3', { id: 'etk-components-props-title', class: 'etk-components__label', textContent: 'Props' } ), h( 'span', { class: 'etk-components__muted', textContent: changed ? `${ changed } changed` : 'No changes' } ) ),
+			h( 'ul', { class: 'etk-components__props', role: 'list' }, props.map( propRow ) )
+		);
+	};
+
+	// The component's name and description, when the JSON has others.
+	const metaView = () => {
+		const { meta } = reviewing;
+		if ( ! meta.length ) return null;
+		return h(
+			'section',
+			{ class: 'etk-components__group', 'aria-labelledby': 'etk-components-meta-title' },
+			h( 'h3', { id: 'etk-components-meta-title', class: 'etk-components__label', textContent: 'Component' } ),
+			h(
+				'div',
+				{ class: 'etk-components__details etk-components__details--card' },
+				meta.map( ( field ) =>
+					h(
+						'section',
+						{ class: 'etk-components__change' },
+						h( 'div', { class: 'etk-components__change-head' }, h( 'h4', { class: 'etk-components__change-title', textContent: field.label } ), choice( `Component ${ field.label.toLowerCase() }`, decisions.meta.get( field.key ), ( yes ) => ( decisions.meta.set( field.key, yes ), render() ), `meta:${ field.key }` ) ),
+						fieldView( { ...field, label: '' } )
+					)
+				)
+			)
+		);
+	};
+
+	const toggleProp = ( prop ) => {
+		openProps.has( prop.key ) ? openProps.delete( prop.key ) : openProps.add( prop.key );
+		render();
+	};
+
 	const toggleLayer = ( node ) => {
 		closedLayers.has( node.id ) ? closedLayers.delete( node.id ) : closedLayers.add( node.id );
 		render();
@@ -850,10 +982,19 @@
 	};
 
 	const review = ( { incoming, current } ) => {
-		reviewing = { incoming, current, tree: compare( window.etch.components.getJson( current.id ), incoming ) };
+		const now = window.etch.components.getJson( current.id );
+		const meta = [
+			[ 'name', 'Name' ],
+			[ 'description', 'Description' ],
+		]
+			.map( ( [ key, label ] ) => ( { key, label, from: String( now[ key ] ?? '' ), to: incoming[ key ] } ) )
+			// JSON without a description leaves this site's alone.
+			.filter( ( field ) => field.to && field.from !== field.to );
+		reviewing = { incoming, current, now, tree: compare( now, incoming ), props: compareProps( now.properties || [], incoming.properties ), meta };
 		closedLayers = new Set();
 		openDetails = new Set();
-		resetDecisions( reviewing.tree );
+		openProps = new Set();
+		resetDecisions( reviewing );
 		loadUsage();
 		go( 'review' );
 	};
