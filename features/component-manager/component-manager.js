@@ -2,8 +2,10 @@
  * Etch Toolkit: component manager.
  *
  * A Settings Bar control opens a manager beside the bar, like the Fonts
- * manager. Drop a JSON file or paste JSON, and it lists the components in it,
- * each matched to one on this site by key, the way Etch's paste matches them.
+ * manager, with two views. Components lists the site's components and where
+ * they're used, with Edit, which opens one in Etch's component editor, and
+ * Update. Update takes a JSON file or pasted JSON, matched to this site's
+ * components by key, the way Etch's paste matches them, and reviews it.
  *
  * It reads three shapes:
  * - Etch's copy (Cmd+C on a layer): { version, gutenbergBlock, styles,
@@ -27,6 +29,8 @@
 		'<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M19 17v-6c0-2.828 0-4.243-.879-5.121C17.243 5 15.828 5 13 5h-3m0 0c0-.7 1.994-2.008 2.5-2.5M10 5c0 .7 1.994 2.008 2.5 2.5M5 7.5v6c0 2.828 0 4.243.879 5.121c.878.879 2.293.879 5.121.879h3m0 0c0 .7-1.994 2.009-2.5 2.5m2.5-2.5c0-.7-1.994-2.009-2.5-2.5"/><circle cx="19" cy="19" r="2"/><circle cx="5" cy="5" r="2"/></g>';
 	// Etch's hugeicons:arrow-left-02, the back button on its own managers.
 	const BACK = '<path d="M8.99996 16.9998L4 11.9997L9 6.99976"/><path d="M4 12H20"/>';
+	// Hugeicons free menu-02, for the Components view.
+	const LIST = '<path d="M4 8.5L20 8.5"/><path d="M4 15.5L20 15.5"/>';
 	const UPLOAD = '<path d="M12 4.5L12 14.5M12 4.5C11.2998 4.5 9.99153 6.4943 9.5 7M12 4.5C12.7002 4.5 14.0085 6.4943 14.5 7"/><path d="M20 16.5C20 18.982 19.482 19.5 17 19.5H7C4.518 19.5 4 18.982 4 16.5"/>';
 	const stroke = ( paths, size = 16 ) =>
 		`<svg class="etk-components__icon" viewBox="0 0 24 24" width="${ size }" height="${ size }" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ paths }</svg>`;
@@ -462,8 +466,11 @@
 	let main = null;
 	let status = null;
 	let controlButton = null;
-	let view = 'import';
+	let view = 'list';
 	let pasted = '';
+	let search = '';
+	let target = null; // The component Update was chosen for, or null for any.
+	let usedOn = null; // Component ID => the posts using it, from the server. Null while it loads.
 	let matches = [];
 	let reviewing = null;
 	let fileName = '';
@@ -481,6 +488,17 @@
 
 	const read = ( text, from = '' ) => {
 		try {
+			const found = parse( text );
+			if ( target ) {
+				// The one with its key, or the only one there is.
+				const incoming = found.find( ( c ) => c.key === target.key ) || ( found.length === 1 ? found[ 0 ] : null );
+				if ( ! incoming ) throw new Error( `None of the ${ found.length } components in this JSON is ${ target.name } (key ${ target.key }).` );
+				status.textContent = '';
+				status.classList.remove( 'is-error' );
+				review( { incoming, current: target } );
+				if ( incoming.key && incoming.key !== target.key ) announce( `This JSON is for ${ incoming.name } (key ${ incoming.key }). You’re comparing it with ${ target.name }, whose key stays.` );
+				return;
+			}
 			matches = match( parse( text ) );
 			fileName = from;
 			status.textContent = '';
@@ -545,10 +563,83 @@
 				: null
 		);
 
+	// Where a component is used, in a few words.
+	const usageText = ( component ) => {
+		if ( ! usedOn ) return 'Checking where it’s used…';
+		const posts = usedOn[ component.id ] || [];
+		if ( ! posts.length ) return 'Not used on any page';
+		const titles = posts.map( ( post ) => ( post.postType === 'wp_block' ? `${ post.title } (component)` : post.title ) );
+		return titles.length <= 2 ? `On ${ titles.join( ' and ' ) }` : `On ${ titles[ 0 ] } and ${ titles.length - 1 } more`;
+	};
+
+	const componentRow = ( component ) =>
+		h(
+			'li',
+			{ class: 'etk-components__found-row' },
+			h(
+				'div',
+				{ class: 'etk-components__found-text' },
+				h( 'span', { class: 'etk-components__prop-name' }, h( 'span', { class: 'etk-components__found-name', textContent: component.name } ), h( 'code', { class: 'etk-components__prop-key', textContent: component.key } ) ),
+				h( 'span', { class: 'etk-components__muted', textContent: usageText( component ) } )
+			),
+			button( 'Edit', ( e ) => editInEtch( component, e.currentTarget ), { 'aria-label': `Edit ${ component.name } in Etch`, 'data-focus': `edit:${ component.id }` } ),
+			button( 'Update', () => updateOne( component ), { 'aria-label': `Update ${ component.name } from JSON`, 'data-focus': `update:${ component.id }` } )
+		);
+
 	const views = {
+		list: () => {
+			const count = h( 'span', { class: 'etk-components__muted', role: 'status' } );
+			const results = h( 'div', { class: 'etk-components__results' } );
+			// Only the results change as you type, so the field keeps its caret.
+			const fill = () => {
+				const all = window.etch.components.list().sort( ( a, b ) => a.name.localeCompare( b.name ) );
+				const term = search.trim().toLowerCase();
+				const shown = term ? all.filter( ( c ) => `${ c.name } ${ c.key }`.toLowerCase().includes( term ) ) : all;
+				count.textContent = term ? `${ shown.length } of ${ plural( all.length, 'component', 'components' ) }` : plural( all.length, 'component', 'components' );
+				results.replaceChildren(
+					shown.length
+						? h( 'ul', { class: 'etk-components__found-list', role: 'list' }, shown.map( componentRow ) )
+						: h( 'p', { class: 'etk-components__help', textContent: all.length ? 'No components match.' : 'This site has no components yet.' } )
+				);
+			};
+			fill();
+			return [
+				h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: 'Components' } ),
+				h(
+					'div',
+					{ class: 'etk-components__list-head' },
+					h( 'label', { class: 'screen-reader-text', htmlFor: 'etk-components-search', textContent: 'Search components' } ),
+					h( 'input', {
+						id: 'etk-components-search',
+						type: 'search',
+						class: 'etk-components__search',
+						placeholder: 'Search components',
+						value: search,
+						'data-focus': 'search',
+						oninput: ( e ) => {
+							search = e.target.value;
+							fill();
+						},
+					} ),
+					count
+				),
+				results,
+			];
+		},
+
 		import: () => [
-			h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: 'Update a component' } ),
-			h( 'p', { class: 'etk-components__help', textContent: 'Drop in a JSON file or paste JSON: Etch’s copy of a component (select it and press Cmd+C), or a component’s JSON. You’ll see what changed before anything is saved.' } ),
+			h(
+				'div',
+				{ class: 'etk-components__review-head' },
+				target ? button( '', () => showList(), { class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to components', title: 'Back to components', html: stroke( BACK ), 'data-focus': 'back' } ) : null,
+				h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: target ? `Update ${ target.name }` : 'Update components' } )
+			),
+			h(
+				'p',
+				{ class: 'etk-components__help', textContent: target
+					? `Drop in a JSON file or paste JSON for ${ target.name }: Etch’s copy of it from another site (select it and press Cmd+C), or its JSON. You’ll see what changed before anything is saved.`
+					: 'Drop in a JSON file or paste JSON: Etch’s copy of a component (select it and press Cmd+C), or a component’s JSON. You’ll see what changed before anything is saved.' }
+			),
 			dropzone(),
 			h(
 				'div',
@@ -562,9 +653,9 @@
 					value: pasted,
 					oninput: ( e ) => ( pasted = e.target.value ),
 				} ),
-				h( 'div', { class: 'etk-components__actions' }, button( 'Find components', () => ( pasted.trim() ? read( pasted ) : warn( 'Paste some JSON first.' ) ), { variant: 'primary' } ) )
+				h( 'div', { class: 'etk-components__actions' }, button( target ? 'Review changes' : 'Find components', () => ( pasted.trim() ? read( pasted ) : warn( 'Paste some JSON first.' ) ), { variant: 'primary' } ) )
 			),
-			matches.length
+			! target && matches.length
 				? h(
 						'section',
 						{ class: 'etk-components__found', 'aria-labelledby': 'etk-components-found-title' },
@@ -584,12 +675,12 @@
 							{ class: 'etk-components__done-actions' },
 							button( 'Put back the previous version', ( e ) => restore( e.currentTarget ), { 'data-focus': 'restore' } ),
 							button( 'Download the previous version', download, { 'data-focus': 'download' } ),
-							button( 'Update another component', () => go( 'import' ), { 'data-focus': 'another' } )
+							button( 'Back to components', showList, { 'data-focus': 'another' } )
 						),
 				  ]
 				: [
 						h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: 'The previous version is back' } ),
-						h( 'div', { class: 'etk-components__done-actions' }, button( 'Update another component', () => go( 'import' ), { 'data-focus': 'another' } ) ),
+						h( 'div', { class: 'etk-components__done-actions' }, button( 'Back to components', showList, { 'data-focus': 'another' } ) ),
 				  ],
 
 		review: () => {
@@ -602,7 +693,7 @@
 				h(
 					'div',
 					{ class: 'etk-components__review-head' },
-					button( '', () => go( 'import' ), { class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to import', title: 'Back to import', html: stroke( BACK ), 'data-focus': 'back' } ),
+					button( '', () => go( 'import' ), { class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to the JSON', title: 'Back to the JSON', html: stroke( BACK ), 'data-focus': 'back' } ),
 					h( 'div', { class: 'etk-components__review-title' }, h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: current.name } ), h( 'p', { class: 'etk-components__muted', textContent: summary || 'No layer changes' } ) ),
 					total
 						? h(
@@ -1204,10 +1295,100 @@
 		if ( focused ) main.querySelector( `[data-focus="${ CSS.escape( focused ) }"]` )?.focus();
 	};
 
-	const go = ( next ) => {
+	// The sidebar's two views. Review and the page after an update belong to Update.
+	const NAV = { list: 'Components', import: 'Update' };
+	const navView = () => ( view === 'list' ? 'list' : 'import' );
+
+	const go = ( next, { focus = true } = {} ) => {
 		view = next;
+		panel?.querySelectorAll( '.etk-components__nav-item' ).forEach( ( item ) => ( item.dataset.view === navView() ? item.setAttribute( 'aria-current', 'page' ) : item.removeAttribute( 'aria-current' ) ) );
 		render();
-		main.querySelector( '.etk-components__page-title' )?.focus();
+		if ( focus ) main.querySelector( '.etk-components__page-title' )?.focus();
+	};
+
+	const loadUsedOn = () =>
+		toolkit
+			.api( 'components/usage' )
+			.then( ( data ) => {
+				usedOn = data.usage || {};
+				if ( view === 'list' ) render();
+			} )
+			.catch( ( error ) => warn( `Couldn’t check where components are used: ${ errorText( error ) }` ) );
+
+	const showList = () => {
+		target = null;
+		loadUsedOn();
+		go( 'list' );
+	};
+
+	// Update from the sidebar: for any component in the JSON.
+	const showUpdate = () => {
+		target = null;
+		matches = [];
+		go( 'import' );
+	};
+
+	// Update from a component's row: for that one.
+	const updateOne = ( component ) => {
+		target = component;
+		matches = [];
+		go( 'import' );
+	};
+
+	// Wait for something, a tenth of a second at a time.
+	const until = async ( check, ms = 5000 ) => {
+		for ( let waited = 0; waited <= ms; waited += 100 ) {
+			const value = check();
+			if ( value ) return value;
+			await new Promise( ( resolve ) => window.setTimeout( resolve, 100 ) );
+		}
+		return null;
+	};
+
+	// An instance of a component on the page that's open.
+	const instanceOf = ( id ) => window.etch.blocks.find( { type: 'etch/component' } ).find( ( blockId ) => window.etch.blocks.getJson( blockId ).componentId === id ) ?? null;
+
+	/**
+	 * Open a component in Etch's component editor. Etch edits a component
+	 * through an instance on the open page, so this opens a page or template
+	 * that uses it (the one you're on, if it does), or the workbench, a
+	 * private draft, with an instance added for one no page uses.
+	 */
+	const editInEtch = async ( component, trigger ) => {
+		if ( window.etch.blocks.isInComponentEditMode() ) {
+			warn( 'You’re editing a component in Etch. Finish that first, then try again.' );
+			return;
+		}
+		trigger.disabled = true;
+		announce( `Opening ${ component.name }…` );
+		try {
+			if ( ! usedOn ) await loadUsedOn();
+			const pages = ( usedOn?.[ component.id ] || [] ).filter( ( post ) => post.postType !== 'wp_block' );
+			const active = window.etch.navigation.getActivePostId();
+			const page = pages.find( ( post ) => post.id === active ) || pages[ 0 ];
+			const postId = page ? page.id : ( await toolkit.api( 'components/workbench', 'POST' ) ).id;
+
+			// Etch's editor needs the component loaded.
+			window.etch.components.getJson( component.id );
+			if ( active !== postId ) {
+				page?.postType === 'wp_template' ? await window.etch.navigation.openTemplateAsync( postId ) : await window.etch.navigation.openPostAsync( postId );
+			}
+			let blockId = await until( () => instanceOf( component.id ), page ? 5000 : 1000 );
+			if ( ! blockId && ! page ) {
+				// The workbench holds one instance at a time.
+				window.etch.blocks.getTree().forEach( ( block ) => window.etch.blocks.delete( block.id ) );
+				blockId = window.etch.blocks.create( { type: 'etch/component', version: 1, context: {}, options: {}, children: [], componentId: component.id, attributes: {} } );
+			}
+			if ( ! blockId ) throw new Error( `${ component.name } wasn’t found on ${ page.title }.` );
+
+			close( { focus: false } );
+			window.etch.blocks.select( blockId );
+			window.etch.blocks.enterComponentEditMode( blockId );
+		} catch ( error ) {
+			warn( `Couldn’t open ${ component.name }: ${ errorText( error ) }` );
+		} finally {
+			trigger.disabled = false;
+		}
 	};
 
 	const review = ( { incoming, current } ) => {
@@ -1258,10 +1439,21 @@
 				onkeyup: ( e ) => e.stopPropagation(),
 			},
 			h(
-				'header',
-				{ class: 'etk-components__header' },
-				h( 'button', { type: 'button', class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: stroke( BACK ), onclick: () => close() } ),
-				h( 'h1', { id: 'etk-components-title', class: 'etk-components__title', textContent: 'Component manager' } )
+				'div',
+				{ class: 'etk-components__sidebar' },
+				h(
+					'header',
+					{ class: 'etk-components__header' },
+					h( 'button', { type: 'button', class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: stroke( BACK ), onclick: () => close() } ),
+					h( 'h1', { id: 'etk-components-title', class: 'etk-components__title', textContent: 'Components' } )
+				),
+				h(
+					'nav',
+					{ class: 'etk-components__nav etk-track', 'aria-label': 'Component manager' },
+					Object.entries( NAV ).map( ( [ key, label ] ) =>
+						h( 'button', { type: 'button', class: 'etk-components__nav-item', 'data-view': key, html: stroke( key === 'list' ? LIST : UPLOAD ), onclick: () => ( key === 'list' ? showList() : showUpdate() ) }, label )
+					)
+				)
 			),
 			h( 'div', { class: 'etk-components__body' }, status, h( 'div', { class: 'etk-components__content' }, main ) )
 		);
@@ -1279,6 +1471,7 @@
 		panel.hidden = false;
 		controlButton?.setAttribute( 'aria-expanded', 'true' );
 		controlButton?.setAttribute( 'selected', 'true' );
+		if ( view === 'list' ) loadUsedOn();
 		go( view );
 	};
 

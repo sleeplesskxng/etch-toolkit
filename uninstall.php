@@ -20,7 +20,13 @@ function etch_toolkit_uninstall_site(): void {
 		return;
 	}
 
-	foreach ( array( 'etch_toolkit_recipes', 'etch_toolkit_fonts', 'etch_toolkit_fonts_settings', 'etch_toolkit_fonts_acss_synced', 'etch_toolkit_settings' ) as $option ) {
+	// The component manager's workbench, a draft page.
+	$workbench = (int) get_option( 'etch_toolkit_component_workbench', 0 );
+	if ( $workbench && 'page' === get_post_type( $workbench ) ) {
+		wp_delete_post( $workbench, true );
+	}
+
+	foreach ( array( 'etch_toolkit_recipes', 'etch_toolkit_fonts', 'etch_toolkit_fonts_settings', 'etch_toolkit_fonts_acss_synced', 'etch_toolkit_settings', 'etch_toolkit_component_workbench' ) as $option ) {
 		delete_option( $option );
 	}
 	delete_transient( 'etch_toolkit_google_fonts_index' );

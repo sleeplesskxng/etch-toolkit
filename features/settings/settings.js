@@ -277,7 +277,7 @@
 					'Component manager',
 					settings.componentManager,
 					( on ) => save( { componentManager: on }, on ? 'The component manager is on.' : 'The component manager is off.' ),
-					'Update a component from a JSON file or pasted JSON. You review what changed in each layer and its props, then take or keep each change. Opens from the Settings Bar.'
+					'Lists your components and where they’re used. Open one in Etch to edit it, or update it from a JSON file or pasted JSON, reviewing what changed in each layer and its props first. Opens from the Settings Bar.'
 				)
 			),
 			group(
