@@ -498,7 +498,7 @@
 			space = spaceSelect.value;
 			update();
 		} );
-		const spaceRow = el( 'div', { className: 'etk-mix__row' }, [ el( 'label', { htmlFor: 'etk-mix-space', textContent: 'Space' } ), spaceSelect ] );
+		const spaceRow = el( 'div', { className: 'etk-mix__row' }, [ el( 'label', { htmlFor: 'etk-mix-space', textContent: 'Space' } ), el( 'div', { className: 'etk-mix__select' }, [ spaceSelect ] ) ] );
 
 		// Transparent: the color and its opacity. Two colors: both, a balance between them, and the space they mix in.
 		const fields = el( 'div', { className: 'etk-mix__fields' } );
