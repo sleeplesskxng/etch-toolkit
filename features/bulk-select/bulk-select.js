@@ -200,8 +200,8 @@
 					await api( 'styles/rename/content', 'POST', { map, skip: [ ...opened ] } );
 					rename.undone = undone;
 				} catch ( err ) {
-					const notice = confirmDialog( { title: '', message: [], confirmLabel: '', failTitle: 'Other pages weren’t updated' } );
-					notice.fail( `The rename wasn’t ${ undone ? 'undone' : 'redone' } on pages that aren’t open. ${ err.message } Save again to try again.` );
+					const notice = confirmDialog( { title: '', message: [], confirmLabel: '', variant: 'primary', failTitle: `${ undone ? 'Undo' : 'Redo' } didn’t reach other pages` } );
+					notice.fail( `${ err.message } Save again to retry.` );
 				}
 			}
 		} ) )
@@ -256,6 +256,8 @@
 	const classes = ( n ) => `${ n } class${ n === 1 ? '' : 'es' }`;
 	// Etch only reads a selector as a class when the name starts with a letter.
 	const CLASS_NAME = /^[a-zA-Z][\w-]*$/;
+	// Why a new name isn't a class name, in a few words.
+	const invalid = ( value ) => ( ! value ? 'Enter a name' : /^[a-zA-Z]/.test( value ) ? 'Letters, numbers, - and _ only' : 'Start with a letter' );
 	const CHEVRON =
 		'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
 
@@ -413,7 +415,7 @@
 			affix.placeholder = m === 'suffix' ? 'Suffix' : 'Prefix';
 			affix.setAttribute( 'aria-label', affix.placeholder );
 			const where = m === 'replace' ? 'in' : 'to';
-			hint.textContent = grouped ? `${ where } every block. Classes inside follow along.` : `${ where } every class.`;
+			hint.textContent = grouped ? `${ where } each block and its classes.` : `${ where } each class.`;
 		};
 
 		/* ---- The view ---- */
@@ -535,7 +537,7 @@
 					if ( ! direct ) continue;
 					const row = bemRow( b.from, direct.parent ?? direct );
 					row.auto = b.to;
-					row.note = b.styled ? '' : 'Class only';
+					row.note = b.styled ? '' : 'No style';
 					if ( ! row.edited ) row.input.value = b.to;
 					row.error = row.error || ( plan?.rowErrors[ b.from ] ?? '' ).replace( /\.$/, '' );
 					row.parent.others.push( row );
@@ -547,10 +549,10 @@
 				}
 			}
 			if ( ! plan ) return;
-			add( 'From nested rules like &__title', 'nested', plan.nested.map( ( x ) => [ `.${ x.from }`, x.to ] ) );
+			add( 'Nested rules', 'nested', plan.nested.map( ( x ) => [ `.${ x.from }`, x.to ] ) );
 			// Selectors under their classes are in the list already.
 			const others = plan.styles.filter( ( x ) => ! isClassSelector( x.from ) && x.from !== x.to && ! listed.has( x.from.trim() ) );
-			add( 'Other selectors that use these classes', 'other', others.map( ( x ) => [ x.from, x.to.replace( /^\./, '' ) ] ) );
+			add( 'Other selectors', 'other', others.map( ( x ) => [ x.from, x.to.replace( /^\./, '' ) ] ) );
 		};
 
 		// Between previews: only what the list itself shows.
@@ -582,7 +584,7 @@
 		const head = el( 'div', { className: 'etk-rn__head' }, [
 			el( 'div', { className: 'etk-rn__heading' }, [
 				title,
-				el( 'p', { className: 'etk-rn__sub', textContent: "Renaming updates every page that uses these classes and saves right away. It can't be undone." } ),
+				el( 'p', { className: 'etk-rn__sub', textContent: 'Updates every page that uses them and saves right away.' } ),
 			] ),
 			el( 'div', { className: 'etk-rn__actions' }, [ status, cancel, confirm ] ),
 		] );
@@ -662,7 +664,7 @@
 			const edits = kids.filter( ( c ) => c.edited ).length;
 
 			row.message.hidden = ! ( on && row.error );
-			if ( row.message.textContent !== row.error ) row.message.textContent = row.error;
+			if ( row.message.textContent !== row.error ) row.message.textContent = row.message.title = row.error;
 			row.input.setAttribute( 'aria-invalid', String( !! ( on && row.error ) ) );
 			if ( on && row.error ) row.input.setAttribute( 'aria-describedby', row.message.id );
 			else row.input.removeAttribute( 'aria-describedby' );
@@ -677,7 +679,7 @@
 
 		const renderBemStatus = ( row ) => {
 			row.message.hidden = ! row.error;
-			if ( row.message.textContent !== row.error ) row.message.textContent = row.error;
+			if ( row.message.textContent !== row.error ) row.message.textContent = row.message.title = row.error;
 			row.input.setAttribute( 'aria-invalid', String( !! row.error ) );
 			if ( row.error ) row.input.setAttribute( 'aria-describedby', row.message.id );
 			else row.input.removeAttribute( 'aria-describedby' );
@@ -774,7 +776,7 @@
 				const value = row.input.value.trim();
 				// An unchanged name is left as it is, even one with special characters like "md:flex".
 				const ok = value === row.name || CLASS_NAME.test( value );
-				row.error = ok ? '' : value ? 'Letters, numbers, - and _ only, starting with a letter' : 'Enter a class name';
+				row.error = ok ? '' : invalid( value );
 				if ( ok && value !== row.name ) map[ row.name ] = value;
 			}
 			const n = Object.keys( map ).length;
@@ -784,12 +786,12 @@
 				if ( ! bemBox.checked || ! row.edited ) continue;
 				const value = row.input.value.trim();
 				const ok = value === row.name || CLASS_NAME.test( value );
-				row.error = ok ? '' : value ? 'Letters, numbers, - and _ only, starting with a letter' : 'Enter a class name';
+				row.error = ok ? '' : invalid( value );
 				if ( ok ) map[ row.name ] = value;
 			}
 
 			if ( rowErrors().length || ! n ) {
-				clearToolbar( rowErrors().length ? `${ plural( rowErrors().length, 'name' ) } to fix before it can rename.` : rows.every( ( r ) => ! r.check.checked ) ? 'Nothing left to rename.' : 'Add a prefix or edit a name to see what changes.' );
+				clearToolbar( rowErrors().length ? '' : rows.every( ( r ) => ! r.check.checked ) ? 'Nothing selected.' : 'Change a name to preview.' );
 				openProblems();
 				render();
 				return;
@@ -853,7 +855,7 @@
 				for ( const control of panel.querySelectorAll( 'input, select, button' ) ) control.disabled = false;
 				confirm.textContent = 'Rename';
 				refresh();
-				setNote( `The rename didn't go through. ${ err.message }` );
+				setNote( `Rename failed. ${ err.message }` );
 				return;
 			}
 			// Renamed on the server by now, so if the builder can't catch up, it starts over.

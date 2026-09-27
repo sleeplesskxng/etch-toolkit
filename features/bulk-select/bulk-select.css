@@ -544,8 +544,12 @@
 	color: var(--etk-rn-warning);
 }
 
+/* One line, like the row. The full text is its title. */
 .etk-rn__message {
+	overflow: hidden;
 	color: var(--etk-rn-danger);
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .etk-rn__reset {
@@ -618,11 +622,15 @@
 	}
 }
 
-/* The warnings open above the toolbar. */
+/* The warnings open above the toolbar, centered on it and as wide as they need, since the toolbar can be narrow. */
 .etk-rn__warnings {
 	position: absolute;
-	inset-inline: 0;
+	left: 50%;
+	translate: -50% 0;
 	bottom: calc(100% + 8px);
+	box-sizing: border-box;
+	inline-size: max-content;
+	max-inline-size: min(440px, calc(100vw - 48px));
 	display: flex;
 	flex-direction: column;
 	gap: 8px;

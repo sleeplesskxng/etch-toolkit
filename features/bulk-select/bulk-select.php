@@ -204,8 +204,8 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 	}
 	foreach ( $nested as $child => $new ) {
 		if ( isset( $keep[ $child ] ) || ( isset( $map[ $child ] ) && $map[ $child ] !== $new ) ) {
-			$errors[]             = sprintf( '.%1$s is styled by a nested rule in the class it belongs to, so it has to become .%2$s.', $child, $new );
-			$row_errors[ $child ] = sprintf( 'A nested rule makes this .%s.', $new );
+			$errors[]             = sprintf( '.%1$s has to be .%2$s because of a nested rule.', $child, $new );
+			$row_errors[ $child ] = sprintf( 'A nested rule makes it .%s.', $new );
 		}
 		$map[ $child ] = $new;
 	}
@@ -289,16 +289,16 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 	foreach ( $map as $old => $new ) {
 		$old = (string) $old;
 		if ( isset( $locked[ $old ] ) ) {
-			$errors[]           = sprintf( ".%s is also used by a read-only style, which can't be renamed.", $old );
-			$row_errors[ $old ] = $row_errors[ $old ] ?? 'A read-only style uses it.';
+			$errors[]           = sprintf( '.%s is in a read-only style.', $old );
+			$row_errors[ $old ] = $row_errors[ $old ] ?? 'In a read-only style.';
 		} elseif ( ! preg_match( '/^[a-zA-Z][a-zA-Z0-9_-]*$/D', $new ) ) {
 			// Etch only reads a selector as a class when the name starts with a letter. D, or $
 			// would also match before a trailing newline.
-			$errors[]           = sprintf( '".%s" would become ".%s", which isn\'t a valid class name.', $old, $new );
-			$row_errors[ $old ] = $row_errors[ $old ] ?? 'Not a valid class name.';
+			$errors[]           = sprintf( '.%s isn\'t a valid name.', $new );
+			$row_errors[ $old ] = $row_errors[ $old ] ?? 'Not a valid name.';
 		} elseif ( isset( $targets[ $new ] ) ) {
-			$errors[]           = sprintf( '".%s" and ".%s" would both become ".%s".', $targets[ $new ], $old, $new );
-			$row_errors[ $old ] = $row_errors[ $old ] ?? sprintf( 'Same name as .%s.', $targets[ $new ] );
+			$errors[]           = sprintf( '.%s and .%s would both become .%s.', $targets[ $new ], $old, $new );
+			$row_errors[ $old ] = $row_errors[ $old ] ?? sprintf( 'Same as .%s.', $targets[ $new ] );
 		}
 		$targets[ $new ] = $old;
 	}
@@ -346,7 +346,7 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 			continue;
 		}
 		$selector = $new_styles[ $group[0] ]['selector'];
-		$errors[] = sprintf( '"%s" would exist twice. Rename or delete the existing one first.', $selector );
+		$errors[] = sprintf( '%s already exists.', $selector );
 		foreach ( etch_toolkit_css_classes( $selector ) as $class ) {
 			$old = $targets[ $class ] ?? null;
 			if ( null !== $old ) {
@@ -364,7 +364,7 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 		if ( isset( $in_use[ $new ] ) && ! isset( $map[ $new ] ) ) {
 			$merged[] = $new;
 			if ( ! isset( $row_errors[ (string) $old ] ) ) {
-				$warnings[] = sprintf( "There's already a .%1\$s on this site, so .%2\$s merges with it.", $new, $old );
+				$warnings[] = sprintf( '.%1$s merges with the existing .%2$s.', $old, $new );
 			}
 		}
 	}
@@ -416,11 +416,11 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 			}
 		}
 	}
-	foreach ( array_slice( $dynamic, 0, 5, true ) as $token => $olds ) {
-		$warnings[] = sprintf( "The dynamic class %s can still make .%s. Dynamic classes aren't renamed, so update it by hand.", $token, implode( ', .', array_keys( $olds ) ) );
+	foreach ( array_keys( array_slice( $dynamic, 0, 5, true ) ) as $token ) {
+		$warnings[] = sprintf( 'Update %s by hand. Dynamic classes aren\'t renamed.', $token );
 	}
 	if ( count( $dynamic ) > 5 ) {
-		$warnings[] = sprintf( 'And %d more dynamic classes like it.', count( $dynamic ) - 5 );
+		$warnings[] = sprintf( 'And %d more like it.', count( $dynamic ) - 5 );
 	}
 
 	return array(
@@ -469,7 +469,7 @@ function etch_toolkit_rename_apply( array $ids, array $map, bool $bem = false, a
 	if ( ! update_option( 'etch_styles', $plan['newStyles'] ) || ( $plan['stylesheets'] && ! update_option( 'etch_global_stylesheets', $plan['newStylesheets'] ) ) ) {
 		update_option( 'etch_styles', $styles );
 		etch_toolkit_update_contents( $plan['contents'], $renamed );
-		return new WP_Error( 'etch_toolkit_rename_failed', "The renamed styles couldn't be saved, so nothing was changed.", array( 'status' => 500 ) );
+		return new WP_Error( 'etch_toolkit_rename_failed', "Couldn't save the styles. Nothing changed.", array( 'status' => 500 ) );
 	}
 
 	return rest_ensure_response( etch_toolkit_rename_public( $plan ) );

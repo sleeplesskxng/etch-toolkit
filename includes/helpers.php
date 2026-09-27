@@ -436,10 +436,10 @@ function etch_toolkit_update_contents( array $contents, array $originals ) {
 				$stuck[] = etch_toolkit_post_title( $id );
 			}
 		}
-		$message = sprintf( 'Could not save "%s". %s', etch_toolkit_post_title( $post_id ), $result->get_error_message() );
+		$message = sprintf( 'Couldn\'t save "%s". %s', etch_toolkit_post_title( $post_id ), $result->get_error_message() );
 		$message .= $stuck
-			? sprintf( " These were saved and couldn't be put back, so check them: %s.", implode( ', ', $stuck ) )
-			: ' Nothing was changed.';
+			? sprintf( ' These changed and couldn\'t be put back: %s.', implode( ', ', $stuck ) )
+			: ' Nothing changed.';
 		return new WP_Error( $result->get_error_code(), $message, array( 'status' => 500 ) );
 	}
 	return true;
