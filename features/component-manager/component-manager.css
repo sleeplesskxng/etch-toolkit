@@ -364,22 +364,235 @@
 /* Review                                                              */
 /* ------------------------------------------------------------------ */
 
+.etk-components__page--review {
+	inline-size: min(960px, 100%);
+}
+
 .etk-components__review-head {
 	display: flex;
 	align-items: center;
 	gap: 12px;
 }
 
-.etk-components__summary {
-	display: grid;
-	grid-template-columns: max-content 1fr;
-	gap: 6px 16px;
+.etk-components__review-title {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
 
-	dt {
-		color: var(--etk-components-text-50);
+/*
+ * The layer tree, drawn like Etch's Structure panel (its values, from Etch's
+ * builder), with the change cues on top.
+ */
+.etk-components__tree {
+	--etk-layer-accent: var(--e-base-light, #36363a);
+	--etk-layer-text: var(--etk-components-text);
+
+	padding: 4px;
+	border: 1px solid var(--etk-components-line);
+	border-radius: var(--etk-components-radius-lg);
+	background: var(--e-panel-background-color, #27272b);
+}
+
+.etk-components__layers {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.etk-components__layers--inside {
+	margin-inline-start: 12px;
+}
+
+.etk-components__layer {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin: 0;
+}
+
+/* Components, loops and conditions in their Structure panel colors. */
+.etk-components__layer--component {
+	--etk-layer-accent: var(--e-component-dark, #4e3569);
+	--etk-layer-text: oklch(from var(--e-component, #b981f3) calc(l * 1.35) calc(c / 1.3) h);
+}
+
+.etk-components__layer--loop {
+	--etk-layer-accent: oklch(from var(--e-loop-dark, #3d4574) calc(l / 1.1) c h);
+	--etk-layer-text: oklch(from var(--e-loop, #8c9ae8) calc(l * 1.25) c h);
+}
+
+.etk-components__layer--condition {
+	--etk-layer-accent: oklch(from var(--e-condition-dark, #5c4f2c) calc(l / 1.1) c h);
+	--etk-layer-text: oklch(from var(--e-condition, #d1b771) calc(l * 1.05) c h);
+}
+
+.etk-components__layer-header {
+	display: flex;
+	align-items: center;
+	min-block-size: 26px;
+	padding: 6px;
+	border-radius: var(--e-border-radius, 6px);
+	background: var(--etk-layer-accent);
+	color: var(--etk-layer-text);
+	font-family: var(--e-font-interface, Inter, system-ui, sans-serif);
+	font-size: var(--e-font-size-m, 12px);
+	line-height: 1;
+	white-space: nowrap;
+}
+
+/* The caret opens and closes the layers inside. */
+.etk-components .etk-components__caret {
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	inline-size: 22px;
+	block-size: 22px;
+	margin: -4px 0 -4px -5px;
+	padding: 4px;
+	border: 0;
+	border-radius: 4px;
+	background: none;
+	color: inherit;
+	opacity: 0.65;
+	cursor: pointer;
+
+	&:hover {
+		opacity: 1;
 	}
 
-	dd {
-		font-weight: 400;
+	.etk-components__caret-icon {
+		transition: transform 0.25s cubic-bezier(0.25, 0.6, 0.1, 1);
 	}
+
+	&[aria-expanded="true"] .etk-components__caret-icon {
+		transform: rotate(90deg);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.etk-components__caret-icon {
+			transition: none;
+		}
+	}
+}
+
+/* A layer with nothing inside gets the Structure panel's short dash. */
+.etk-components__leaf {
+	flex: none;
+	inline-size: 6px;
+	block-size: 1.5px;
+	margin-inline: 3px 5px;
+	border-radius: 50vw;
+	background: currentColor;
+	opacity: 0.35;
+}
+
+.etk-components__layer-name {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	gap: 2px;
+	min-inline-size: 0;
+	overflow: hidden;
+	line-height: 14px;
+}
+
+.etk-components__layer-tag {
+	font-variant-numeric: tabular-nums;
+
+	&::before,
+	&::after {
+		display: inline-block;
+		transform: scaleX(0.85);
+		font-variation-settings: "wght" 350;
+	}
+
+	&::before {
+		content: "<";
+		margin-inline-start: -0.1em;
+	}
+
+	&::after {
+		content: ">";
+		margin-inline-end: -0.1em;
+		transform-origin: left;
+	}
+}
+
+.etk-components__layer-label {
+	min-inline-size: 0;
+	overflow-x: clip;
+	font-weight: 500;
+	text-overflow: ellipsis;
+}
+
+/* Added layers get a green edge, removed ones a red edge and a struck label. */
+.etk-components__layer--added > .etk-components__layer-header {
+	box-shadow: inset 2px 0 0 var(--e-success, #67d992);
+}
+
+.etk-components__layer--removed > .etk-components__layer-header {
+	box-shadow: inset 2px 0 0 var(--e-danger, #f26060);
+
+	.etk-components__layer-name {
+		opacity: 0.6;
+	}
+
+	.etk-components__layer-label {
+		text-decoration: line-through;
+	}
+}
+
+.etk-components__chips {
+	display: flex;
+	flex: none;
+	gap: 4px;
+	margin-inline-start: auto;
+	padding-inline-start: 8px;
+}
+
+/* A change cue: a small label in its category's color. */
+.etk-components__chip {
+	--etk-chip: var(--etk-components-text-60);
+
+	padding: 1px 5px;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--etk-chip) 16%, transparent);
+	color: var(--etk-chip);
+	font-size: 10px;
+	font-weight: 600;
+	line-height: 12px;
+	letter-spacing: 0.02em;
+}
+
+.etk-components__chip--html {
+	--etk-chip: var(--etk-components-accent);
+}
+
+.etk-components__chip--css {
+	--etk-chip: var(--e-loop, #8c9ae8);
+}
+
+/* Etch's JS indicator color. */
+.etk-components__chip--js {
+	--etk-chip: #f0db4f;
+}
+
+.etk-components__chip--added {
+	--etk-chip: var(--e-success, #67d992);
+}
+
+.etk-components__chip--removed {
+	--etk-chip: var(--e-danger, #f26060);
+}
+
+.etk-components__chip--inside {
+	--etk-chip: var(--etk-components-text-60);
+
+	background: none;
+	font-weight: 500;
 }

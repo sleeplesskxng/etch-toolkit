@@ -161,8 +161,185 @@
 		return components.map( ( incoming ) => ( { incoming, current: local.find( ( c ) => incoming.key && c.key === incoming.key ) || null } ) );
 	};
 
-	// Layers in a tree, counted.
-	const countLayers = ( blocks ) => blocks.reduce( ( n, block ) => n + 1 + countLayers( block.children || [] ), 0 );
+	/* ------------------------------------------------------------------ */
+	/* Comparing                                                           */
+	/* ------------------------------------------------------------------ */
+
+	// A value as text to compare and show. Objects as indented JSON.
+	const asText = ( value ) => ( typeof value === 'string' ? value : value === undefined || value === null ? '' : JSON.stringify( value, null, 2 ) );
+
+	// A class attribute's names, split on whitespace outside {…} the way Etch splits
+	// them. Dynamic parts like {props.extra} aren't names, so they're left out.
+	const classNames = ( value ) =>
+		String( value || '' )
+			.split( /\s+(?![^{]*})/ )
+			.filter( ( name ) => name && ! name.includes( '{' ) );
+
+	const TYPE_NAMES = {
+		'etch/text': 'Text',
+		'etch/slot-placeholder': 'Slot',
+		'etch/slot-content': 'Slot content',
+		'etch/loop': 'Loop',
+		'etch/condition': 'Condition',
+		'etch/component': 'Component',
+		'etch/raw-html': 'Raw HTML',
+		'etch/dynamic-image': 'Image',
+		'etch/passthrough': 'Block',
+	};
+
+	/**
+	 * What the review compares on a layer, by category. html is a map of
+	 * field => { label, value }: its tag, name and attributes, and whatever
+	 * else its type has, like a text's text or a loop's target. styles are
+	 * the class styles it links to, as { selector, css }. script is its JS.
+	 */
+	const describe = ( block, side ) => {
+		const html = new Map();
+		const set = ( key, label, value ) => html.set( key, { label, value: asText( value ) } );
+		const tag = block.tag ?? block.attributes?.tag ?? ( block.type === 'etch/svg' ? 'svg' : undefined );
+		if ( block.tag !== undefined ) set( 'tag', 'Tag', block.tag );
+		set( 'name', 'Name', block.context?.name || '' );
+		if ( block.context?.hidden ) set( 'hidden', 'Hidden', 'Yes' );
+		if ( block.type === 'etch/component' ) {
+			set( 'component', 'Component', side.componentName( block.componentId ) );
+			for ( const [ key, value ] of Object.entries( block.attributes || {} ) ) set( `prop:${ key }`, `Prop ${ key }`, value );
+		} else {
+			for ( const [ key, value ] of Object.entries( block.attributes || {} ) ) set( `attr:${ key }`, key, value );
+		}
+		if ( 'text' in block ) set( 'text', 'Text', block.text );
+		if ( 'slotName' in block ) set( 'slot', 'Slot', block.slotName );
+		if ( 'conditionString' in block ) set( 'condition', 'Condition', block.conditionString );
+		for ( const key of [ 'target', 'loopId', 'loopParams', 'itemId', 'indexId' ] ) if ( key in block ) set( `loop:${ key }`, key, block[ key ] );
+		if ( 'content' in block ) set( 'content', 'HTML', block.content );
+		if ( block.unsafe ) set( 'unsafe', 'Unsafe', block.unsafe );
+		if ( block.gutenbergBlock ) set( 'block', 'Block', block.gutenbergBlock );
+		if ( block.options && Object.keys( block.options ).length ) set( 'options', 'Options', block.options );
+
+		return {
+			block,
+			name: block.context?.name || '',
+			label: block.context?.name || TYPE_NAMES[ block.type ] || tag || block.type,
+			tag: block.type === 'etch/element' || block.type === 'etch/dynamic-element' || block.type === 'etch/svg' ? tag : '',
+			classes: classNames( block.attributes?.class ),
+			html,
+			styles: ( block.styles || [] ).map( side.style ).filter( Boolean ),
+			script: block.script?.code ?? '',
+		};
+	};
+
+	// How alike two layers are, 0 to 1. Layers of different types never pair.
+	const similarity = ( a, b ) => {
+		if ( a.block.type !== b.block.type ) return 0;
+		let score = 0.1;
+		if ( a.name && a.name === b.name ) score += 0.4;
+		if ( a.tag === b.tag ) score += 0.15;
+		const ours = new Set( a.classes );
+		const all = new Set( [ ...a.classes, ...b.classes ] );
+		score += all.size ? ( 0.3 * b.classes.filter( ( name ) => ours.has( name ) ).length ) / all.size : 0.15;
+		if ( a.html.get( 'text' )?.value && a.html.get( 'text' )?.value === b.html.get( 'text' )?.value ) score += 0.05;
+		return score;
+	};
+	// Pairs below this are a layer removed and another added.
+	const SAME_LAYER = 0.4;
+
+	/**
+	 * Pair two lists of sibling layers, keeping their order: the pairing with
+	 * the most similarity in total. What doesn't pair was removed or added.
+	 * Returns [ current, incoming ] pairs in order, with null for the missing side.
+	 */
+	const align = ( ours, theirs ) => {
+		const score = ours.map( ( a ) => theirs.map( ( b ) => similarity( a, b ) ) );
+		const best = Array.from( { length: ours.length + 1 }, () => new Float64Array( theirs.length + 1 ) );
+		for ( let i = ours.length - 1; i >= 0; i-- ) {
+			for ( let j = theirs.length - 1; j >= 0; j-- ) {
+				best[ i ][ j ] = Math.max( best[ i + 1 ][ j ], best[ i ][ j + 1 ], score[ i ][ j ] >= SAME_LAYER ? score[ i ][ j ] + best[ i + 1 ][ j + 1 ] : 0 );
+			}
+		}
+		const pairs = [];
+		let i = 0;
+		let j = 0;
+		while ( i < ours.length || j < theirs.length ) {
+			if ( i < ours.length && j < theirs.length && score[ i ][ j ] >= SAME_LAYER && best[ i ][ j ] === score[ i ][ j ] + best[ i + 1 ][ j + 1 ] ) pairs.push( [ ours[ i++ ], theirs[ j++ ] ] );
+			else if ( j >= theirs.length || ( i < ours.length && best[ i + 1 ][ j ] >= best[ i ][ j + 1 ] ) ) pairs.push( [ ours[ i++ ], null ] );
+			else pairs.push( [ null, theirs[ j++ ] ] );
+		}
+		return pairs;
+	};
+
+	// CSS compared the way it reads, not how it's spaced.
+	const sameCss = ( a, b ) => ( a || '' ).replace( /\s+/g, ' ' ).trim() === ( b || '' ).replace( /\s+/g, ' ' ).trim();
+
+	/**
+	 * Compare a current component with an incoming one. Returns the layers as
+	 * one tree, each node { id, status, current, incoming, html, css, js,
+	 * children, inside }:
+	 * - status: 'same', 'changed', 'added' or 'removed'.
+	 * - html: the fields that differ, { key, label, from, to }.
+	 * - css: the class styles whose CSS would change on this site, { selector,
+	 *   from, to }, from null for a class this site doesn't have yet. Classes
+	 *   are site-wide, so an added layer can change CSS too.
+	 * - js: { from, to } when the script differs.
+	 * - inside: how many layers inside changed, were added or removed.
+	 */
+	const compare = ( now, incoming ) => {
+		const local = window.etch.styles.list();
+		const byId = new Map( local.map( ( s ) => [ s.id, s ] ) );
+		const bySelector = new Map( local.map( ( s ) => [ s.selector, s ] ) );
+		const components = window.etch.components.list();
+		const nameOfLocal = ( id ) => components.find( ( c ) => c.id === id )?.name ?? `#${ id }`;
+
+		const currentSide = {
+			style: ( id ) => byId.get( id ) && { selector: byId.get( id ).selector, css: byId.get( id ).css ?? '' },
+			componentName: nameOfLocal,
+		};
+		// The JSON's styles and components by their IDs on its site, or this site's if it came from here.
+		const incomingSide = {
+			style: ( id ) => ( incoming.styles[ id ] ? { selector: incoming.styles[ id ].selector, css: incoming.styles[ id ].css ?? '' } : currentSide.style( id ) ),
+			componentName: ( id ) => incoming.components[ id ]?.name ?? nameOfLocal( id ),
+		};
+
+		let ids = 0;
+		const cssChanges = ( layer ) =>
+			layer.styles
+				.filter( ( style ) => ! sameCss( bySelector.get( style.selector )?.css, style.css ) )
+				.map( ( style ) => ( { selector: style.selector, from: bySelector.has( style.selector ) ? bySelector.get( style.selector ).css ?? '' : null, to: style.css } ) );
+
+		const node = ( ours, theirs ) => {
+			const status = ! ours ? 'added' : ! theirs ? 'removed' : 'same';
+			const result = { id: `etk-layer-${ ++ids }`, status, current: ours, incoming: theirs, html: [], css: [], js: null, children: [], inside: 0 };
+
+			if ( ours && theirs ) {
+				for ( const key of new Set( [ ...ours.html.keys(), ...theirs.html.keys() ] ) ) {
+					const from = ours.html.get( key )?.value ?? '';
+					const to = theirs.html.get( key )?.value ?? '';
+					if ( from !== to ) result.html.push( { key, label: ( ours.html.get( key ) || theirs.html.get( key ) ).label, from, to } );
+				}
+				if ( ours.script !== theirs.script ) result.js = { from: ours.script, to: theirs.script };
+			}
+			if ( theirs ) result.css = cssChanges( theirs );
+			if ( status === 'same' && ( result.html.length || result.css.length || result.js ) ) result.status = 'changed';
+
+			const kids = ( layer, side ) => ( layer?.block.children || [] ).map( ( block ) => describe( block, side ) );
+			const pairs = ours && theirs ? align( kids( ours, currentSide ), kids( theirs, incomingSide ) ) : ours ? kids( ours, currentSide ).map( ( a ) => [ a, null ] ) : kids( theirs, incomingSide ).map( ( b ) => [ null, b ] );
+			result.children = pairs.map( ( [ a, b ] ) => node( a, b ) );
+			result.inside = result.children.reduce( ( n, child ) => n + ( child.status === 'same' ? 0 : 1 ) + child.inside, 0 );
+			return result;
+		};
+
+		const top = align(
+			now.blocks.map( ( block ) => describe( block, currentSide ) ),
+			incoming.blocks.map( ( block ) => describe( block, incomingSide ) )
+		);
+		return top.map( ( [ a, b ] ) => node( a, b ) );
+	};
+
+	// Every node in a compared tree, depth first.
+	const walk = function* ( nodes ) {
+		for ( const node of nodes ) {
+			yield node;
+			yield* walk( node.children );
+		}
+	};
 
 	/* ------------------------------------------------------------------ */
 	/* Views                                                               */
@@ -285,20 +462,73 @@
 		],
 
 		review: () => {
-			const { incoming, current } = reviewing;
-			const now = window.etch.components.getJson( current.id );
+			const { current, tree } = reviewing;
+			const counts = { changed: 0, added: 0, removed: 0 };
+			for ( const node of walk( tree ) ) if ( node.status in counts ) counts[ node.status ]++;
+			const summary = [ counts.changed && `${ plural( counts.changed, 'layer', 'layers' ) } changed`, counts.added && `${ counts.added } added`, counts.removed && `${ counts.removed } removed` ].filter( Boolean ).join( ', ' );
 			return [
-				h( 'div', { class: 'etk-components__review-head' }, button( '', () => go( 'import' ), { class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to import', title: 'Back to import', html: stroke( BACK ) } ), h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: current.name } ) ),
 				h(
-					'dl',
-					{ class: 'etk-components__summary' },
-					h( 'dt', { textContent: 'Layers' } ),
-					h( 'dd', { textContent: `${ countLayers( now.blocks ) } now, ${ countLayers( incoming.blocks ) } incoming` } ),
-					h( 'dt', { textContent: 'Props' } ),
-					h( 'dd', { textContent: `${ now.properties.length } now, ${ incoming.properties.length } incoming` } )
+					'div',
+					{ class: 'etk-components__review-head' },
+					button( '', () => go( 'import' ), { class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to import', title: 'Back to import', html: stroke( BACK ) } ),
+					h( 'div', { class: 'etk-components__review-title' }, h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: current.name } ), h( 'p', { class: 'etk-components__muted', textContent: summary || 'No layer changes' } ) )
 				),
+				h( 'section', { class: 'etk-components__tree', 'aria-label': 'Layers' }, h( 'ul', { class: 'etk-components__layers', role: 'list' }, tree.map( layerRow ) ) ),
 			];
 		},
+	};
+
+	/* ---- The layer tree, drawn like the Structure panel ---- */
+
+	// Etch's caret, as in the Structure panel.
+	const CARET =
+		'<svg class="etk-components__caret-icon" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M8.71304 5.30711C8.99329 5.19103 9.31588 5.25519 9.53038 5.46969L15.5303 11.4697C15.8232 11.7626 15.8232 12.2375 15.5303 12.5304L9.53033 18.5304C9.31583 18.7449 8.99324 18.809 8.71299 18.6929C8.43273 18.5768 8.25 18.3034 8.25 18L8.25005 6.00002C8.25005 5.69667 8.43278 5.4232 8.71304 5.30711Z"/></svg>';
+	const CATEGORIES = { html: 'HTML', css: 'CSS', js: 'JS' };
+	// The Structure panel colors components, loops and conditions.
+	const KINDS = { 'etch/component': 'component', 'etch/loop': 'loop', 'etch/condition': 'condition' };
+
+	// Layers closed in the tree. Everything starts open.
+	let closedLayers = new Set();
+
+	const chip = ( kind, text ) => h( 'span', { class: `etk-components__chip etk-components__chip--${ kind }`, textContent: text } );
+
+	// Which categories changed on a layer. An added layer can still change a class's CSS.
+	const changedCategories = ( node ) => Object.keys( CATEGORIES ).filter( ( key ) => ( key === 'js' ? node.js : node[ key ].length ) );
+
+	const layerRow = ( node ) => {
+		const layer = node.incoming || node.current;
+		const open = ! closedLayers.has( node.id );
+		const chips = changedCategories( node ).map( ( key ) => chip( key, CATEGORIES[ key ] ) );
+		if ( node.status === 'added' ) chips.unshift( chip( 'added', 'Added' ) );
+		if ( node.status === 'removed' ) chips.unshift( chip( 'removed', 'Removed' ) );
+		// A closed layer says how much changed inside it.
+		if ( node.inside && ! open ) chips.push( chip( 'inside', `${ node.inside } inside` ) );
+
+		return h(
+			'li',
+			{ class: `etk-components__layer etk-components__layer--${ node.status } etk-components__layer--${ KINDS[ layer.block.type ] || 'default' }`, 'data-layer': node.id },
+			h(
+				'div',
+				{ class: 'etk-components__layer-header' },
+				node.children.length
+					? h( 'button', { type: 'button', class: 'etk-components__caret', 'aria-expanded': String( open ), 'aria-label': `Layers inside ${ layer.label }`, html: CARET, onclick: () => toggleLayer( node ) } )
+					: h( 'span', { class: 'etk-components__leaf', 'aria-hidden': 'true' } ),
+				h(
+					'span',
+					{ class: 'etk-components__layer-name' },
+					layer.tag ? h( 'span', { class: 'etk-components__layer-tag', textContent: layer.tag } ) : null,
+					h( 'span', { class: 'etk-components__layer-label', textContent: layer.label } )
+				),
+				chips.length ? h( 'span', { class: 'etk-components__chips' }, chips ) : null
+			),
+			node.children.length && open ? h( 'ul', { class: 'etk-components__layers etk-components__layers--inside', role: 'list' }, node.children.map( layerRow ) ) : null
+		);
+	};
+
+	const toggleLayer = ( node ) => {
+		closedLayers.has( node.id ) ? closedLayers.delete( node.id ) : closedLayers.add( node.id );
+		render();
+		main.querySelector( `[data-layer="${ node.id }"] > .etk-components__layer-header > .etk-components__caret` )?.focus();
 	};
 
 	const render = () => main && main.replaceChildren( h( 'div', { class: `etk-components__page etk-components__page--${ view }` }, ...views[ view ]() ) );
@@ -309,8 +539,9 @@
 		main.querySelector( '.etk-components__page-title' )?.focus();
 	};
 
-	const review = ( pair ) => {
-		reviewing = pair;
+	const review = ( { incoming, current } ) => {
+		reviewing = { incoming, current, tree: compare( window.etch.components.getJson( current.id ), incoming ) };
+		closedLayers = new Set();
 		go( 'review' );
 	};
 
