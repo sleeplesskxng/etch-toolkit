@@ -622,7 +622,7 @@
 	}
 }
 
-/* Tables, after Etch's content hub: a 35px header strip, then 46px rows with soft dividers. */
+/* Tables, after Etch's content hub: a rounded 35px header, then 46px rows with soft dividers. */
 .etk-fonts__table {
 	inline-size: 100%;
 	border-collapse: separate;
@@ -1952,10 +1952,6 @@
 		background: var(--etk-fonts-surface);
 	}
 
-	thead td:first-child {
-		border-start-start-radius: var(--etk-fonts-radius);
-	}
-
 	/* The checkbox, then the status icon, sharing the gap between them. */
 	.etk-fonts__files-pick {
 		inline-size: 14px;
@@ -1998,12 +1994,21 @@
 		background-clip: padding-box;
 	}
 
+	/*
+	 * The header is rounded all round, clear of the rows. Its transparent
+	 * bottom border is the gap, so its bottom curves are that much taller to
+	 * land on the fill.
+	 */
 	thead > tr > :first-child {
 		padding-inline-start: calc(8px + var(--inset));
+		border-top-left-radius: var(--card-radius);
+		border-bottom-left-radius: var(--card-radius) calc(var(--card-radius) + var(--inset));
 	}
 
 	thead > tr > :last-child {
 		padding-inline-end: calc(8px + var(--inset));
+		border-top-right-radius: var(--card-radius);
+		border-bottom-right-radius: var(--card-radius) calc(var(--card-radius) + var(--inset));
 	}
 
 	/*

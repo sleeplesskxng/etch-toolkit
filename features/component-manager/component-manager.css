@@ -441,7 +441,7 @@
 	}
 }
 
-/* The Fonts manager's files table, after Etch's content hub: a 35px header strip, then 46px rows with soft dividers. */
+/* The Fonts manager's files table, after Etch's content hub: a rounded 35px header, then 46px rows with soft dividers. */
 .etk-components__table {
 	inline-size: 100%;
 	table-layout: fixed;
@@ -458,21 +458,30 @@
 		vertical-align: middle;
 	}
 
+	/*
+	 * The header is rounded all round, 4px clear of the rows. Its transparent
+	 * bottom border is the gap, so its bottom curves are 4px taller to land
+	 * on the fill.
+	 */
 	thead th {
-		block-size: 35px;
+		block-size: calc(35px + 4px);
+		border-block-end: 4px solid transparent;
 		background: var(--etk-components-surface);
+		background-clip: padding-box;
 		font-weight: 500;
 		line-height: 16px;
 	}
 
 	thead th:first-child {
 		padding-inline-start: 12px;
-		border-start-start-radius: var(--etk-components-radius);
+		border-top-left-radius: var(--etk-components-radius);
+		border-bottom-left-radius: var(--etk-components-radius) calc(var(--etk-components-radius) + 4px);
 	}
 
 	thead th:last-child {
 		padding-inline-end: 12px;
-		border-start-end-radius: var(--etk-components-radius);
+		border-top-right-radius: var(--etk-components-radius);
+		border-bottom-right-radius: var(--etk-components-radius) calc(var(--etk-components-radius) + 4px);
 	}
 
 	tbody :is(th, td) {

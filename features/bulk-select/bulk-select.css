@@ -245,6 +245,8 @@
 .etk-rn__thead {
 	flex: none;
 	block-size: 35px;
+	margin-block-end: 4px;
+	border-radius: var(--etch-radius-lg);
 	background-color: var(--e-base);
 }
 
