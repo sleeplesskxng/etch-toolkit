@@ -248,6 +248,7 @@
 		try {
 			// Kept on window.etchToolkitSettings too, where features read it as it changes.
 			settings = config.settings = await api( 'settings', 'POST', changes );
+			window.dispatchEvent( new CustomEvent( 'etch-toolkit-settings', { detail: settings } ) );
 			announce( message );
 		} catch ( error ) {
 			warn( errorText( error ) );

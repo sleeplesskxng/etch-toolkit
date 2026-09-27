@@ -1,9 +1,15 @@
-/* Enhanced layer sorting: the drop line and ghost, drawn over the builder while a layer is dragged. */
+/* Enhanced layer sorting: roomier layers, and the drop line and ghost drawn over the builder while a layer is dragged. */
 
 .etk-sorting,
 .etk-sorting * {
 	cursor: grabbing !important;
 	user-select: none !important;
+}
+
+/* A little more room for each layer than Etch's 26px. */
+.etk-layer-sorting .etch-builder-structure-wrapper .etch-builder-accordion__header {
+	min-block-size: 30px;
+	padding-block: 8px;
 }
 
 /* The dragged layer stays in place, dimmed, with its own layers folded away. */
@@ -24,6 +30,17 @@
 
 	&.is-blocked {
 		--etk-sort-color: var(--etch-danger, var(--e-danger, #f26060));
+	}
+
+	/* In the Structure panel, a white line and a softer white box. The canvas keeps the builder's color, which shows on a light page. */
+	&:not(.is-blocked) {
+		.etk-sort__line:not(.etk-sort__line--canvas) {
+			--etk-sort-color: #fff;
+		}
+
+		.etk-sort__box:not(.etk-sort__box--canvas) {
+			--etk-sort-color: rgb(255 255 255 / 0.55);
+		}
 	}
 
 	&[hidden],

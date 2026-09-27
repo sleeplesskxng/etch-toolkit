@@ -12,8 +12,11 @@
  * Etch's API: one canvas update, one undo step.
  *
  * - The top or bottom of a row drops before or after it. The middle of a
- *   layer that holds others drops inside it: first if it's open, last if closed.
- * - Where levels meet, moving left or right picks the level.
+ *   closed layer that holds others drops inside it, last. The lower half of
+ *   an open one drops inside it, first.
+ * - Where levels meet, moving left or right picks the level. Over the dragged
+ *   layer itself, moving left takes it out of its parent.
+ * - A spot holds until the pointer is a few pixels past it, so it doesn't flicker.
  * - Resting on a closed layer opens it. Near the panel's top or bottom, it scrolls.
  * - Resting on a spot the canvas can't show scrolls the canvas to it.
  * - Esc cancels.
@@ -36,6 +39,7 @@
 	const SPEED = 20; // Pixels a frame, at the very edge.
 	const OPEN_DELAY = 600; // Milliseconds resting on a closed layer before it opens.
 	const REVEAL_DELAY = 400; // Milliseconds resting on a spot before the canvas scrolls to it.
+	const SLOP = 4; // Pixels the pointer goes past a spot's edge before the spot changes.
 
 	// Etch keeps a p or heading to phrasing content: its acceptsChild(), which move() checks.
 	const PHRASING_ONLY = new Set( [ 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6' ] );
@@ -44,6 +48,11 @@
 	// Etch's own drag, if its API ever moves.
 	const enabled = () => window.etchToolkitSettings?.settings?.layerSorting !== false && typeof window.etch?.blocks?.move === 'function';
 	const clamp = ( n, min, max ) => Math.min( max, Math.max( min, n ) );
+
+	// While it's on, layers get a little more room (layer-sorting.css).
+	const markOn = () => document.documentElement.classList.toggle( 'etk-layer-sorting', window.etchToolkitSettings?.settings?.layerSorting !== false );
+	markOn();
+	window.addEventListener( 'etch-toolkit-settings', markOn );
 
 	// The HTML tag a block renders as, for the rule above. Null for blocks that aren't HTML.
 	const htmlTag = ( block ) => {
@@ -249,6 +258,9 @@
 		drag.indent = nested ? nested.left - nested.parent.left || 12 : 12;
 		drag.base = rows.length ? rows[ 0 ].left - rows[ 0 ].depth * drag.indent : box.left;
 		drag.right = rows.length ? rows[ 0 ].right : box.right;
+		// The space between rows.
+		drag.gap = rows.length > 1 ? Math.max( 0, rows[ 1 ].top - rows[ 0 ].bottom ) : 0;
+		drag.zone = null;
 		clip( parts.panel, box );
 	};
 
@@ -265,40 +277,67 @@
 	 * right from where the drag started picks one.
 	 */
 	const between = ( prev, next ) => {
+		if ( ! prev && ! next ) return null;
 		const max = prev ? prev.depth + ( prev.holds && prev.open ? 1 : 0 ) : 0;
 		const min = Math.min( max, next ? next.depth : 0 );
-		const depth = clamp( drag.src.depth + Math.round( ( drag.pointer.x - drag.startX ) / drag.indent ), min, max );
-		if ( prev && depth > prev.depth ) return { parent: prev, index: 0, depth, y: prev.bottom + 2 };
+		// The level the dragged layer's left edge is at. The last level holds until it's well past.
+		const at = drag.src.depth + ( drag.pointer.x - drag.startX ) / drag.indent;
+		const last = drag.target?.depth;
+		const depth = last >= min && last <= max && Math.abs( at - last ) < 0.5 + SLOP / drag.indent ? last : clamp( Math.round( at ), min, max );
+		// Kept clear of the panel's top edge, which would clip it above the first row.
+		const y = next ? Math.max( 4, next.top - drag.gap / 2 ) : prev.bottom + drag.gap / 2;
+		if ( prev && depth > prev.depth ) return { parent: prev, index: 0, depth, y };
 		let anchor = prev;
 		while ( anchor && anchor.depth > depth ) anchor = anchor.parent;
-		return { parent: anchor ? anchor.parent : null, index: anchor ? anchor.index + 1 : 0, depth, y: next ? next.top - 2 : prev.bottom + 2 };
+		return { parent: anchor ? anchor.parent : null, index: anchor ? anchor.index + 1 : 0, depth, y };
 	};
 
-	// Where the pointer drops the layer, or null over the layer itself.
-	const locate = () => {
-		const { rows, box, wrap, pointer } = drag;
-		const y = pointer.y - box.top + wrap.scrollTop;
-		// The last row starting at or above the pointer.
+	/**
+	 * What's under y, in the panel's scrolled content: the gap between two rows,
+	 * or the middle of a layer that holds others. Each row reaches halfway into
+	 * the space around it.
+	 */
+	const zoneAt = ( y ) => {
+		const { rows, gap } = drag;
+		// The last row reaching up to y or above it.
 		let low = 0;
 		let high = rows.length - 1;
 		let k = -1;
 		while ( low <= high ) {
 			const mid = ( low + high ) >> 1;
-			if ( rows[ mid ].top <= y ) {
+			if ( rows[ mid ].top - gap / 2 <= y ) {
 				k = mid;
 				low = mid + 1;
 			} else {
 				high = mid - 1;
 			}
 		}
-		if ( k === -1 ) return between( null, other( 0, 1 ) );
+		if ( k === -1 ) return { prev: null, next: other( 0, 1 ) };
 		const row = rows[ k ];
-		if ( row.source ) return null;
-		// Past 1 in the space under a row, before the next.
-		const at = ( y - row.top ) / ( row.bottom - row.top );
-		// Inside an open layer, first, just under it. Inside a closed one, at the end.
-		if ( row.holds && at >= 0.25 && at <= 0.75 ) return { parent: row, index: row.open ? 0 : null, depth: row.depth + 1, inside: true };
-		return at < 0.5 ? between( other( k - 1, -1 ), row ) : between( row, other( k + 1, 1 ) );
+		const prev = other( k - 1, -1 );
+		const next = other( k + 1, 1 );
+		// The dragged layer's own row is the spot it's in, so moving left can take it out a level.
+		if ( row.source ) return { prev, next };
+		const at = ( y - row.top + gap / 2 ) / ( row.bottom - row.top + gap );
+		// An open layer's lower half is inside it already, first, so only a closed or empty one has a middle.
+		if ( row.holds && ! ( row.open && next?.parent === row ) && at >= 0.25 && at <= 0.75 ) return { row };
+		return at < 0.5 ? { prev, next: row } : { prev: row, next };
+	};
+
+	const sameZone = ( a, b ) => a.row === b.row && a.prev === b.prev && a.next === b.next;
+
+	// Where the pointer drops the layer.
+	const locate = () => {
+		const { box, wrap, pointer } = drag;
+		const y = pointer.y - box.top + wrap.scrollTop;
+		let zone = zoneAt( y );
+		// Just past the last one's edge, it holds.
+		const last = drag.zone;
+		if ( last && ! sameZone( zone, last ) && ( sameZone( zoneAt( y - SLOP ), last ) || sameZone( zoneAt( y + SLOP ), last ) ) ) zone = last;
+		drag.zone = zone;
+		// Inside a closed layer, at the end. Inside an open, empty one, first.
+		if ( zone.row ) return { parent: zone.row, index: zone.row.open ? 0 : null, depth: zone.row.depth + 1, inside: true };
+		return between( zone.prev, zone.next );
 	};
 
 	const allowed = ( { parent } ) => {
