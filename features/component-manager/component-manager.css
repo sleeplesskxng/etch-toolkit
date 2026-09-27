@@ -368,10 +368,23 @@
 	inline-size: min(960px, 100%);
 }
 
+/* Stays in view while you scroll the changes, with Update component in reach. */
 .etk-components__review-head {
+	position: sticky;
+	top: -24px;
+	z-index: 1;
 	display: flex;
 	align-items: center;
 	gap: 12px;
+	margin-block: -12px 0;
+	padding-block: 12px;
+	background: var(--etk-components-view);
+}
+
+.etk-components__done-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
 }
 
 .etk-components__review-title {

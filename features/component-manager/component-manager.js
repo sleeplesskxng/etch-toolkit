@@ -281,22 +281,34 @@
 	 * - js: { from, to } when the script differs.
 	 * - inside: how many layers inside changed, were added or removed.
 	 */
-	const compare = ( now, incoming ) => {
+	/**
+	 * How each side names what its layers point to: styles and components by
+	 * ID. This site's for the current component. For the incoming one, the
+	 * JSON's, by their IDs on its site, or this site's if it came from here.
+	 */
+	const makeSides = ( incoming ) => {
 		const local = window.etch.styles.list();
-		const byId = new Map( local.map( ( s ) => [ s.id, s ] ) );
-		const bySelector = new Map( local.map( ( s ) => [ s.selector, s ] ) );
+		const byId = new Map( local.map( ( style ) => [ style.id, style ] ) );
 		const components = window.etch.components.list();
 		const nameOfLocal = ( id ) => components.find( ( c ) => c.id === id )?.name ?? `#${ id }`;
-
-		const currentSide = {
+		const current = {
 			style: ( id ) => byId.get( id ) && { selector: byId.get( id ).selector, css: byId.get( id ).css ?? '' },
 			componentName: nameOfLocal,
 		};
-		// The JSON's styles and components by their IDs on its site, or this site's if it came from here.
-		const incomingSide = {
-			style: ( id ) => ( incoming.styles[ id ] ? { selector: incoming.styles[ id ].selector, css: incoming.styles[ id ].css ?? '' } : currentSide.style( id ) ),
-			componentName: ( id ) => incoming.components[ id ]?.name ?? nameOfLocal( id ),
+		return {
+			current,
+			incoming: {
+				style: ( id ) => ( incoming.styles[ id ] ? { selector: incoming.styles[ id ].selector, css: incoming.styles[ id ].css ?? '' } : current.style( id ) ),
+				componentName: ( id ) => incoming.components[ id ]?.name ?? nameOfLocal( id ),
+				// This site's component with the same key, or the same ID if the JSON came from here.
+				componentId: ( id ) => ( incoming.components[ id ] ? components.find( ( c ) => c.key === incoming.components[ id ].key )?.id ?? null : components.some( ( c ) => c.id === id ) ? id : null ),
+			},
 		};
+	};
+
+	const compare = ( now, incoming ) => {
+		const bySelector = new Map( window.etch.styles.list().map( ( style ) => [ style.selector, style ] ) );
+		const { current: currentSide, incoming: incomingSide } = makeSides( incoming );
 
 		let ids = 0;
 		const cssChanges = ( layer ) =>
@@ -343,10 +355,18 @@
 
 	const PROP_FIELDS = { name: 'Name', type: 'Type', default: 'Default', description: 'Description', selectOptionsString: 'Options', properties: 'Props inside' };
 
+	// A class prop's default is style IDs, which differ between sites. Their selectors don't.
+	const readableProp = ( prop, side ) =>
+		prop && {
+			...prop,
+			...( prop.type?.specialized === 'class' && Array.isArray( prop.default ) ? { default: prop.default.map( ( id ) => side.style( id )?.selector ?? id ) } : {} ),
+			...( Array.isArray( prop.properties ) ? { properties: prop.properties.map( ( inner ) => readableProp( inner, side ) ) } : {} ),
+		};
+
 	// A prop's fields as text, key aside. Its type reads like Etch's picker: "string, select".
-	const propFields = ( prop ) => {
+	const propFields = ( prop, side ) => {
 		const fields = new Map();
-		for ( const [ key, value ] of Object.entries( prop || {} ) ) {
+		for ( const [ key, value ] of Object.entries( ( side ? readableProp( prop, side ) : prop ) || {} ) ) {
 			if ( key === 'key' ) continue;
 			const text = key === 'type' && value && typeof value === 'object' && ! Array.isArray( value ) ? Object.values( value ).join( ', ' ) : asText( value );
 			fields.set( key, { label: PROP_FIELDS[ key ] || key, value: text } );
@@ -359,7 +379,7 @@
 	 * incoming order, with removed ones where they were: { key, status,
 	 * current, incoming, fields }, fields the ones that differ.
 	 */
-	const compareProps = ( ours, theirs ) => {
+	const compareProps = ( ours, theirs, sides ) => {
 		const byKey = ( list ) => new Map( list.filter( ( prop ) => prop?.key ).map( ( prop ) => [ prop.key, prop ] ) );
 		const now = byKey( ours );
 		const next = byKey( theirs );
@@ -369,8 +389,8 @@
 			if ( op === '-' && next.has( key ) ) continue;
 			const current = now.get( key ) ?? null;
 			const incoming = next.get( key ) ?? null;
-			const a = propFields( current );
-			const b = propFields( incoming );
+			const a = propFields( current, sides.current );
+			const b = propFields( incoming, sides.incoming );
 			const fields = [];
 			for ( const field of new Set( [ ...a.keys(), ...b.keys() ] ) ) {
 				const from = a.get( field )?.value ?? '';
@@ -554,6 +574,24 @@
 				: null,
 		],
 
+		done: () =>
+			previous
+				? [
+						h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: `${ previous.name } is updated` } ),
+						h( 'p', { class: 'etk-components__help', textContent: previous.update.length || previous.made.length ? 'The component is saved. Save in Etch to keep the class changes too.' : 'The component is saved.' } ),
+						h(
+							'div',
+							{ class: 'etk-components__done-actions' },
+							button( 'Put back the previous version', ( e ) => restore( e.currentTarget ), { 'data-focus': 'restore' } ),
+							button( 'Download the previous version', download, { 'data-focus': 'download' } ),
+							button( 'Update another component', () => go( 'import' ), { 'data-focus': 'another' } )
+						),
+				  ]
+				: [
+						h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: 'The previous version is back' } ),
+						h( 'div', { class: 'etk-components__done-actions' }, button( 'Update another component', () => go( 'import' ), { 'data-focus': 'another' } ) ),
+				  ],
+
 		review: () => {
 			const { current, tree } = reviewing;
 			const counts = { changed: 0, added: 0, removed: 0 };
@@ -572,7 +610,8 @@
 								{ class: 'etk-components__review-actions' },
 								h( 'span', { class: 'etk-components__muted', textContent: `${ approved } of ${ plural( total, 'change', 'changes' ) } approved` } ),
 								button( 'Approve all', () => decideAll( true ), { 'data-focus': 'approve-all' } ),
-								button( 'Reject all', () => decideAll( false ), { 'data-focus': 'reject-all' } )
+								button( 'Reject all', () => decideAll( false ), { 'data-focus': 'reject-all' } ),
+								button( 'Update component', apply, { variant: 'primary', disabled: ! approved, 'data-focus': 'apply' } )
 						  )
 						: null
 				),
@@ -589,6 +628,7 @@
 	};
 
 	/* ---- Decisions ---- */
+
 
 	/*
 	 * Everything starts approved: approving takes the incoming version,
@@ -660,6 +700,195 @@
 		if ( key !== 'css' ) return decisions.layers.get( node.id )[ key ];
 		const values = node.css.map( ( change ) => decisions.css.get( change.selector ) );
 		return values.every( Boolean ) ? true : values.some( Boolean ) ? 'some' : false;
+	};
+
+	/* ---- Applying ---- */
+
+	// Layer JSON as Etch takes it back, without the IDs it hands out with it.
+	const bare = ( { id, parentId, children, ...rest } ) => ( { ...rest, children: ( children || [] ).map( bare ) } );
+
+	// A class this site doesn't have yet, until applying creates it.
+	const NEW_STYLE = 'etk-new-style:';
+
+	/**
+	 * What approving amounts to: the component's blocks, props, name and
+	 * description, and the class changes that go with them. Incoming layers
+	 * point to this site's classes and components: a class this site has is
+	 * linked, one it doesn't is made (its CSS only if that's approved), and
+	 * a CSS change applies only to a class the result still uses.
+	 */
+	const plan = () => {
+		const { incoming, now, tree, props, meta } = reviewing;
+		const sides = makeSides( incoming );
+		const local = window.etch.styles.list();
+		const byId = new Map( local.map( ( style ) => [ style.id, style ] ) );
+		const bySelector = new Map( local.map( ( style ) => [ style.selector, style ] ) );
+		const create = new Map(); // Selector => CSS, for classes to make.
+		const missing = new Set(); // Components this site doesn't have.
+
+		const styleId = ( id ) => {
+			const style = sides.incoming.style( id );
+			// Unknown here and not in the JSON. Etch links the class again when a page using it saves.
+			if ( ! style ) return null;
+			if ( bySelector.has( style.selector ) ) return bySelector.get( style.selector ).id;
+			if ( ! create.has( style.selector ) ) create.set( style.selector, decisions.css.get( style.selector ) ? style.css : '' );
+			return NEW_STYLE + style.selector;
+		};
+		const localize = ( block ) => {
+			const out = { ...block, children: ( block.children || [] ).map( localize ) };
+			if ( Array.isArray( block.styles ) ) out.styles = block.styles.map( styleId ).filter( Boolean );
+			if ( block.type === 'etch/component' ) {
+				const id = sides.incoming.componentId( block.componentId );
+				if ( id === null ) missing.add( sides.incoming.componentName( block.componentId ) );
+				else out.componentId = id;
+			}
+			return out;
+		};
+		const localizeProp = ( prop ) => ( {
+			...prop,
+			...( prop.type?.specialized === 'class' && Array.isArray( prop.default ) ? { default: prop.default.map( ( id ) => styleId( id ) ?? id ) } : {} ),
+			...( Array.isArray( prop.properties ) ? { properties: prop.properties.map( localizeProp ) } : {} ),
+		} );
+
+		const assemble = ( nodes ) =>
+			nodes.flatMap( ( node ) => {
+				if ( node.status === 'added' ) return layerApproved( node ) ? [ bare( localize( node.incoming.block ) ) ] : [];
+				if ( node.status === 'removed' ) return layerApproved( node ) ? [] : [ bare( node.current.block ) ];
+				const choice = decisions.layers.get( node.id );
+				const base = node.html.length && choice.html ? localize( { ...node.incoming.block, children: [] } ) : node.current.block;
+				const { id, parentId, children, script, ...fields } = base;
+				const code = ( node.js && choice.js ? node.incoming.block : node.current.block ).script;
+				return [ { ...fields, ...( code ? { script: { ...code } } : {} ), children: assemble( node.children ) } ];
+			} );
+
+		const blocks = assemble( tree );
+		const properties = props.flatMap( ( prop ) => {
+			const yes = decisions.props.get( prop.key );
+			if ( prop.status === 'same' ) return [ prop.current ];
+			if ( prop.status === 'added' ) return yes ? [ localizeProp( prop.incoming ) ] : [];
+			if ( prop.status === 'removed' ) return yes ? [] : [ prop.current ];
+			return [ yes ? localizeProp( prop.incoming ) : prop.current ];
+		} );
+		const details = Object.fromEntries( [ 'name', 'description' ].map( ( key ) => [ key, meta.find( ( field ) => field.key === key && decisions.meta.get( key ) )?.to ?? now[ key ] ?? '' ] ) );
+
+		// The CSS each class would get, and the classes the result uses.
+		const incomingCss = new Map();
+		for ( const node of walk( tree ) ) for ( const change of node.css ) incomingCss.set( change.selector, change.to );
+		const used = new Set();
+		const collect = ( list ) =>
+			list.forEach( ( block ) => {
+				( block.styles || [] ).forEach( ( id ) => used.add( id.startsWith?.( NEW_STYLE ) ? id.slice( NEW_STYLE.length ) : byId.get( id )?.selector ) );
+				collect( block.children || [] );
+			} );
+		collect( blocks );
+		const update = [ ...decisions.css ]
+			.filter( ( [ selector, yes ] ) => yes && used.has( selector ) && bySelector.has( selector ) )
+			.map( ( [ selector ] ) => ( { id: bySelector.get( selector ).id, selector, from: bySelector.get( selector ).css ?? '', to: incomingCss.get( selector ) } ) );
+
+		return { blocks, properties, ...details, create, update, missing };
+	};
+
+	// Put this site's IDs for the classes just made in place of their placeholders.
+	const resolveNew = ( value, made ) => {
+		if ( Array.isArray( value ) ) return value.map( ( item ) => resolveNew( item, made ) );
+		if ( typeof value === 'string' && value.startsWith( NEW_STYLE ) ) return made.get( value.slice( NEW_STYLE.length ) ) ?? value;
+		if ( isObject( value ) ) return Object.fromEntries( Object.entries( value ).map( ( [ key, item ] ) => [ key, resolveNew( item, made ) ] ) );
+		return value;
+	};
+
+	// What was there before the last update, to put back.
+	let previous = null;
+
+	// The component as it was, as JSON to keep.
+	const snapshot = ( json ) => ( { name: json.name, key: json.key, description: json.description, properties: json.properties, blocks: json.blocks.map( bare ) } );
+
+	/**
+	 * Save the approved changes. The component is written at once, the way
+	 * Etch's paste writes it. Class changes are made in the builder, like
+	 * Etch's own, and saved with Etch's Save.
+	 */
+	const apply = async () => {
+		const { current, now } = reviewing;
+		let result;
+		try {
+			result = plan();
+		} catch ( error ) {
+			warn( errorText( error ) );
+			return;
+		}
+		if ( result.missing.size ) {
+			warn( `This uses components this site doesn’t have: ${ [ ...result.missing ].join( ', ' ) }. Add them first, then try again.` );
+			return;
+		}
+
+		const { approved, total } = tally();
+		const classes = result.update.length + result.create.size;
+		const dialog = toolkit.confirmDialog( {
+			title: `Update ${ current.name }?`,
+			message: [
+				h( 'p', { textContent: `${ approved } of ${ plural( total, 'change', 'changes' ) } approved. The component is saved now, the way Etch saves a pasted one.` } ),
+				classes ? h( 'p', { textContent: classes === 1 ? '1 class changes in the builder too. Save to keep it.' : `${ classes } classes change in the builder too. Save to keep them.` } ) : null,
+				h( 'p', { textContent: 'You can put the previous version back afterwards.' } ),
+			].filter( Boolean ),
+			confirmLabel: 'Update component',
+			busyLabel: 'Updating…',
+			variant: 'primary',
+			failTitle: 'The component wasn’t updated',
+		} );
+		if ( ! ( await dialog.result ) ) return;
+
+		// Class changes first, so the blocks can point to the new ones.
+		const made = new Map();
+		const undoStyles = () => {
+			for ( const change of result.update ) window.etch.styles.update( change.id, { css: change.from } );
+			for ( const id of made.values() ) window.etch.styles.delete( id );
+		};
+		try {
+			for ( const [ selector, css ] of result.create ) made.set( selector, window.etch.styles.create( selector, css ) );
+			for ( const change of result.update ) window.etch.styles.update( change.id, { css: change.to } );
+			await window.etch.components.updateAsync( current.id, resolveNew( { blocks: result.blocks, properties: result.properties, name: result.name, description: result.description }, made ) );
+		} catch ( error ) {
+			try {
+				undoStyles();
+			} catch {}
+			dialog.fail( `${ errorText( error ) } Nothing was changed.` );
+			return;
+		}
+
+		previous = { id: current.id, name: result.name || current.name, json: snapshot( now ), update: result.update, made: [ ...made.values() ] };
+		dialog.close();
+		go( 'done' );
+		announce( `${ previous.name } is updated.` );
+	};
+
+	// Put the component back as it was before the last update, and its classes.
+	const restore = async ( trigger ) => {
+		if ( ! previous ) return;
+		trigger.disabled = true;
+		try {
+			await window.etch.components.updateAsync( previous.id, previous.json );
+			for ( const change of previous.update ) window.etch.styles.update( change.id, { css: change.from } );
+			for ( const id of previous.made ) {
+				try {
+					window.etch.styles.delete( id );
+				} catch {}
+			}
+			const name = previous.json.name;
+			previous = null;
+			render();
+			announce( `Put back the previous version of ${ name }.` );
+			main.querySelector( '.etk-components__page-title' )?.focus();
+		} catch ( error ) {
+			trigger.disabled = false;
+			warn( `Couldn’t put the previous version back: ${ errorText( error ) }` );
+		}
+	};
+
+	const download = () => {
+		const url = URL.createObjectURL( new Blob( [ JSON.stringify( previous.json, null, 2 ) ], { type: 'application/json' } ) );
+		h( 'a', { href: url, download: `${ previous.json.key || 'component' }-before-update.json` } ).click();
+		// Revoking straight away can cancel the download in some browsers.
+		window.setTimeout( () => URL.revokeObjectURL( url ), 60000 );
 	};
 
 	/* ---- Class usage, for how far a CSS change reaches ---- */
@@ -895,7 +1124,7 @@
 		const fields =
 			prop.status === 'changed'
 				? prop.fields
-				: [ ...propFields( source ).values() ].filter( ( field ) => field.value ).map( ( field ) => ( { label: field.label, from: prop.status === 'removed' ? field.value : '', to: prop.status === 'added' ? field.value : '' } ) );
+				: [ ...propFields( source, makeSides( reviewing.incoming )[ prop.incoming ? 'incoming' : 'current' ] ).values() ].filter( ( field ) => field.value ).map( ( field ) => ( { label: field.label, from: prop.status === 'removed' ? field.value : '', to: prop.status === 'added' ? field.value : '' } ) );
 		const verb = { added: 'Approving adds this prop.', removed: 'Approving removes this prop.', changed: 'Approving takes the incoming version.' }[ prop.status ];
 		return h(
 			'li',
@@ -990,7 +1219,7 @@
 			.map( ( [ key, label ] ) => ( { key, label, from: String( now[ key ] ?? '' ), to: incoming[ key ] } ) )
 			// JSON without a description leaves this site's alone.
 			.filter( ( field ) => field.to && field.from !== field.to );
-		reviewing = { incoming, current, now, tree: compare( now, incoming ), props: compareProps( now.properties || [], incoming.properties ), meta };
+		reviewing = { incoming, current, now, tree: compare( now, incoming ), props: compareProps( now.properties || [], incoming.properties, makeSides( incoming ) ), meta };
 		closedLayers = new Set();
 		openDetails = new Set();
 		openProps = new Set();
