@@ -11,7 +11,7 @@
  * another page too, and goes on the clipboard as text.
  */
 ( () => {
-	const { isClassSelector } = window.etchToolkit || {};
+	const { isClassSelector, classNames: split } = window.etchToolkit || {};
 	if ( ! isClassSelector ) return;
 
 	const LAYER = '.etch-builder-accordion__header[data-blockid]';
@@ -31,9 +31,6 @@
 		const stored = JSON.parse( localStorage.getItem( STORE ) );
 		if ( Array.isArray( stored ) ) copied = stored.filter( ( name ) => typeof name === 'string' );
 	} catch {}
-
-	// Class names, keeping dynamic ones like `btn--{props.variant}` whole.
-	const split = ( value ) => ( typeof value === 'string' ? value.trim().split( /\s+(?![^{]*})/ ).filter( Boolean ) : [] );
 
 	const element = ( id ) => {
 		try {

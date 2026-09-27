@@ -16,7 +16,7 @@
  */
 ( () => {
 	const toolkit = window.etchToolkit || {};
-	const { api, confirmDialog } = toolkit;
+	const { api, el, errorText } = toolkit;
 	const config = window.etchToolkitSettings || {};
 	if ( ! api ) return;
 
@@ -35,31 +35,8 @@
 	const stroke = ( paths, size = 16 ) =>
 		`<svg class="etk-settings__icon" viewBox="0 0 24 24" width="${ size }" height="${ size }" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ paths }</svg>`;
 
-	/**
-	 * h( 'button', { class: 'x', onclick, 'aria-label': 'y' }, child, … )
-	 * Keys starting with "on" are listeners, DOM properties are set directly,
-	 * everything else is an attribute. `html` sets innerHTML (icons only).
-	 */
-	const PROPS = new Set( [ 'value', 'checked', 'disabled', 'hidden', 'textContent', 'htmlFor', 'indeterminate' ] );
-	const h = ( tag, attrs = {}, ...children ) => {
-		const node = document.createElement( tag );
-		for ( const [ key, value ] of Object.entries( attrs ) ) {
-			if ( value === undefined || value === null || value === false ) continue;
-			if ( key === 'class' ) node.className = value;
-			else if ( key === 'html' ) node.innerHTML = value;
-			else if ( key.startsWith( 'on' ) ) node.addEventListener( key.slice( 2 ), value );
-			else if ( PROPS.has( key ) ) node[ key ] = value;
-			else node.setAttribute( key, value === true ? '' : value );
-		}
-		node.append( ...children.flat().filter( ( c ) => c !== null && c !== undefined && c !== false ) );
-		return node;
-	};
-
 	let ids = 0;
 	const uid = () => `etk-settings-${ ++ids }`;
-	const plural = ( n, one, many ) => `${ n } ${ n === 1 ? one : many }`;
-	const size = ( bytes ) => ( bytes < 1024 * 1024 ? `${ Math.max( 1, Math.round( bytes / 1024 ) ) } KB` : `${ ( bytes / 1024 / 1024 ).toFixed( 1 ) } MB` );
-	const errorText = ( error ) => error?.message || String( error );
 
 	/* ------------------------------------------------------------------ */
 	/* UI helpers, for sections                                            */
@@ -68,26 +45,26 @@
 	// Variants: secondary (outlined), primary and danger. attrs.class adds to its classes.
 	const button = ( label, onclick, { variant = 'secondary', attrs = {} } = {} ) => {
 		const { class: extra, ...rest } = attrs;
-		return h( 'button', { type: 'button', class: `etk-settings__btn etk-settings__btn--${ variant }${ extra ? ` ${ extra }` : '' }`, onclick, ...rest }, label );
+		return el( 'button', { type: 'button', class: `etk-settings__btn etk-settings__btn--${ variant }${ extra ? ` ${ extra }` : '' }`, onclick, ...rest }, label );
 	};
 
 	// A labelled group: the label, then a card of rows, or the children as they are with
 	// bare. action sits at the end of the label row, note under the card.
 	const group = ( title, ...rows ) => {
 		const { title: text, action, note, bare } = title && typeof title === 'object' ? title : { title };
-		return h(
+		return el(
 			'section',
 			{ class: 'etk-settings__group' },
-			h( 'div', { class: 'etk-settings__group-head' }, h( 'h3', { class: 'etk-settings__label', textContent: text } ), action || null ),
-			bare ? rows : h( 'div', { class: 'etk-settings__card' }, ...rows ),
-			note ? h( 'p', { class: 'etk-settings__help etk-settings__note', textContent: note } ) : null
+			el( 'div', { class: 'etk-settings__group-head' }, el( 'h3', { class: 'etk-settings__label', textContent: text } ), action || null ),
+			bare ? rows : el( 'div', { class: 'etk-settings__card' }, ...rows ),
+			note ? el( 'p', { class: 'etk-settings__help etk-settings__note', textContent: note } ) : null
 		);
 	};
 
-	const row = ( ...children ) => h( 'div', { class: 'etk-settings__row' }, ...children );
+	const row = ( ...children ) => el( 'div', { class: 'etk-settings__row' }, ...children );
 
 	// A setting's name and its value, on one row.
-	const value = ( label, text ) => row( h( 'span', { class: 'etk-settings__row-title', textContent: label } ), typeof text === 'string' ? h( 'span', { class: 'etk-settings__muted', textContent: text } ) : text );
+	const value = ( label, text ) => row( el( 'span', { class: 'etk-settings__row-title', textContent: label } ), typeof text === 'string' ? el( 'span', { class: 'etk-settings__muted', textContent: text } ) : text );
 
 	/**
 	 * A switch row: title and help on the left, the switch on the right. A
@@ -97,7 +74,7 @@
 	const toggle = ( label, checked, onchange, help ) => {
 		const id = uid();
 		const helpId = help ? `${ id }-help` : null;
-		const input = h( 'input', {
+		const input = el( 'input', {
 			type: 'checkbox',
 			role: 'switch',
 			id,
@@ -115,21 +92,21 @@
 			},
 		} );
 		return row(
-			h( 'div', { class: 'etk-settings__toggle' }, h( 'div', { class: 'etk-settings__toggle-text' }, h( 'label', { class: 'etk-settings__row-title', htmlFor: id, textContent: label } ), help ? h( 'p', { class: 'etk-settings__help', id: helpId, textContent: help } ) : null ), input )
+			el( 'div', { class: 'etk-settings__toggle' }, el( 'div', { class: 'etk-settings__toggle-text' }, el( 'label', { class: 'etk-settings__row-title', htmlFor: id, textContent: label } ), help ? el( 'p', { class: 'etk-settings__help', id: helpId, textContent: help } ) : null ), input )
 		);
 	};
 
 	const check = ( label, checked, onchange, extra ) =>
-		h( 'label', { class: 'etk-settings__check' }, h( 'input', { type: 'checkbox', checked, onchange: ( e ) => onchange( e.target.checked ) } ), label, extra || null );
+		el( 'label', { class: 'etk-settings__check' }, el( 'input', { type: 'checkbox', checked, onchange: ( e ) => onchange( e.target.checked ) } ), label, extra || null );
 
 	// A dashed drop target for one .json file, with a Choose file button.
 	const dropzone = ( text, onfile ) => {
-		const input = h( 'input', { type: 'file', accept: '.json,application/json', class: 'screen-reader-text', onchange: ( e ) => {
+		const input = el( 'input', { type: 'file', accept: '.json,application/json', class: 'screen-reader-text', onchange: ( e ) => {
 			const [ file ] = e.target.files;
 			e.target.value = '';
 			if ( file ) onfile( file );
 		} } );
-		const zone = h(
+		const zone = el(
 			'div',
 			{
 				class: 'etk-settings__dropzone',
@@ -144,9 +121,9 @@
 					if ( e.dataTransfer.files[ 0 ] ) onfile( e.dataTransfer.files[ 0 ] );
 				},
 			},
-			h( 'span', { class: 'etk-settings__dropzone-icon', html: stroke( UPLOAD ) } ),
-			h( 'p', { class: 'etk-settings__dropzone-text', textContent: text } ),
-			h( 'label', { class: 'etk-settings__btn etk-settings__btn--secondary etk-settings__file-btn' }, input, 'Choose file' )
+			el( 'span', { class: 'etk-settings__dropzone-icon', html: stroke( UPLOAD ) } ),
+			el( 'p', { class: 'etk-settings__dropzone-text', textContent: text } ),
+			el( 'label', { class: 'etk-settings__btn etk-settings__btn--secondary etk-settings__file-btn' }, input, 'Choose file' )
 		);
 		return zone;
 	};
@@ -154,7 +131,7 @@
 	// Save JSON as a file.
 	const download = ( data, name ) => {
 		const url = URL.createObjectURL( new Blob( [ typeof data === 'string' ? data : JSON.stringify( data ) ], { type: 'application/json' } ) );
-		h( 'a', { href: url, download: name } ).click();
+		el( 'a', { href: url, download: name } ).click();
 		// Revoking straight away can cancel the download in some browsers.
 		window.setTimeout( () => URL.revokeObjectURL( url ), 60000 );
 	};
@@ -196,7 +173,7 @@
 		const at = before.indexOf( active );
 
 		main.replaceChildren(
-			h( 'div', { class: 'etk-settings__page' }, h( 'h2', { class: 'etk-settings__page-title', tabindex: '-1', textContent: current.title } ), ...[ current.render( ui ) ].flat().filter( Boolean ) )
+			el( 'div', { class: 'etk-settings__page' }, el( 'h2', { class: 'etk-settings__page-title', tabindex: '-1', textContent: current.title } ), ...[ current.render( ui ) ].flat().filter( Boolean ) )
 		);
 
 		if ( ! active ) return;
@@ -226,10 +203,10 @@
 
 	const renderNav = () => {
 		if ( ! nav ) return;
-		nav.replaceChildren( ...sections.map( ( s ) => h( 'button', { type: 'button', class: 'etk-settings__nav-item', 'data-id': s.id, html: s.icon ? stroke( s.icon ) : null, 'aria-current': s === current ? 'page' : null, onclick: () => show( s ) }, s.title ) ) );
+		nav.replaceChildren( ...sections.map( ( s ) => el( 'button', { type: 'button', class: 'etk-settings__nav-item', 'data-id': s.id, html: s.icon ? stroke( s.icon ) : null, 'aria-current': s === current ? 'page' : null, onclick: () => show( s ) }, s.title ) ) );
 	};
 
-	const ui = { h, button, group, row, value, toggle, check, dropzone, download, announce, warn, refresh, confirmDialog, plural, size, errorText, builder };
+	const ui = { button, group, row, value, toggle, check, dropzone, download, announce, warn, refresh, builder };
 
 	// Sections sort by order, then as added.
 	const section = ( spec ) => {
@@ -297,10 +274,10 @@
 	/* ------------------------------------------------------------------ */
 
 	const build = ( root ) => {
-		status = h( 'div', { class: 'etk-settings__status', role: 'status', 'aria-live': 'polite' } );
-		main = h( 'div', { class: 'etk-settings__main' } );
-		nav = h( 'nav', { class: 'etk-settings__nav etk-track', 'aria-label': 'Settings' } );
-		panel = h(
+		status = el( 'div', { class: 'etk-settings__status', role: 'status', 'aria-live': 'polite' } );
+		main = el( 'div', { class: 'etk-settings__main' } );
+		nav = el( 'nav', { class: 'etk-settings__nav etk-track', 'aria-label': 'Settings' } );
+		panel = el(
 			builder ? 'section' : 'div',
 			{
 				id: 'etk-settings',
@@ -319,19 +296,19 @@
 					: null,
 				onkeyup: builder ? ( e ) => e.stopPropagation() : null,
 			},
-			h(
+			el(
 				'div',
 				{ class: 'etk-settings__sidebar' },
-				h(
+				el(
 					'header',
 					{ class: 'etk-settings__header' },
-					builder ? h( 'button', { type: 'button', class: 'etk-settings__btn etk-settings__btn--secondary etk-settings__icon-btn', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: stroke( BACK ), onclick: () => close() } ) : null,
-					h( 'span', { class: 'etk-settings__logo', html: `<svg viewBox="0 0 88 88" width="18" height="18" aria-hidden="true" focusable="false">${ LOGO }</svg>` } ),
-					h( 'h1', { id: 'etk-settings-title', class: 'etk-settings__title', textContent: 'Etch Toolkit' } )
+					builder ? el( 'button', { type: 'button', class: 'etk-settings__btn etk-settings__btn--secondary etk-settings__icon-btn', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: stroke( BACK ), onclick: () => close() } ) : null,
+					el( 'span', { class: 'etk-settings__logo', html: `<svg viewBox="0 0 88 88" width="18" height="18" aria-hidden="true" focusable="false">${ LOGO }</svg>` } ),
+					el( 'h1', { id: 'etk-settings-title', class: 'etk-settings__title', textContent: 'Etch Toolkit' } )
 				),
 				nav
 			),
-			h( 'div', { class: 'etk-settings__body' }, status, h( 'div', { class: 'etk-settings__content' }, main ) )
+			el( 'div', { class: 'etk-settings__body' }, status, el( 'div', { class: 'etk-settings__content' }, main ) )
 		);
 		root.append( panel );
 		renderNav();

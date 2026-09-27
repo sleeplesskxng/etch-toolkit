@@ -12,7 +12,7 @@
  * undo brings the style back, saving puts the class back where it came off.
  */
 ( () => {
-	const { restUrl, api, save, afterSave, el, confirmDialog } = window.etchToolkit || {};
+	const { restUrl, api, save, afterSave, el, plural, editPageClasses, confirmDialog } = window.etchToolkit || {};
 	if ( ! restUrl || ! confirmDialog ) return;
 
 	const BADGE = '.etch-css-selectors .etch-badges > *';
@@ -52,7 +52,7 @@
 		const nodes = [];
 
 		if ( usage.elements ) {
-			const count = `${ usage.elements } ${ usage.elements === 1 ? 'element' : 'elements' }`;
+			const count = plural( usage.elements, 'element' );
 			nodes.push(
 				usage.shared
 					? el( 'p', {}, [ "You're about to delete this ", code( usage.selector ), ` style, used by ${ count }.` ] )
@@ -86,7 +86,7 @@
 		}
 
 		if ( usage.defaults ) {
-			const components = `${ usage.defaults } ${ usage.defaults === 1 ? 'component' : 'components' }`;
+			const components = plural( usage.defaults, 'component' );
 			nodes.push(
 				el( 'p', {
 					textContent: usage.shared
@@ -117,20 +117,7 @@
 	} );
 
 	// The class off the open page's elements, as the server takes it off the rest.
-	const stripOpenPage = ( name ) => {
-		const walk = ( blocks ) => {
-			for ( const block of blocks ) {
-				const value = block.attributes?.class;
-				const names = typeof value === 'string' ? value.trim().split( /\s+(?![^{]*})/ ) : [];
-				if ( names.includes( name ) ) {
-					const rest = names.filter( ( n ) => n !== name ).join( ' ' );
-					window.etch.blocks.update( block.id, { attributes: { class: rest || undefined } } );
-				}
-				walk( block.children || [] );
-			}
-		};
-		walk( window.etch.blocks.getTree() );
-	};
+	const stripOpenPage = ( name ) => editPageClasses( ( names ) => names.filter( ( n ) => n !== name ) );
 
 	const run = async ( styleId ) => {
 		if ( running ) return;

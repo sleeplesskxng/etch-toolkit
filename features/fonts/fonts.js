@@ -22,7 +22,7 @@
  * with DecompressionStream before that.
  */
 ( () => {
-	const { api, afterSave, unsaved, confirmDialog, slider, rebuild, DELETE_ICON } = window.etchToolkit || {};
+	const { api, afterSave, unsaved, el, plural, errorText, fileSize: size, confirmDialog, slider, rebuild, DELETE_ICON } = window.etchToolkit || {};
 	const config = window.etchToolkitFonts || {};
 	if ( ! confirmDialog ) return;
 
@@ -110,32 +110,9 @@
 	const icon = ( name, size ) =>
 		`<svg class="etk-fonts__icon" viewBox="0 0 24 24"${ size ? ` style="--etk-icon-size: ${ size }px"` : '' } aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ ICONS[ name ] }</svg>`;
 
-	/**
-	 * h( 'button', { class: 'x', onclick, 'aria-label': 'y' }, child, … )
-	 * Keys starting with "on" are listeners, DOM properties are set directly,
-	 * everything else is an attribute. `html` sets innerHTML (icons only).
-	 */
-	const PROPS = new Set( [ 'value', 'checked', 'disabled', 'selected', 'hidden', 'textContent', 'htmlFor', 'indeterminate' ] );
-	const h = ( tag, attrs = {}, ...children ) => {
-		const node = document.createElement( tag );
-		for ( const [ key, value ] of Object.entries( attrs ) ) {
-			if ( value === undefined || value === null || value === false ) continue;
-			if ( key === 'class' ) node.className = value;
-			else if ( key === 'html' ) node.innerHTML = value;
-			else if ( key.startsWith( 'on' ) ) node.addEventListener( key.slice( 2 ), value );
-			else if ( PROPS.has( key ) ) node[ key ] = value;
-			else node.setAttribute( key, value === true ? '' : value );
-		}
-		node.append( ...children.flat().filter( ( c ) => c !== null && c !== undefined && c !== false ) );
-		return node;
-	};
-
 	const weightLabel = ( weight ) => ( weight.includes( ' ' ) ? `Variable ${ weight.replace( ' ', '–' ) }` : `${ weight } ${ WEIGHT_NAMES[ weight ] || '' }` ).trim();
 	const variantLabel = ( variant ) => `${ weightLabel( variant.weight ) }${ variant.style === 'italic' ? ' Italic' : '' }`;
-	const size = ( bytes ) => ( bytes < 1024 * 1024 ? `${ Math.max( 1, Math.round( bytes / 1024 ) ) } KB` : `${ ( bytes / 1024 / 1024 ).toFixed( 1 ) } MB` );
-	const plural = ( n, one, many ) => `${ n } ${ n === 1 ? one : many }`;
 	const clone = ( value ) => JSON.parse( JSON.stringify( value ) );
-	const errorText = ( error ) => error?.message || String( error );
 
 	/* ------------------------------------------------------------------ */
 	/* State and sync                                                      */
@@ -183,7 +160,7 @@
 	// A family without Latin letters previews in its own script, unless you've typed your own text.
 	const scriptOf = ( script, subsets ) => ( subsets?.includes( 'latin' ) ? '' : script );
 	const sampleFor = ( script ) => ( sampleText === SAMPLE && SCRIPTS[ script ]?.[ 1 ] ) || sampleText;
-	const specimen = ( className, script, style, attrs = {} ) => h( 'p', { class: className, style, 'data-script': script || '', 'aria-hidden': 'true', textContent: sampleFor( script ), ...attrs } );
+	const specimen = ( className, script, style, attrs = {} ) => el( 'p', { class: className, style, 'data-script': script || '', 'aria-hidden': 'true', textContent: sampleFor( script ), ...attrs } );
 
 	/**
 	 * Tell screen readers what happened. Confirmations are announced only,
@@ -202,7 +179,7 @@
 	const loadFaces = () => {
 		let style = document.getElementById( 'etk-fonts-faces' );
 		if ( ! style ) {
-			style = h( 'style', { id: 'etk-fonts-faces' } );
+			style = el( 'style', { id: 'etk-fonts-faces' } );
 			document.head.append( style );
 		}
 		style.textContent = state?.faces || '';
@@ -511,12 +488,12 @@
 	const btnClass = ( variant = 'secondary', extra = '' ) =>
 		`etch-builder-button etch-builder-button--icon-placement-before etch-builder-button--variant-${ ETCH_VARIANTS[ variant ] || 'outline' } etk-fonts__btn etk-fonts__btn--${ variant }${ extra ? ` ${ extra }` : '' }`;
 
-	const btnIcon = ( name ) => h( 'span', { class: 'etk-fonts__btn-icon', html: name === 'delete' ? DELETE_ICON : icon( name ) } );
+	const btnIcon = ( name ) => el( 'span', { class: 'etk-fonts__btn-icon', html: name === 'delete' ? DELETE_ICON : icon( name ) } );
 
 	// attrs.class adds to the button's classes.
 	const button = ( label, onclick, { variant = 'secondary', iconName, iconAfter, attrs = {} } = {} ) => {
 		const { class: extra, ...rest } = attrs;
-		return h( 'button', { type: 'button', class: btnClass( variant, extra ), onclick, ...rest }, iconName ? btnIcon( iconName ) : null, label, iconAfter ? btnIcon( iconAfter ) : null );
+		return el( 'button', { type: 'button', class: btnClass( variant, extra ), onclick, ...rest }, iconName ? btnIcon( iconName ) : null, label, iconAfter ? btnIcon( iconAfter ) : null );
 	};
 
 	/**
@@ -525,7 +502,7 @@
 	 */
 	const iconButton = ( label, iconName, onclick, { variant = 'icon', title = label, attrs = {} } = {} ) => {
 		const { class: extra, ...rest } = attrs;
-		return h( 'button', { type: 'button', class: btnClass( variant, `etk-fonts__icon-btn${ extra ? ` ${ extra }` : '' }` ), 'aria-label': label, title, onclick, html: iconName === 'delete' ? DELETE_ICON : icon( iconName ), ...rest } );
+		return el( 'button', { type: 'button', class: btnClass( variant, `etk-fonts__icon-btn${ extra ? ` ${ extra }` : '' }` ), 'aria-label': label, title, onclick, html: iconName === 'delete' ? DELETE_ICON : icon( iconName ), ...rest } );
 	};
 
 	// A label over its control, or beside it in a 72px column with row: true.
@@ -535,12 +512,12 @@
 		const id = target.id || ( target.id = uid() );
 		const helpId = help ? `${ id }-help` : null;
 		if ( helpId ) target.setAttribute( 'aria-describedby', helpId );
-		return h( 'div', { class: `etk-fonts__field${ row ? ' etk-fonts__field--row' : '' }` }, h( 'label', { htmlFor: id, textContent: label } ), control, help ? h( 'p', { class: 'etk-fonts__help', id: helpId, textContent: help } ) : null );
+		return el( 'div', { class: `etk-fonts__field${ row ? ' etk-fonts__field--row' : '' }` }, el( 'label', { htmlFor: id, textContent: label } ), control, help ? el( 'p', { class: 'etk-fonts__help', id: helpId, textContent: help } ) : null );
 	};
 
 	const check = ( label, checked, onchange, help ) => {
-		const input = h( 'input', { type: 'checkbox', checked, onchange: ( e ) => onchange( e.target.checked ) } );
-		return h( 'label', { class: 'etk-fonts__check' }, input, h( 'span', {}, label, help ? h( 'span', { class: 'etk-fonts__help', textContent: help } ) : null ) );
+		const input = el( 'input', { type: 'checkbox', checked, onchange: ( e ) => onchange( e.target.checked ) } );
+		return el( 'label', { class: 'etk-fonts__check' }, input, el( 'span', {}, label, help ? el( 'span', { class: 'etk-fonts__help', textContent: help } ) : null ) );
 	};
 
 	/**
@@ -550,21 +527,21 @@
 	const toggle = ( label, checked, onchange, help, attrs = {} ) => {
 		const id = uid();
 		const helpId = help ? `${ id }-help` : null;
-		return h(
+		return el(
 			'div',
 			{ class: 'etk-fonts__toggle' },
-			h( 'div', { class: 'etk-fonts__toggle-text' }, h( 'label', { class: 'etk-fonts__toggle-title', htmlFor: id, textContent: label } ), help ? h( 'p', { class: 'etk-fonts__toggle-help', id: helpId, textContent: help } ) : null ),
-			h( 'input', { type: 'checkbox', role: 'switch', id, class: 'etk-fonts__switch', checked, 'aria-describedby': helpId, onchange: ( e ) => onchange( e.target.checked ), ...attrs } )
+			el( 'div', { class: 'etk-fonts__toggle-text' }, el( 'label', { class: 'etk-fonts__toggle-title', htmlFor: id, textContent: label } ), help ? el( 'p', { class: 'etk-fonts__toggle-help', id: helpId, textContent: help } ) : null ),
+			el( 'input', { type: 'checkbox', role: 'switch', id, class: 'etk-fonts__switch', checked, 'aria-describedby': helpId, onchange: ( e ) => onchange( e.target.checked ), ...attrs } )
 		);
 	};
 
 	// attrs.class adds to the select's classes.
 	const select = ( options, value, onchange, attrs = {} ) => {
 		const { class: extra, ...rest } = attrs;
-		return h(
+		return el(
 			'select',
 			{ class: `etk-fonts__input etk-fonts__select${ extra ? ` ${ extra }` : '' }`, onchange: ( e ) => onchange( e.target.value ), ...rest },
-			options.map( ( [ optionValue, label ] ) => h( 'option', { value: optionValue, selected: optionValue === value, textContent: label } ) )
+			options.map( ( [ optionValue, label ] ) => el( 'option', { value: optionValue, selected: optionValue === value, textContent: label } ) )
 		);
 	};
 
@@ -575,15 +552,15 @@
 	const inputBox = ( iconName, control, ...trailing ) => {
 		const id = control.id || ( control.id = uid() );
 		control.classList.add( 'etk-fonts__inputbox-control' );
-		return h( 'div', { class: 'etk-fonts__inputbox' }, h( 'label', { class: 'etk-fonts__inputbox-icon', htmlFor: id, html: icon( iconName, 14 ) } ), control, ...trailing );
+		return el( 'div', { class: 'etk-fonts__inputbox' }, el( 'label', { class: 'etk-fonts__inputbox-icon', htmlFor: id, html: icon( iconName, 14 ) } ), control, ...trailing );
 	};
 
 	// Variants: neutral, accent (roles), warning (unused), tag (categories).
-	const badge = ( text, variant = 'neutral' ) => h( 'span', { class: `etk-fonts__badge etk-fonts__badge--${ variant }`, textContent: text } );
+	const badge = ( text, variant = 'neutral' ) => el( 'span', { class: `etk-fonts__badge etk-fonts__badge--${ variant }`, textContent: text } );
 
 	// An on/off pill, like the language chips.
 	const chip = ( label, pressed, onchange ) => {
-		const node = h( 'button', {
+		const node = el( 'button', {
 			type: 'button',
 			class: 'etk-fonts__chip',
 			'aria-pressed': String( !! pressed ),
@@ -603,7 +580,7 @@
 	 */
 	const tabs = ( { key, label, items, value, onchange } ) => {
 		const buttons = items.map( ( item ) =>
-			h(
+			el(
 				'button',
 				{
 					type: 'button',
@@ -615,8 +592,8 @@
 					tabindex: item.id === value ? '0' : '-1',
 					onclick: () => pick( item.id ),
 				},
-				h( 'span', { textContent: item.label } ),
-				item.count === undefined ? null : h( 'span', { class: 'etk-fonts__count', textContent: String( item.count ) } )
+				el( 'span', { textContent: item.label } ),
+				item.count === undefined ? null : el( 'span', { class: 'etk-fonts__count', textContent: String( item.count ) } )
 			)
 		);
 		// Focus moves first, so a re-render in onchange keeps it on the tab.
@@ -631,7 +608,7 @@
 			value = id;
 			onchange( id );
 		};
-		return h(
+		return el(
 			'div',
 			{
 				class: 'etk-fonts__tabs etk-track',
@@ -649,7 +626,7 @@
 		);
 	};
 
-	const tabPanel = ( key, id, ...children ) => h( 'div', { class: 'etk-fonts__tabpanel', role: 'tabpanel', id: `etk-fonts-${ key }-panel-${ id }`, 'aria-labelledby': `etk-fonts-${ key }-tab-${ id }` }, ...children );
+	const tabPanel = ( key, id, ...children ) => el( 'div', { class: 'etk-fonts__tabpanel', role: 'tabpanel', id: `etk-fonts-${ key }-panel-${ id }`, 'aria-labelledby': `etk-fonts-${ key }-tab-${ id }` }, ...children );
 
 	/**
 	 * One choice from a few, as radios styled as a segmented control.
@@ -657,18 +634,18 @@
 	 * screen readers only. fill stretches the segments, boxed borders the track.
 	 */
 	const segmented = ( { name, legend, options, value, onchange, fill = false, boxed = false } ) =>
-		h(
+		el(
 			'fieldset',
 			{ class: `etk-fonts__seg etk-track${ fill ? ' etk-fonts__seg--fill' : '' }${ boxed ? ' etk-fonts__seg--boxed' : '' }` },
-			h( 'legend', { class: 'screen-reader-text', textContent: legend } ),
+			el( 'legend', { class: 'screen-reader-text', textContent: legend } ),
 			options.map( ( option ) =>
-				h(
+				el(
 					'label',
 					{ title: option.icon ? option.label : null },
-					h( 'input', { type: 'radio', name: `etk-fonts-${ name }`, value: option.value, checked: option.value === value, onchange: () => onchange( option.value ) } ),
-					option.icon ? h( 'span', { class: 'etk-fonts__seg-icon', html: icon( option.icon, 14 ) } ) : null,
-					h( 'span', { class: option.icon ? 'screen-reader-text' : null, textContent: option.label } ),
-					option.count === undefined ? null : h( 'span', { class: 'etk-fonts__count', textContent: String( option.count ) } )
+					el( 'input', { type: 'radio', name: `etk-fonts-${ name }`, value: option.value, checked: option.value === value, onchange: () => onchange( option.value ) } ),
+					option.icon ? el( 'span', { class: 'etk-fonts__seg-icon', html: icon( option.icon, 14 ) } ) : null,
+					el( 'span', { class: option.icon ? 'screen-reader-text' : null, textContent: option.label } ),
+					option.count === undefined ? null : el( 'span', { class: 'etk-fonts__count', textContent: String( option.count ) } )
 				)
 			)
 		);
@@ -726,7 +703,7 @@
 			closeMenu();
 			const entries = ( typeof items === 'function' ? items() : items ).filter( Boolean );
 			const choices = [];
-			const popup = h(
+			const popup = el(
 				'div',
 				{
 					class: 'right-click-menu__content etk-fonts__menu',
@@ -750,8 +727,8 @@
 					},
 				},
 				entries.map( ( item ) => {
-					if ( item === '-' ) return h( 'div', { class: 'right-click-menu__separator etk-fonts__menu-separator', role: 'separator' } );
-					const node = h(
+					if ( item === '-' ) return el( 'div', { class: 'right-click-menu__separator etk-fonts__menu-separator', role: 'separator' } );
+					const node = el(
 						'button',
 						{
 							type: 'button',
@@ -766,7 +743,7 @@
 								item.onselect();
 							},
 						},
-						h( 'span', { class: 'right-click-menu__item-label etk-fonts__menu-label' }, item.icon ? h( 'span', { class: 'etk-fonts__menu-icon', html: item.icon === 'delete' ? DELETE_ICON : icon( item.icon, 14 ) } ) : null, item.label )
+						el( 'span', { class: 'right-click-menu__item-label etk-fonts__menu-label' }, item.icon ? el( 'span', { class: 'etk-fonts__menu-icon', html: item.icon === 'delete' ? DELETE_ICON : icon( item.icon, 14 ) } ) : null, item.label )
 					);
 					choices.push( node );
 					return node;
@@ -798,9 +775,9 @@
 		const current = () => ( get ? get() : varOf( name ) );
 		const label = get ? 'Copy CSS variable' : `Copy ${ current() }`;
 		const iconOnly = variant === 'icon';
-		const glyph = h( 'span', { class: 'etk-fonts__var-icon', html: icon( 'copy' ) } );
+		const glyph = el( 'span', { class: 'etk-fonts__var-icon', html: icon( 'copy' ) } );
 		let timer = 0;
-		const node = h(
+		const node = el(
 			'button',
 			{
 				type: 'button',
@@ -826,7 +803,7 @@
 					}, 1500 );
 				},
 			},
-			iconOnly ? null : h( 'code', { textContent: state.vars[ name ] } ),
+			iconOnly ? null : el( 'code', { textContent: state.vars[ name ] } ),
 			glyph
 		);
 		return node;
@@ -841,12 +818,12 @@
 	 */
 	const section = ( title, ...children ) => {
 		const { title: text, variant = 'card', action } = title && typeof title === 'object' ? title : { title };
-		const head = h( 'div', { class: 'etk-fonts__section-head' }, h( 'h3', { class: 'etk-fonts__label', textContent: text } ), action || null );
-		return h(
+		const head = el( 'div', { class: 'etk-fonts__section-head' }, el( 'h3', { class: 'etk-fonts__label', textContent: text } ), action || null );
+		return el(
 			'section',
 			{ class: `etk-fonts__section etk-fonts__section--${ variant }` },
 			head,
-			variant === 'panel' ? children : h( 'div', { class: `etk-fonts__card${ variant === 'card' ? ' etk-fonts__card--padded' : '' }` }, ...children )
+			variant === 'panel' ? children : el( 'div', { class: `etk-fonts__card${ variant === 'card' ? ' etk-fonts__card--padded' : '' }` }, ...children )
 		);
 	};
 
@@ -864,22 +841,22 @@
 		const hidden = o.hidden ?? o.title === VIEWS[ view ];
 		const list = ( o.actions || [] ).filter( Boolean );
 		const bare = hidden && ! o.back && ! o.meta && ! o.tabs && ! list.length && ! o.description;
-		return h(
+		return el(
 			'div',
 			{ class: `etk-fonts__page-header${ o.bar ? ' etk-fonts__page-header--bar' : '' }${ bare ? ' etk-fonts__page-header--bare' : '' }` },
-			h(
+			el(
 				'div',
 				{ class: 'etk-fonts__page-lead' },
 				o.back ? iconButton( o.back.label, 'back', o.back.onclick, { variant: 'secondary' } ) : null,
 				o.back?.crumb
-					? h( 'nav', { class: 'etk-fonts__crumbs', 'aria-label': 'Breadcrumb' }, h( 'button', { type: 'button', class: 'etk-fonts__crumb', textContent: o.back.crumb, onclick: o.back.onclick } ), h( 'span', { class: 'etk-fonts__crumb-sep', 'aria-hidden': 'true', textContent: '/' } ) )
+					? el( 'nav', { class: 'etk-fonts__crumbs', 'aria-label': 'Breadcrumb' }, el( 'button', { type: 'button', class: 'etk-fonts__crumb', textContent: o.back.crumb, onclick: o.back.onclick } ), el( 'span', { class: 'etk-fonts__crumb-sep', 'aria-hidden': 'true', textContent: '/' } ) )
 					: null,
-				h( 'h2', { class: `etk-fonts__page-title${ hidden ? ' screen-reader-text' : '' }`, tabindex: '-1', textContent: o.title } ),
-				typeof o.meta === 'string' ? h( 'span', { class: 'etk-fonts__page-meta', textContent: o.meta } ) : o.meta || null,
+				el( 'h2', { class: `etk-fonts__page-title${ hidden ? ' screen-reader-text' : '' }`, tabindex: '-1', textContent: o.title } ),
+				typeof o.meta === 'string' ? el( 'span', { class: 'etk-fonts__page-meta', textContent: o.meta } ) : o.meta || null,
 				o.tabs || null
 			),
-			list.length ? h( 'div', { class: 'etk-fonts__actions' }, ...list ) : null,
-			o.description ? h( 'p', { class: 'etk-fonts__help etk-fonts__page-description', textContent: o.description } ) : null
+			list.length ? el( 'div', { class: 'etk-fonts__actions' }, ...list ) : null,
+			o.description ? el( 'p', { class: 'etk-fonts__help etk-fonts__page-description', textContent: o.description } ) : null
 		);
 	};
 
@@ -889,7 +866,7 @@
 
 	// Preview text, shared by the Library and Google Fonts. Empty falls back to the pangram.
 	const previewInput = ( onchange ) =>
-		h( 'input', {
+		el( 'input', {
 			class: 'etk-fonts__input etk-fonts__preview',
 			type: 'text',
 			value: sampleText === SAMPLE ? '' : sampleText,
@@ -991,25 +968,25 @@
 		const glyphs = SCRIPTS[ script ] ? [ ...SCRIPTS[ script ][ 1 ] ].slice( 0, 2 ).join( '' ) : 'Aa';
 		const badges = family.enabled ? family.roles.map( ( role ) => badge( ROLES[ role ], 'accent' ) ) : [ badge( 'Disabled' ) ];
 		const weights = weightRange( family );
-		return h(
+		return el(
 			'li',
 			{ class: `etk-fonts__card etk-fonts__tile${ family.enabled ? '' : ' is-disabled' }` },
-			h(
+			el(
 				'div',
 				{ class: 'etk-fonts__tile-canvas' },
-				h(
+				el(
 					'div',
 					{ class: 'etk-fonts__tile-top' },
-					badges.length ? h( 'div', { class: 'etk-fonts__family-badges' }, badges ) : null,
-					weights ? h( 'span', { class: 'etk-fonts__tile-note' }, h( 'span', { class: 'screen-reader-text', textContent: 'Weights ' } ), weights ) : null
+					badges.length ? el( 'div', { class: 'etk-fonts__family-badges' }, badges ) : null,
+					weights ? el( 'span', { class: 'etk-fonts__tile-note' }, el( 'span', { class: 'screen-reader-text', textContent: 'Weights ' } ), weights ) : null
 				),
-				h( 'p', { class: 'etk-fonts__tile-specimen etk-fonts__family-specimen', 'aria-hidden': 'true', style: `font-family: "${ savedName( family ) }", ${ family.fallback || 'sans-serif' }`, textContent: glyphs } )
+				el( 'p', { class: 'etk-fonts__tile-specimen etk-fonts__family-specimen', 'aria-hidden': 'true', style: `font-family: "${ savedName( family ) }", ${ family.fallback || 'sans-serif' }`, textContent: glyphs } )
 			),
-			h(
+			el(
 				'div',
 				{ class: 'etk-fonts__tile-meta' },
-				h( 'div', { class: 'etk-fonts__tile-title' }, h( 'h3', { class: 'etk-fonts__tile-name', textContent: family.name } ), state.vars[ family.name ] ? h( 'span', { class: 'etk-fonts__tile-sub', textContent: state.vars[ family.name ] } ) : null ),
-				h( 'div', { class: 'etk-fonts__tile-actions' }, copyVar( family.name, { variant: 'icon' } ), button( 'Edit', () => edit( index ), { attrs: { class: 'etk-fonts__card-link', 'aria-label': `Edit ${ family.name }` } } ) )
+				el( 'div', { class: 'etk-fonts__tile-title' }, el( 'h3', { class: 'etk-fonts__tile-name', textContent: family.name } ), state.vars[ family.name ] ? el( 'span', { class: 'etk-fonts__tile-sub', textContent: state.vars[ family.name ] } ) : null ),
+				el( 'div', { class: 'etk-fonts__tile-actions' }, copyVar( family.name, { variant: 'icon' } ), button( 'Edit', () => edit( index ), { attrs: { class: 'etk-fonts__card-link', 'aria-label': `Edit ${ family.name }` } } ) )
 			)
 		);
 	};
@@ -1017,11 +994,11 @@
 	// The dashed "Add a family" tile: a drop target, and the Add font menu on click.
 	const addTile = () =>
 		menu(
-			h(
+			el(
 				'button',
 				{ type: 'button', class: 'etk-fonts__card etk-fonts__card--dashed etk-fonts__family-add' },
-				h( 'span', { class: 'etk-fonts__family-add-icon', html: icon( 'plus' ) } ),
-				h( 'span', { class: 'etk-fonts__family-add-text' }, h( 'span', { class: 'etk-fonts__family-add-title', textContent: 'Add a family' } ), h( 'span', { class: 'etk-fonts__family-add-hint', textContent: 'Drop files here or browse Google Fonts' } ) )
+				el( 'span', { class: 'etk-fonts__family-add-icon', html: icon( 'plus' ) } ),
+				el( 'span', { class: 'etk-fonts__family-add-text' }, el( 'span', { class: 'etk-fonts__family-add-title', textContent: 'Add a family' } ), el( 'span', { class: 'etk-fonts__family-add-hint', textContent: 'Drop files here or browse Google Fonts' } ) )
 			),
 			ADD_FONT,
 			{ label: 'Add a family', align: 'start' }
@@ -1029,37 +1006,37 @@
 
 	const renderFamilies = () => {
 		const add = addTile();
-		return dropTarget( tabPanel( 'library', 'families', h( 'ul', { class: 'etk-fonts__tiles', role: 'list' }, state.families.map( familyTile ), h( 'li', { class: 'etk-fonts__family-add-item' }, add ) ) ), add );
+		return dropTarget( tabPanel( 'library', 'families', el( 'ul', { class: 'etk-fonts__tiles', role: 'list' }, state.families.map( familyTile ), el( 'li', { class: 'etk-fonts__family-add-item' }, add ) ) ), add );
 	};
 
 	// Files: uploads in progress or failed first, then the fonts folder.
 	const iconCell = ( name ) =>
-		h(
+		el(
 			'td',
 			{ class: 'etk-fonts__files-icon', 'aria-hidden': 'true' },
-			name === 'spinner' ? h( 'span', { class: 'etk-fonts__spinner' } ) : name ? h( 'span', { class: `etk-fonts__files-glyph etk-fonts__files-glyph--${ name }`, html: icon( name, 15 ) } ) : null
+			name === 'spinner' ? el( 'span', { class: 'etk-fonts__spinner' } ) : name ? el( 'span', { class: `etk-fonts__files-glyph etk-fonts__files-glyph--${ name }`, html: icon( name, 15 ) } ) : null
 		);
 
 	const STAGES = { waiting: 'Waiting', converting: 'Converting', uploading: 'Uploading' };
 	const logRow = ( entry ) => {
 		const busy = entry.stage === 'converting' || entry.stage === 'uploading';
-		return h(
+		return el(
 			'tr',
 			{},
-			h( 'td', { class: 'etk-fonts__files-pick' } ),
+			el( 'td', { class: 'etk-fonts__files-pick' } ),
 			iconCell( entry.error ? 'alert' : entry.done ? 'check' : busy ? 'spinner' : null ),
-			h( 'td', {}, h( 'span', { class: 'etk-fonts__files-name', textContent: entry.name } ) ),
-			h( 'td' ),
-			h(
+			el( 'td', {}, el( 'span', { class: 'etk-fonts__files-name', textContent: entry.name } ) ),
+			el( 'td' ),
+			el(
 				'td',
 				{},
 				entry.error || entry.done
-					? h( 'span', { class: entry.error ? 'etk-fonts__files-error' : 'etk-fonts__muted', textContent: entry.text } )
-					: h( 'span', { class: 'etk-fonts__files-progress' }, busy ? h( 'span', { class: 'etk-fonts__progress' } ) : null, h( 'span', { class: 'etk-fonts__muted', textContent: STAGES[ entry.stage ] } ) )
+					? el( 'span', { class: entry.error ? 'etk-fonts__files-error' : 'etk-fonts__muted', textContent: entry.text } )
+					: el( 'span', { class: 'etk-fonts__files-progress' }, busy ? el( 'span', { class: 'etk-fonts__progress' } ) : null, el( 'span', { class: 'etk-fonts__muted', textContent: STAGES[ entry.stage ] } ) )
 			),
-			h( 'td', { textContent: size( entry.size ) } ),
-			h( 'td', { class: entry.family ? null : 'etk-fonts__files-none', textContent: entry.family || '—' } ),
-			h(
+			el( 'td', { textContent: size( entry.size ) } ),
+			el( 'td', { class: entry.family ? null : 'etk-fonts__files-none', textContent: entry.family || '—' } ),
+			el(
 				'td',
 				{},
 				entry.error
@@ -1086,7 +1063,7 @@
 	const pickedFiles = () => state.files.filter( ( f ) => picked.has( f.name ) );
 
 	const pickBox = ( file ) =>
-		h( 'input', {
+		el( 'input', {
 			type: 'checkbox',
 			class: 'etk-fonts__pick etk-checkbox',
 			'data-file': file.name,
@@ -1143,10 +1120,10 @@
 
 	// Etch's button markup, as the Style Manager's bulk bar has it.
 	const barButton = ( label, iconName, onclick, { variant = 'transparent', className = '', size = 'm', iconSize = 14 } = {} ) =>
-		h(
+		el(
 			'button',
 			{ type: 'button', class: `etch-builder-button etch-builder-button--icon-placement-before etch-builder-button--variant-${ variant } ${ className }`, style: `--button-font-size: var(--e-font-size-${ size })`, onclick },
-			h( 'div', { class: 'etk-bulk-bar__icon', html: iconName === 'delete' ? DELETE_ICON : icon( iconName, iconSize ) } ),
+			el( 'div', { class: 'etk-bulk-bar__icon', html: iconName === 'delete' ? DELETE_ICON : icon( iconName, iconSize ) } ),
 			label ? [ ' ', label ] : null
 		);
 
@@ -1155,7 +1132,7 @@
 		const clearButton = barButton( null, 'close', clearPicks, { variant: 'icon', className: 'etk-bulk-bar__clear', size: 's', iconSize: 12 } );
 		clearButton.setAttribute( 'aria-label', 'Clear selection' );
 		clearButton.title = 'Clear selection';
-		const selectAll = h( 'button', {
+		const selectAll = el( 'button', {
 			type: 'button',
 			class: 'etk-bulk-bar__select-all',
 			textContent: 'Select All',
@@ -1175,26 +1152,26 @@
 			],
 			{ label: 'Add to family', align: 'start' }
 		);
-		bulkBar = h(
+		bulkBar = el(
 			'div',
 			{ class: 'etk-bulk-bar etk-fonts__bulk', hidden: true, role: 'group', 'aria-label': 'Bulk file actions' },
-			h(
+			el(
 				'div',
 				{ class: 'etk-bulk-bar__left' },
 				clearButton,
-				h( 'div', { class: 'etk-bulk-bar__count', role: 'status' }, h( 'span', { class: 'etk-bulk-bar__count-number' } ), ' ', h( 'span', { class: 'etk-bulk-bar__count-label', textContent: 'selected' } ) ),
+				el( 'div', { class: 'etk-bulk-bar__count', role: 'status' }, el( 'span', { class: 'etk-bulk-bar__count-number' } ), ' ', el( 'span', { class: 'etk-bulk-bar__count-label', textContent: 'selected' } ) ),
 				selectAll
 			),
-			h( 'div', { class: 'etk-bulk-bar__divider' } ),
-			h(
+			el( 'div', { class: 'etk-bulk-bar__divider' } ),
+			el(
 				'div',
 				{ class: 'etk-bulk-bar__actions' },
 				add,
 				barButton( 'Remove from family', 'close', () => moveFiles( pickedFiles().filter( ( f ) => f.family ), null ), { className: 'etk-fonts__bulk-remove' } ),
-				barButton( h( 'span', { textContent: 'Delete' } ), 'delete', () => deleteFiles( pickedFiles() ), { className: 'etk-bulk-bar__delete' } )
+				barButton( el( 'span', { textContent: 'Delete' } ), 'delete', () => deleteFiles( pickedFiles() ), { className: 'etk-bulk-bar__delete' } )
 			)
 		);
-		return [ h( 'div', { class: 'etk-bulk-bar-scrim', hidden: true } ), bulkBar ];
+		return [ el( 'div', { class: 'etk-bulk-bar-scrim', hidden: true } ), bulkBar ];
 	};
 
 	const newFamily = ( files ) => {
@@ -1233,26 +1210,26 @@
 	const weightCell = ( file ) => {
 		const family = state.families.find( ( f ) => f.name === file.family );
 		const variant = family?.variants.find( ( v ) => v.file === file.name );
-		if ( ! variant ) return h( 'td', { class: 'etk-fonts__files-none', title: 'Add it to a family to set its weight and style.', textContent: '—' } );
+		if ( ! variant ) return el( 'td', { class: 'etk-fonts__files-none', title: 'Add it to a family to set its weight and style.', textContent: '—' } );
 		const label = variantLabel( variant );
-		const trigger = h(
+		const trigger = el(
 			'button',
 			{ type: 'button', class: 'etk-fonts__weight-cell', 'data-file': file.name, 'aria-haspopup': 'dialog', 'aria-expanded': 'false', 'aria-label': `${ label }, change weight and style of ${ file.name }` },
-			h( 'span', { class: 'etk-fonts__weight-cell-label', textContent: label } ),
-			h( 'span', { class: 'etk-fonts__weight-cell-icon', html: icon( 'chevron-down', 10 ) } )
+			el( 'span', { class: 'etk-fonts__weight-cell-label', textContent: label } ),
+			el( 'span', { class: 'etk-fonts__weight-cell-icon', html: icon( 'chevron-down', 10 ) } )
 		);
 		trigger.addEventListener( 'click', () => {
 			if ( openMenu?.trigger === trigger ) return closeMenu();
 			closeMenu();
 			const edited = clone( variant );
-			const title = h( 'span', { class: 'etk-fonts__file-title' } );
-			const body = h( 'div', { class: 'etk-fonts__popover-body' } );
+			const title = el( 'span', { class: 'etk-fonts__file-title' } );
+			const body = el( 'div', { class: 'etk-fonts__popover-body' } );
 			const fill = () => {
 				title.textContent = variantLabel( edited );
 				rebuild( body, () => body.replaceChildren( weightFields( edited, fill ) ) );
 			};
 			fill();
-			const popup = h(
+			const popup = el(
 				'div',
 				{
 					class: 'etk-fonts__popover',
@@ -1274,7 +1251,7 @@
 						}
 					},
 				},
-				h( 'div', { class: 'etk-fonts__popover-head' }, title, h( 'span', { class: 'etk-fonts__file-name', textContent: file.name } ) ),
+				el( 'div', { class: 'etk-fonts__popover-head' }, title, el( 'span', { class: 'etk-fonts__file-name', textContent: file.name } ) ),
 				body
 			);
 			openPopup( trigger, popup, {
@@ -1288,7 +1265,7 @@
 			} );
 			popup.querySelector( 'input:checked' )?.focus();
 		} );
-		return h( 'td', {}, trigger );
+		return el( 'td', {}, trigger );
 	};
 
 	const renameFile = async ( file ) => {
@@ -1303,17 +1280,17 @@
 		const done = uploadLog.find( ( e ) => e.done && e.file === file.name );
 		const unused = ! file.family;
 		const own = editable( file );
-		return h(
+		return el(
 			'tr',
 			{ class: [ unused ? 'is-unused' : '', picked.has( file.name ) ? 'is-picked' : '' ].join( ' ' ).trim() || null },
-			h( 'td', { class: 'etk-fonts__files-pick' }, own ? pickBox( file ) : null ),
+			el( 'td', { class: 'etk-fonts__files-pick' }, own ? pickBox( file ) : null ),
 			iconCell( done ? 'check' : null ),
-			h( 'td', {}, h( 'span', { class: 'etk-fonts__files-name', textContent: file.name } ) ),
-			own ? weightCell( file ) : h( 'td', { class: 'etk-fonts__files-none', textContent: '—' } ),
-			h( 'td', {}, done ? h( 'span', { class: 'etk-fonts__muted', textContent: done.text } ) : file.unsafe ? h( 'span', { class: 'etk-fonts__files-status etk-fonts__files-status--warning', textContent: 'Needs rename', title: 'Added outside Etch Toolkit with characters it can\'t use, like brackets.' } ) : h( 'span', { class: `etk-fonts__files-status etk-fonts__files-status--${ unused ? 'warning' : 'success' }`, textContent: unused ? 'Unused' : 'In use' } ) ),
-			h( 'td', { textContent: size( file.size ) } ),
-			h( 'td', { class: unused ? 'etk-fonts__files-none' : null, textContent: file.family || 'No family' } ),
-			h( 'td', {}, own ? fileMenu( file ) : file.unsafe ? menu( iconButton( `Actions for ${ file.name }`, 'more', null ), () => [ { label: 'Rename file', onselect: () => renameFile( file ) } ] ) : null )
+			el( 'td', {}, el( 'span', { class: 'etk-fonts__files-name', textContent: file.name } ) ),
+			own ? weightCell( file ) : el( 'td', { class: 'etk-fonts__files-none', textContent: '—' } ),
+			el( 'td', {}, done ? el( 'span', { class: 'etk-fonts__muted', textContent: done.text } ) : file.unsafe ? el( 'span', { class: 'etk-fonts__files-status etk-fonts__files-status--warning', textContent: 'Needs rename', title: 'Added outside Etch Toolkit with characters it can\'t use, like brackets.' } ) : el( 'span', { class: `etk-fonts__files-status etk-fonts__files-status--${ unused ? 'warning' : 'success' }`, textContent: unused ? 'Unused' : 'In use' } ) ),
+			el( 'td', { textContent: size( file.size ) } ),
+			el( 'td', { class: unused ? 'etk-fonts__files-none' : null, textContent: file.family || 'No family' } ),
+			el( 'td', {}, own ? fileMenu( file ) : file.unsafe ? menu( iconButton( `Actions for ${ file.name }`, 'more', null ), () => [ { label: 'Rename file', onselect: () => renameFile( file ) } ] ) : null )
 		);
 	};
 
@@ -1321,11 +1298,11 @@
 	const fileRows = () => {
 		const pending = fileFilter === 'all' ? uploadLog.filter( ( e ) => ! e.done || ! state.files.some( ( f ) => f.name === e.file ) ) : [];
 		const rows = [ ...pending.map( logRow ), ...shownFiles().map( fileRow ) ];
-		return rows.length ? rows : [ h( 'tr', {}, h( 'td', { colspan: '8', class: 'etk-fonts__files-empty etk-fonts__muted', textContent: FILES_EMPTY[ fileFilter ] } ) ) ];
+		return rows.length ? rows : [ el( 'tr', {}, el( 'td', { colspan: '8', class: 'etk-fonts__files-empty etk-fonts__muted', textContent: FILES_EMPTY[ fileFilter ] } ) ) ];
 	};
 
 	const renderFiles = () => {
-		const input = h( 'input', {
+		const input = el( 'input', {
 			type: 'file',
 			multiple: true,
 			accept: '.woff2,.woff,.ttf,.otf',
@@ -1336,18 +1313,18 @@
 				uploadFiles( files );
 			},
 		} );
-		const zone = h(
+		const zone = el(
 			'div',
 			{ class: 'etk-fonts__dropzone etk-fonts__upload' },
-			h(
+			el(
 				'div',
 				{ class: 'etk-fonts__upload-text' },
-				h( 'p', { class: 'etk-fonts__upload-eyebrow', textContent: 'Upload' } ),
-				h( 'h3', { class: 'etk-fonts__upload-title', textContent: 'Drop font files anywhere.' } ),
-				h( 'p', { class: 'etk-fonts__upload-body', textContent: 'Files group by name, like Inter-BoldItalic.woff2. Other formats convert to WOFF2.' } ),
-				h( 'div', { class: 'etk-fonts__upload-actions' }, h( 'label', { class: btnClass( 'primary', 'etk-fonts__file-btn' ) }, input, btnIcon( 'upload' ), 'Choose files' ), h( 'span', { class: 'etk-fonts__upload-formats', textContent: '.woff2 .woff .ttf .otf' } ) )
+				el( 'p', { class: 'etk-fonts__upload-eyebrow', textContent: 'Upload' } ),
+				el( 'h3', { class: 'etk-fonts__upload-title', textContent: 'Drop font files anywhere.' } ),
+				el( 'p', { class: 'etk-fonts__upload-body', textContent: 'Files group by name, like Inter-BoldItalic.woff2. Other formats convert to WOFF2.' } ),
+				el( 'div', { class: 'etk-fonts__upload-actions' }, el( 'label', { class: btnClass( 'primary', 'etk-fonts__file-btn' ) }, input, btnIcon( 'upload' ), 'Choose files' ), el( 'span', { class: 'etk-fonts__upload-formats', textContent: '.woff2 .woff .ttf .otf' } ) )
 			),
-			h( 'div', { class: 'etk-fonts__upload-art', html: GLYPH_STACK } )
+			el( 'div', { class: 'etk-fonts__upload-art', html: GLYPH_STACK } )
 		);
 		const unused = state.files.filter( ( f ) => ! f.family ).length;
 		const filter = segmented( {
@@ -1364,29 +1341,29 @@
 				render();
 			},
 		} );
-		const th = ( text ) => h( 'th', { scope: 'col', textContent: text } );
+		const th = ( text ) => el( 'th', { scope: 'col', textContent: text } );
 		return dropTarget(
 			tabPanel(
 				'library',
 				'files',
 				zone,
-				h(
+				el(
 					'div',
 					{ class: 'etk-fonts__files' },
-					h( 'div', { class: 'etk-fonts__files-toolbar' }, filter, config.fontsPath ? h( 'span', { class: 'etk-fonts__files-path', textContent: config.fontsPath } ) : null ),
-					h(
+					el( 'div', { class: 'etk-fonts__files-toolbar' }, filter, config.fontsPath ? el( 'span', { class: 'etk-fonts__files-path', textContent: config.fontsPath } ) : null ),
+					el(
 						'table',
 						{ class: 'etk-fonts__table etk-fonts__files-table', 'aria-label': 'Font files' },
-						h(
+						el(
 							'thead',
 							{},
-							h(
+							el(
 								'tr',
 								{},
-								h(
+								el(
 									'td',
 									{ class: 'etk-fonts__files-pick' },
-									h( 'input', {
+									el( 'input', {
 										type: 'checkbox',
 										class: 'etk-fonts__pick etk-fonts__pick-all etk-checkbox',
 										'aria-label': 'Select all files',
@@ -1397,11 +1374,11 @@
 										},
 									} )
 								),
-								h( 'td', { class: 'etk-fonts__files-icon', 'aria-hidden': 'true' } ), th( 'File' ), th( 'Weight · Style' ), th( 'Status' ), th( 'Size' ), th( 'Family' ),
-								h( 'th', { scope: 'col' }, h( 'span', { class: 'screen-reader-text', textContent: 'Actions' } ) )
+								el( 'td', { class: 'etk-fonts__files-icon', 'aria-hidden': 'true' } ), th( 'File' ), th( 'Weight · Style' ), th( 'Status' ), th( 'Size' ), th( 'Family' ),
+								el( 'th', { scope: 'col' }, el( 'span', { class: 'screen-reader-text', textContent: 'Actions' } ) )
 							)
 						),
-						h( 'tbody', { class: 'etk-fonts__files-body' }, fileRows() )
+						el( 'tbody', { class: 'etk-fonts__files-body' }, fileRows() )
 					)
 				)
 			),
@@ -1441,12 +1418,12 @@
 	 */
 	const defaultVar = ( family ) => ( family.name === family[ ORIGIN ] && ! saved.find( ( f ) => f.name === family.name )?.variable ? state.vars[ family.name ]?.slice( 2 ) : null ) || `font-${ slugOf( family.name ) }`;
 	const varField = ( family, update ) => {
-		const input = h( 'input', {
+		const input = el( 'input', {
 			class: 'etk-fonts__input etk-fonts__input--mono etk-fonts__var-name',
 			type: 'text',
 			value: family.variable || '',
 			placeholder: defaultVar( family ),
-			spellcheck: false,
+			spellcheck: 'false',
 			autocomplete: 'off',
 			oninput: ( e ) => {
 				// Cleared, it has no key at all, so it matches the saved family again.
@@ -1456,10 +1433,10 @@
 				update( {} );
 			},
 		} );
-		return h(
+		return el(
 			'div',
 			{ class: 'etk-fonts__var-edit' },
-			h( 'span', { class: 'etk-fonts__var-prefix', 'aria-hidden': 'true', textContent: '--' } ),
+			el( 'span', { class: 'etk-fonts__var-prefix', 'aria-hidden': 'true', textContent: '--' } ),
 			input,
 			copyVar( family.name, { variant: 'icon', get: () => `var(--${ input.value.trim().replace( /^-+/, '' ) || input.placeholder })` } )
 		);
@@ -1481,7 +1458,7 @@
 		const dialog = confirmDialog( {
 			title: `Delete ${ family.name }?`,
 			message: [
-				h( 'p', { textContent: 'Removed when you save. Text using it falls back to the next font.' } ),
+				el( 'p', { textContent: 'Removed when you save. Text using it falls back to the next font.' } ),
 				own.length ? check( `Also delete its ${ plural( own.length, 'font file', 'font files' ) }, now`, false, ( value ) => ( alsoFiles = value ) ) : null,
 			].filter( Boolean ),
 			confirmLabel: 'Delete',
@@ -1528,7 +1505,7 @@
 		const scale = own.width / context.measureText( METRICS_TEXT ).width;
 
 		// A block with line-height: normal is ascent + descent + line gap tall.
-		const probe = h( 'div', { style: `position: absolute; visibility: hidden; font: ${ font }; line-height: normal; white-space: nowrap`, textContent: 'Hg' } );
+		const probe = el( 'div', { style: `position: absolute; visibility: hidden; font: ${ font }; line-height: normal; white-space: nowrap`, textContent: 'Hg' } );
 		document.body.append( probe );
 		const height = probe.getBoundingClientRect().height;
 		probe.remove();
@@ -1592,7 +1569,7 @@
 		const guessed = state.files.find( ( f ) => f.name === variant.file )?.weight;
 		const switchTo = ( type ) =>
 			set( 'weight', type === 'variable' ? memory.variable || ( guessed?.includes( ' ' ) ? guessed : '100 900' ) : memory.static || String( Math.min( 900, Math.max( 100, Math.round( variantWeight( variant.weight ) / 100 ) * 100 ) ) ) );
-		const row = ( label, control, labelId ) => h( 'div', { class: 'etk-fonts__weight-row' }, h( 'span', { class: 'etk-fonts__weight-label', id: labelId, 'aria-hidden': 'true', textContent: label } ), control );
+		const row = ( label, control, labelId ) => el( 'div', { class: 'etk-fonts__weight-row' }, el( 'span', { class: 'etk-fonts__weight-label', id: labelId, 'aria-hidden': 'true', textContent: label } ), control );
 		const of = ` of ${ variant.file }`;
 
 		let weights;
@@ -1601,11 +1578,11 @@
 			const id = uid();
 			weights = row(
 				'Weights',
-				h(
+				el(
 					'div',
 					{ class: 'etk-fonts__weight-range', role: 'group', 'aria-labelledby': id },
 					select( withWeight( WEIGHTS, min ).filter( ( w ) => +w < +max ).map( ( w ) => [ w, w ] ), min, ( value ) => set( 'weight', `${ value } ${ max }` ), { 'aria-label': `Lightest weight${ of }` } ),
-					h( 'span', { class: 'etk-fonts__weight-to', 'aria-hidden': 'true', textContent: 'to' } ),
+					el( 'span', { class: 'etk-fonts__weight-to', 'aria-hidden': 'true', textContent: 'to' } ),
 					select( withWeight( WEIGHTS, max ).filter( ( w ) => +w > +min ).map( ( w ) => [ w, w ] ), max, ( value ) => set( 'weight', `${ min } ${ value }` ), { 'aria-label': `Heaviest weight${ of }` } )
 				),
 				id
@@ -1614,7 +1591,7 @@
 			weights = row( 'Weight', select( withWeight( WEIGHTS, variant.weight ).map( ( w ) => [ w, weightLabel( w ) ] ), variant.weight, ( value ) => set( 'weight', value ), { 'aria-label': `Weight${ of }` } ) );
 		}
 
-		return h(
+		return el(
 			'div',
 			{ class: 'etk-fonts__weight-fields' },
 			row(
@@ -1650,7 +1627,7 @@
 	const renderFamily = () => {
 		const family = draft.family;
 		// Anything that stops the family saving, as you type.
-		const problem = h( 'p', { class: 'etk-fonts__field-error', 'aria-live': 'polite' } );
+		const problem = el( 'p', { class: 'etk-fonts__field-error', 'aria-live': 'polite' } );
 		const showProblem = () => {
 			const text = familyProblem( family );
 			if ( problem.textContent !== text ) problem.textContent = text;
@@ -1678,7 +1655,7 @@
 			{ title: 'Family', variant: 'panel' },
 			field(
 				'Name',
-				h( 'input', {
+				el( 'input', {
 					class: 'etk-fonts__input',
 					type: 'text',
 					value: family.name,
@@ -1692,7 +1669,7 @@
 			),
 			field( 'Variable', varField( family, update ), null, { row: true } ),
 			problem,
-			field( 'Fallback', h( 'input', { class: 'etk-fonts__input etk-fonts__input--mono', type: 'text', value: family.fallback, placeholder: 'system-ui, sans-serif', oninput: ( e ) => update( { fallback: e.target.value } ) } ), null, { row: true } ),
+			field( 'Fallback', el( 'input', { class: 'etk-fonts__input etk-fonts__input--mono', type: 'text', value: family.fallback, placeholder: 'system-ui, sans-serif', oninput: ( e ) => update( { fallback: e.target.value } ) } ), null, { row: true } ),
 			field(
 				'Display',
 				select(
@@ -1744,14 +1721,14 @@
 		};
 		const rolesSection = section(
 			{ title: state.acss ? 'Automatic.css' : 'Typography tokens', variant: 'panel' },
-			state.acss ? null : h( 'p', { class: 'etk-fonts__help', textContent: 'Adds --heading-font-family or --text-font-family and applies it to headings or the body.' } ),
+			state.acss ? null : el( 'p', { class: 'etk-fonts__help', textContent: 'Adds --heading-font-family or --text-font-family and applies it to headings or the body.' } ),
 			...Object.entries( ROLES ).map( ( [ role, label ] ) =>
 				toggle( `Use for ${ label.toLowerCase() }`, family.roles.includes( role ), ( value ) => setRole( role, value ), roleOwner( role ) )
 			)
 		);
 		rolesSection.classList.add( 'etk-fonts__section--roles' );
 
-		const fileInput = h( 'input', { type: 'file', multiple: true, accept: '.woff2,.woff,.ttf,.otf', class: 'screen-reader-text', tabindex: '-1', 'aria-hidden': 'true', onchange: ( e ) => uploadInto( [ ...e.target.files ] ) } );
+		const fileInput = el( 'input', { type: 'file', multiple: true, accept: '.woff2,.woff,.ttf,.otf', class: 'screen-reader-text', tabindex: '-1', 'aria-hidden': 'true', onchange: ( e ) => uploadInto( [ ...e.target.files ] ) } );
 		const addMenu = menu(
 			iconButton( 'Add files', 'plus', null ),
 			() => [
@@ -1772,14 +1749,14 @@
 			const file = state.files.find( ( f ) => f.name === variant.file );
 			const title = variantLabel( variant );
 			const open = editingFile === variant.file;
-			return h(
+			return el(
 				'li',
 				{ class: `etk-fonts__file-row${ open ? ' is-open' : '' }`, title: variant.file },
-				h(
+				el(
 					'div',
 					{ class: 'etk-fonts__file-main' },
-					h( 'div', { class: 'etk-fonts__file-text' }, h( 'span', { class: 'etk-fonts__file-title', textContent: title } ), h( 'span', { class: 'etk-fonts__file-name', textContent: variant.file } ) ),
-					file ? h( 'span', { class: 'etk-fonts__file-size', textContent: size( file.size ) } ) : null,
+					el( 'div', { class: 'etk-fonts__file-text' }, el( 'span', { class: 'etk-fonts__file-title', textContent: title } ), el( 'span', { class: 'etk-fonts__file-name', textContent: variant.file } ) ),
+					file ? el( 'span', { class: 'etk-fonts__file-size', textContent: size( file.size ) } ) : null,
 					menu( iconButton( `Actions for ${ variant.file }`, 'more', null ), [
 						{
 							label: open ? 'Done editing' : 'Change weight and style',
@@ -1800,29 +1777,29 @@
 		const filesSection = section(
 			{ title: `Files · ${ family.variants.length }`, variant: 'panel', action: addMenu },
 			fileInput,
-			family.variants.length ? h( 'ul', { class: 'etk-fonts__file-list' }, family.variants.map( fileRow ) ) : h( 'p', { class: 'etk-fonts__help', textContent: 'No files yet. Add some with the plus button.' } ),
-			family.source === 'google' ? h( 'div', { class: 'etk-fonts__family-link-wrap' }, h( 'button', { type: 'button', class: 'etk-fonts__family-link', textContent: 'Change styles…', onclick: () => installDialog( family.name ) } ) ) : null
+			family.variants.length ? el( 'ul', { class: 'etk-fonts__file-list' }, family.variants.map( fileRow ) ) : el( 'p', { class: 'etk-fonts__help', textContent: 'No files yet. Add some with the plus button.' } ),
+			family.source === 'google' ? el( 'div', { class: 'etk-fonts__family-link-wrap' }, el( 'button', { type: 'button', class: 'etk-fonts__family-link', textContent: 'Change styles…', onclick: () => installDialog( family.name ) } ) ) : null
 		);
 		filesSection.classList.add( 'etk-fonts__section--files' );
 
 		return [
-			h(
+			el(
 				'div',
 				{ class: 'etk-fonts__split etk-fonts__family-view' },
-				h(
+				el(
 					'div',
 					{ class: 'etk-fonts__pane' },
-					pageHeader( { title: family.name || draft.original, hidden: false, bar: true, back: { label: 'Back to the library', crumb: 'Library', onclick: () => leaveFamily( 'library' ) }, meta: roleBadges.length ? h( 'span', { class: 'etk-fonts__family-badges' }, roleBadges ) : null } ),
-					h( 'div', { class: 'etk-fonts__gdetail' }, detailToolbar(), family.variants.length ? specimens : h( 'p', { class: 'etk-fonts__help', textContent: 'Add files to see its weights.' } ) )
+					pageHeader( { title: family.name || draft.original, hidden: false, bar: true, back: { label: 'Back to the library', crumb: 'Library', onclick: () => leaveFamily( 'library' ) }, meta: roleBadges.length ? el( 'span', { class: 'etk-fonts__family-badges' }, roleBadges ) : null } ),
+					el( 'div', { class: 'etk-fonts__gdetail' }, detailToolbar(), family.variants.length ? specimens : el( 'p', { class: 'etk-fonts__help', textContent: 'Add files to see its weights.' } ) )
 				),
-				h(
+				el(
 					'aside',
 					{ class: 'etk-fonts__inspector', 'aria-label': `${ draft.original } settings` },
 					familySection,
 					loadingSection,
 					rolesSection,
 					filesSection,
-					h( 'div', { class: 'etk-fonts__inspector-footer' }, iconButton( `Delete ${ family.name }`, 'trash', deleteFamily, { variant: 'danger', title: 'Delete family' } ) )
+					el( 'div', { class: 'etk-fonts__inspector-footer' }, iconButton( `Delete ${ family.name }`, 'trash', deleteFamily, { variant: 'danger', title: 'Delete family' } ) )
 				)
 			),
 		];
@@ -1934,9 +1911,9 @@
 		const dialog = confirmDialog( {
 			title: one ? `Delete ${ files[ 0 ].name }?` : `Delete ${ files.length } files?`,
 			message: [
-				h( 'p', { textContent: `${ one ? 'The file is' : 'They’re' } removed from the fonts folder. This can’t be undone.` } ),
-				taken.length ? h( 'p', { textContent: one ? `It’s taken out of ${ taken[ 0 ].family } too.` : 'Files in a family are taken out of it too.' } ) : null,
-				emptied.length ? h( 'p', { textContent: `${ emptiedNames } ${ has } no files left, so ${ emptied.length === 1 ? 'it’s' : 'they’re' } deleted too. Anything using ${ it } falls back to the next font in the stack.` } ) : null,
+				el( 'p', { textContent: `${ one ? 'The file is' : 'They’re' } removed from the fonts folder. This can’t be undone.` } ),
+				taken.length ? el( 'p', { textContent: one ? `It’s taken out of ${ taken[ 0 ].family } too.` : 'Files in a family are taken out of it too.' } ) : null,
+				emptied.length ? el( 'p', { textContent: `${ emptiedNames } ${ has } no files left, so ${ emptied.length === 1 ? 'it’s' : 'they’re' } deleted too. Anything using ${ it } falls back to the next font in the stack.` } ) : null,
 			].filter( Boolean ),
 			confirmLabel: 'Delete',
 		} );
@@ -2010,7 +1987,7 @@
 
 	const useStylesheet = ( id, href ) => {
 		const link = document.getElementById( id );
-		if ( ! link ) document.head.append( h( 'link', { id, rel: 'stylesheet', href } ) );
+		if ( ! link ) document.head.append( el( 'link', { id, rel: 'stylesheet', href } ) );
 		else if ( link.href !== href ) link.href = href;
 	};
 
@@ -2108,7 +2085,7 @@
 			)
 		);
 		box.classList.add( 'etk-fonts__inputbox--lg' );
-		return h( 'div', { class: 'etk-fonts__gtoolbar' }, box, detailSizeSlider() );
+		return el( 'div', { class: 'etk-fonts__gtoolbar' }, box, detailSizeSlider() );
 	};
 
 	/**
@@ -2117,20 +2094,20 @@
 	 */
 	const weightSpecimen = ( { stack, script, weights, has } ) => {
 		const italic = weights.some( ( w ) => has( w, 'italic' ) );
-		const cell = ( weight, style ) => ( has( weight, style ) ? specimen( 'etk-fonts__gspec-cell', script, `font-family: ${ stack }; font-weight: ${ weight }; font-style: ${ style }` ) : h( 'span', { class: 'etk-fonts__gspec-cell' } ) );
-		return h(
+		const cell = ( weight, style ) => ( has( weight, style ) ? specimen( 'etk-fonts__gspec-cell', script, `font-family: ${ stack }; font-weight: ${ weight }; font-style: ${ style }` ) : el( 'span', { class: 'etk-fonts__gspec-cell' } ) );
+		return el(
 			'div',
 			{ class: 'etk-fonts__gspec' },
-			h( 'div', { class: 'etk-fonts__gspec-row etk-fonts__gspec-head', 'aria-hidden': 'true' }, h( 'span', { textContent: 'Weight' } ), h( 'span', { textContent: 'Roman' } ), italic ? h( 'span', { textContent: 'Italic' } ) : null ),
-			h(
+			el( 'div', { class: 'etk-fonts__gspec-row etk-fonts__gspec-head', 'aria-hidden': 'true' }, el( 'span', { textContent: 'Weight' } ), el( 'span', { textContent: 'Roman' } ), italic ? el( 'span', { textContent: 'Italic' } ) : null ),
+			el(
 				'ul',
 				{ class: 'etk-fonts__gspec-list', role: 'list', 'aria-label': 'Weights' },
 				weights.map( ( weight ) => {
 					const styles = [ has( weight, 'normal' ) ? 'roman' : null, has( weight, 'italic' ) ? 'italic' : null ].filter( Boolean ).join( ' and ' );
-					return h(
+					return el(
 						'li',
 						{ class: 'etk-fonts__gspec-row' },
-						h( 'span', { class: 'etk-fonts__gspec-weight' }, weightLabel( String( weight ) ), h( 'span', { class: 'screen-reader-text', textContent: `, ${ styles }` } ) ),
+						el( 'span', { class: 'etk-fonts__gspec-weight' }, weightLabel( String( weight ) ), el( 'span', { class: 'screen-reader-text', textContent: `, ${ styles }` } ) ),
 						cell( weight, 'normal' ),
 						italic ? cell( weight, 'italic' ) : null
 					);
@@ -2199,25 +2176,25 @@
 		list.replaceChildren(
 			...google.results.map( ( font ) => {
 				const open = () => openGoogleFont( font );
-				return h(
+				return el(
 					'li',
 					{ class: 'etk-fonts__card etk-fonts__tile etk-fonts__gtile' },
-					h(
+					el(
 						'div',
 						{ class: 'etk-fonts__tile-canvas' },
-						h( 'div', { class: 'etk-fonts__tile-top' }, badge( categoryLabel( font.category ), 'tag' ), h( 'span', { class: 'etk-fonts__tile-note', textContent: styleNote( font ) } ) ),
+						el( 'div', { class: 'etk-fonts__tile-top' }, badge( categoryLabel( font.category ), 'tag' ), el( 'span', { class: 'etk-fonts__tile-note', textContent: styleNote( font ) } ) ),
 						specimen( 'etk-fonts__tile-specimen', scriptOf( font.script, font.subsets ), `font-family: "${ font.family }", ${ font.category === 'serif' ? 'serif' : 'sans-serif' }; font-weight: ${ google.weight }` )
 					),
-					h(
+					el(
 						'div',
 						{ class: 'etk-fonts__tile-meta' },
-						h(
+						el(
 							'div',
 							{ class: 'etk-fonts__tile-title' },
-							h( 'h3', { class: 'etk-fonts__tile-name', textContent: font.family } ),
-							h( 'span', { class: 'etk-fonts__tile-sub etk-fonts__tile-kind', textContent: font.wght?.min ? 'Variable' : 'Static only' } )
+							el( 'h3', { class: 'etk-fonts__tile-name', textContent: font.family } ),
+							el( 'span', { class: 'etk-fonts__tile-sub etk-fonts__tile-kind', textContent: font.wght?.min ? 'Variable' : 'Static only' } )
 						),
-						h( 'div', { class: 'etk-fonts__tile-actions' }, addButton( font ), iconButton( `View ${ font.family }`, 'chevron-right', open, { title: 'View', attrs: { class: 'etk-fonts__card-view etk-fonts__card-link', 'data-family': font.family } } ) )
+						el( 'div', { class: 'etk-fonts__tile-actions' }, addButton( font ), iconButton( `View ${ font.family }`, 'chevron-right', open, { title: 'View', attrs: { class: 'etk-fonts__card-view etk-fonts__card-link', 'data-family': font.family } } ) )
 					)
 				);
 			} )
@@ -2282,15 +2259,15 @@
 		const pick = installChoice( meta );
 		const { current, hasItalic, canVary, offered, choice, ready } = pick;
 
-		const cutsBox = h( 'fieldset', { class: 'etk-fonts__fieldset' } );
+		const cutsBox = el( 'fieldset', { class: 'etk-fonts__fieldset' } );
 		const renderCuts = () => {
 			cutsBox.replaceChildren(
-				h( 'legend', { textContent: 'Styles' } ),
+				el( 'legend', { textContent: 'Styles' } ),
 				choice.variable
 					? hasItalic
 						? check( 'Include italics', choice.italic, ( value ) => ( choice.italic = value ) )
-						: h( 'p', { class: 'etk-fonts__help', textContent: `One file per subset covers weights ${ meta.wght.min }–${ meta.wght.max }.` } )
-					: h(
+						: el( 'p', { class: 'etk-fonts__help', textContent: `One file per subset covers weights ${ meta.wght.min }–${ meta.wght.max }.` } )
+					: el(
 							'div',
 							{ class: 'etk-fonts__cuts' },
 							meta.cuts.map( ( cut ) =>
@@ -2307,13 +2284,13 @@
 		const dialog = confirmDialog( {
 			title: current ? `Change ${ meta.family } styles` : `Add ${ meta.family }`,
 			message: [
-				h( 'p', { class: 'etk-fonts__dialog-specimen', style: `font-family: "${ meta.family }"`, textContent: meta.family } ),
+				el( 'p', { class: 'etk-fonts__dialog-specimen', style: `font-family: "${ meta.family }"`, textContent: meta.family } ),
 				offered.length
-					? h(
+					? el(
 							'fieldset',
 							{ class: 'etk-fonts__fieldset' },
-							h( 'legend', { textContent: 'Subsets' } ),
-							h(
+							el( 'legend', { textContent: 'Subsets' } ),
+							el(
 								'div',
 								{ class: 'etk-fonts__cuts' },
 								offered.map( ( subset ) =>
@@ -2325,7 +2302,7 @@
 							)
 					  )
 					: null,
-				pick.slicedNote ? h( 'p', { class: 'etk-fonts__help', textContent: pick.slicedNote } ) : null,
+				pick.slicedNote ? el( 'p', { class: 'etk-fonts__help', textContent: pick.slicedNote } ) : null,
 				canVary
 					? check( 'Variable font', choice.variable, ( value ) => {
 							choice.variable = value;
@@ -2334,7 +2311,7 @@
 					  }, 'Fewer files, every weight in between.' )
 					: null,
 				cutsBox,
-				current ? h( 'p', { class: 'etk-fonts__help', textContent: 'Replaces its files. Fallback and tokens stay.' } ) : null,
+				current ? el( 'p', { class: 'etk-fonts__help', textContent: 'Replaces its files. Fallback and tokens stay.' } ) : null,
 			].filter( Boolean ),
 			confirmLabel: current ? 'Update' : 'Add',
 			busyLabel: 'Downloading…',
@@ -2360,24 +2337,24 @@
 		}
 		const rank = ( c ) => ( CATEGORIES.includes( c ) ? CATEGORIES.indexOf( c ) : CATEGORIES.length );
 		const categories = [ '', ...[ ...google.categories ].sort( ( a, b ) => rank( a ) - rank( b ) ) ];
-		return h(
+		return el(
 			'fieldset',
 			{ class: 'etk-fonts__gcategories', 'data-filter': key },
-			h( 'legend', { class: 'etk-fonts__label', textContent: 'Category' } ),
+			el( 'legend', { class: 'etk-fonts__label', textContent: 'Category' } ),
 			categories.map( ( category ) =>
-				h(
+				el(
 					'label',
 					{ class: 'etk-fonts__gcategory' },
-					h( 'input', { type: 'radio', name: 'etk-fonts-google-category', value: category, checked: category === google.category, onchange: () => ( ( google.category = category ), searchGoogle() ) } ),
-					h( 'span', { textContent: categoryLabel( category ) } ),
-					h( 'span', { class: 'etk-fonts__count', 'data-count': category, textContent: google.counts[ category ]?.toLocaleString() ?? '' } )
+					el( 'input', { type: 'radio', name: 'etk-fonts-google-category', value: category, checked: category === google.category, onchange: () => ( ( google.category = category ), searchGoogle() ) } ),
+					el( 'span', { textContent: categoryLabel( category ) } ),
+					el( 'span', { class: 'etk-fonts__count', 'data-count': category, textContent: google.counts[ category ]?.toLocaleString() ?? '' } )
 				)
 			)
 		);
 	};
 
 	const renderGoogle = () => {
-		const search = h( 'input', {
+		const search = el( 'input', {
 			class: 'etk-fonts__input etk-fonts__input--md',
 			type: 'search',
 			value: google.search,
@@ -2393,19 +2370,19 @@
 		if ( ! google.loaded && ! google.loading ) window.setTimeout( () => searchGoogle() );
 
 		return [
-			h(
+			el(
 				'div',
 				{ class: 'etk-fonts__split' },
-				h(
+				el(
 					'div',
 					{ class: 'etk-fonts__gfilters', role: 'search', 'aria-label': 'Google Fonts' },
-					h( 'div', { class: 'etk-fonts__gsearch' }, h( 'span', { class: 'etk-fonts__gsearch-icon', html: icon( 'search', 14 ) } ), search ),
+					el( 'div', { class: 'etk-fonts__gsearch' }, el( 'span', { class: 'etk-fonts__gsearch-icon', html: icon( 'search', 14 ) } ), search ),
 					googleFilter( 'category' ),
 					field( 'Language', googleFilter( 'subset' ) ),
-					h(
+					el(
 						'div',
 						{ class: 'etk-fonts__field' },
-						h( 'span', { class: 'etk-fonts__label', 'aria-hidden': 'true', textContent: 'Sort' } ),
+						el( 'span', { class: 'etk-fonts__label', 'aria-hidden': 'true', textContent: 'Sort' } ),
 						segmented( {
 							name: 'google-sort',
 							legend: 'Sort',
@@ -2420,16 +2397,16 @@
 						} )
 					),
 					toggle( 'Variable only', google.variable, ( value ) => ( ( google.variable = value ), searchGoogle() ) ),
-					h( 'p', { class: 'etk-fonts__help etk-fonts__gfilters-note', textContent: 'Fonts are downloaded to your site, so pages make no requests to Google.' } )
+					el( 'p', { class: 'etk-fonts__help etk-fonts__gfilters-note', textContent: 'Fonts are downloaded to your site, so pages make no requests to Google.' } )
 				),
-				h(
+				el(
 					'div',
 					{ class: 'etk-fonts__pane etk-fonts__gresults' },
 					pageHeader( 'Google Fonts' ),
-					h( 'div', { class: 'etk-fonts__gtoolbar' }, inputBox( 'eye', previewInput( reloadGooglePreviews ) ), weightSlider(), sizeSlider(), layoutToggle( 'google' ) ),
-					h( 'p', { class: 'etk-fonts__help etk-fonts__google-summary', role: 'status' } ),
-					h( 'ul', { class: 'etk-fonts__tiles etk-fonts__google-results', role: 'list', 'data-layout': prefs.google } ),
-					h( 'div', { class: 'etk-fonts__actions etk-fonts__actions--center' }, button( 'Load more', () => google.loading || searchGoogle( true ), { variant: 'ghost', attrs: { class: 'etk-fonts__more', hidden: true } } ) )
+					el( 'div', { class: 'etk-fonts__gtoolbar' }, inputBox( 'eye', previewInput( reloadGooglePreviews ) ), weightSlider(), sizeSlider(), layoutToggle( 'google' ) ),
+					el( 'p', { class: 'etk-fonts__help etk-fonts__google-summary', role: 'status' } ),
+					el( 'ul', { class: 'etk-fonts__tiles etk-fonts__google-results', role: 'list', 'data-layout': prefs.google } ),
+					el( 'div', { class: 'etk-fonts__actions etk-fonts__actions--center' }, button( 'Load more', () => google.loading || searchGoogle( true ), { variant: 'ghost', attrs: { class: 'etk-fonts__more', hidden: true } } ) )
 				)
 			),
 		];
@@ -2471,10 +2448,10 @@
 		const subsets = [ ...pick.offered ].sort( ( a, b ) => rank( a ) - rank( b ) );
 
 		return [
-			h(
+			el(
 				'div',
 				{ class: 'etk-fonts__split' },
-				h(
+				el(
 					'div',
 					{ class: 'etk-fonts__pane' },
 					pageHeader( {
@@ -2483,23 +2460,23 @@
 						back: { label: 'Back to Google Fonts', crumb: 'Google Fonts', onclick: closeGoogleFont },
 						meta: `${ categoryLabel( font.category ) } · ${ font.wght?.min ? 'Variable' : 'Static' }`,
 						actions: [
-							h(
+							el(
 								'a',
 								{ class: btnClass( 'secondary' ), href: `https://fonts.google.com/specimen/${ font.family.replace( / /g, '+' ) }`, target: '_blank', rel: 'noopener' },
 								'View on Google Fonts',
-								h( 'span', { class: 'screen-reader-text', textContent: ' (opens in a new tab)' } ),
+								el( 'span', { class: 'screen-reader-text', textContent: ' (opens in a new tab)' } ),
 								btnIcon( 'external' )
 							),
 						],
 					} ),
-					h(
+					el(
 						'div',
 						{ class: 'etk-fonts__gdetail' },
 						detailToolbar( reloadGooglePreviews ),
 						weightSpecimen( { stack, script, weights: weightsOf( font ), has: ( weight, style ) => font.cuts.includes( `${ weight }${ style === 'italic' ? 'i' : '' }` ) } )
 					)
 				),
-				h(
+				el(
 					'aside',
 					{ class: 'etk-fonts__inspector', 'aria-label': `${ pick.current ? 'Update' : 'Add' } ${ font.family }` },
 					section(
@@ -2517,15 +2494,15 @@
 									onchange: update( ( value ) => ( choice.variable = value === 'variable' ) ),
 							  } )
 							: null,
-						choice.variable ? h( 'p', { class: 'etk-fonts__help', textContent: `One file per style covers weights ${ font.wght.min }–${ font.wght.max }.` } ) : null,
+						choice.variable ? el( 'p', { class: 'etk-fonts__help', textContent: `One file per style covers weights ${ font.wght.min }–${ font.wght.max }.` } ) : null,
 						choice.variable && pick.hasItalic ? toggle( 'Include italic', choice.italic, update( ( value ) => ( choice.italic = value ) ) ) : null,
 						choice.variable
 							? null
-							: h(
+							: el(
 									'fieldset',
 									{ class: 'etk-fonts__fieldset' },
-									h( 'legend', { class: 'screen-reader-text', textContent: 'Styles' } ),
-									h(
+									el( 'legend', { class: 'screen-reader-text', textContent: 'Styles' } ),
+									el(
 										'div',
 										{ class: 'etk-fonts__cuts etk-fonts__gcuts' },
 										cuts.map( ( cut ) => check( cutLabel( cut ), choice.cuts.has( cut ), update( ( value ) => ( value ? choice.cuts.add( cut ) : choice.cuts.delete( cut ) ) ) ) )
@@ -2534,28 +2511,28 @@
 					),
 					pick.offered.length || pick.slicedNote
 						? section(
-								{ title: 'Languages', variant: 'panel', action: pick.offered.length ? h( 'span', { class: 'etk-fonts__muted etk-fonts__gcount', textContent: `${ choice.subsets.size } of ${ pick.offered.length }` } ) : null },
+								{ title: 'Languages', variant: 'panel', action: pick.offered.length ? el( 'span', { class: 'etk-fonts__muted etk-fonts__gcount', textContent: `${ choice.subsets.size } of ${ pick.offered.length }` } ) : null },
 								pick.offered.length
-									? h(
+									? el(
 											'div',
 											{ class: 'etk-fonts__chips', role: 'group', 'aria-label': 'Languages' },
 											subsets.map( ( subset ) => chip( subsetLabel( subset ), choice.subsets.has( subset ), update( ( value ) => ( value ? choice.subsets.add( subset ) : choice.subsets.delete( subset ) ) ) ) )
 									  )
 									: null,
-								pick.slicedNote ? h( 'p', { class: 'etk-fonts__help', textContent: pick.slicedNote } ) : null
+								pick.slicedNote ? el( 'p', { class: 'etk-fonts__help', textContent: pick.slicedNote } ) : null
 						  )
 						: null,
 					section(
 						{ title: 'Summary', variant: 'panel' },
-						h(
+						el(
 							'dl',
 							{ class: 'etk-fonts__summary' },
-							h( 'div', {}, h( 'dt', { textContent: 'Files' } ), h( 'dd', { textContent: String( files ) } ) ),
-							h( 'div', {}, h( 'dt', { textContent: 'CSS variable' } ), h( 'dd', {}, h( 'code', { class: 'etk-fonts__code', textContent: googleVar( font.family ) } ) ) )
+							el( 'div', {}, el( 'dt', { textContent: 'Files' } ), el( 'dd', { textContent: String( files ) } ) ),
+							el( 'div', {}, el( 'dt', { textContent: 'CSS variable' } ), el( 'dd', {}, el( 'code', { class: 'etk-fonts__code', textContent: googleVar( font.family ) } ) ) )
 						),
-						pick.current ? h( 'p', { class: 'etk-fonts__help', textContent: 'Replaces its files. Fallback and tokens stay.' } ) : null
+						pick.current ? el( 'p', { class: 'etk-fonts__help', textContent: 'Replaces its files. Fallback and tokens stay.' } ) : null
 					),
-					h(
+					el(
 						'div',
 						{ class: 'etk-fonts__inspector-footer' },
 						button( google.installing ? 'Downloading…' : `${ pick.current ? 'Update' : 'Add' } ${ font.family }`, addGoogleFont, {
@@ -2638,9 +2615,9 @@
 	};
 
 	const build = () => {
-		status = h( 'div', { class: 'etk-fonts__status', role: 'status', 'aria-live': 'polite' } );
-		main = h( 'div', { class: 'etk-fonts__main' } );
-		panel = h(
+		status = el( 'div', { class: 'etk-fonts__status', role: 'status', 'aria-live': 'polite' } );
+		main = el( 'div', { class: 'etk-fonts__main' } );
+		panel = el(
 			'section',
 			{
 				id: 'etk-fonts',
@@ -2665,17 +2642,17 @@
 				onkeyup: ( e ) => e.stopPropagation(),
 			},
 			// Laid out like Etch's Content Hub: a sidebar with the back button, title and views, then the view.
-			h(
+			el(
 				'div',
 				{ class: 'etk-fonts__sidebar' },
-				h( 'header', { class: 'etk-fonts__header' }, iconButton( 'Back to the builder', 'exit', () => close(), { variant: 'secondary' } ), h( 'h1', { id: 'etk-fonts-title', class: 'etk-fonts__title', textContent: 'Fonts' } ) ),
-				h(
+				el( 'header', { class: 'etk-fonts__header' }, iconButton( 'Back to the builder', 'exit', () => close(), { variant: 'secondary' } ), el( 'h1', { id: 'etk-fonts-title', class: 'etk-fonts__title', textContent: 'Fonts' } ) ),
+				el(
 					'nav',
 					{ class: 'etk-fonts__nav etk-track', 'aria-label': 'Fonts' },
-					NAV.map( ( key ) => h( 'button', { type: 'button', class: 'etk-fonts__nav-item', 'data-view': key, html: icon( key ), onclick: () => ( view === 'family' ? leaveFamily( key ) : go( key ) ) }, VIEWS[ key ] ) )
+					NAV.map( ( key ) => el( 'button', { type: 'button', class: 'etk-fonts__nav-item', 'data-view': key, html: icon( key ), onclick: () => ( view === 'family' ? leaveFamily( key ) : go( key ) ) }, VIEWS[ key ] ) )
 				)
 			),
-			h( 'div', { class: 'etk-fonts__body' }, status, h( 'div', { class: 'etk-fonts__content' }, main ), buildBulkBar() )
+			el( 'div', { class: 'etk-fonts__body' }, status, el( 'div', { class: 'etk-fonts__content' }, main ), buildBulkBar() )
 		);
 		document.body.append( panel );
 	};
@@ -2694,11 +2671,11 @@
 		controlButton?.setAttribute( 'aria-expanded', 'true' );
 		controlButton?.setAttribute( 'selected', 'true' );
 		if ( ! state ) {
-			main.replaceChildren( h( 'p', { class: 'etk-fonts__muted', textContent: 'Loading fonts…' } ) );
+			main.replaceChildren( el( 'p', { class: 'etk-fonts__muted', textContent: 'Loading fonts…' } ) );
 			await load();
 		}
 		if ( ! state ) {
-			main.replaceChildren( h( 'div', { class: 'etk-fonts__empty' }, h( 'p', { textContent: 'Your fonts didn’t load.' } ), button( 'Try again', open ) ) );
+			main.replaceChildren( el( 'div', { class: 'etk-fonts__empty' }, el( 'p', { textContent: 'Your fonts didn’t load.' } ), button( 'Try again', open ) ) );
 			return;
 		}
 		render();

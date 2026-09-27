@@ -178,10 +178,48 @@
 	// A selector that is one class and nothing else, like `.card` or `.md\:flex`.
 	const isClassSelector = ( selector ) => ONE_CLASS.test( selector.trim() );
 
-	const el = ( tag, props = {}, children = [] ) => {
-		const node = Object.assign( document.createElement( tag ), props );
-		node.append( ...children );
+	/**
+	 * el( 'button', { class: 'x', onclick, 'aria-label': 'y' }, child, [ more ], … )
+	 * Keys starting with "on" are listeners, the DOM properties in PROPS are set
+	 * directly, everything else is an attribute, true as an empty one. `html`
+	 * sets innerHTML (icons only). A null, undefined or false value or child
+	 * is left out. Children can come in arrays.
+	 */
+	const PROPS = new Set( [ 'value', 'checked', 'disabled', 'selected', 'hidden', 'textContent', 'htmlFor', 'indeterminate' ] );
+	const el = ( tag, attrs = {}, ...children ) => {
+		const node = document.createElement( tag );
+		for ( const [ key, value ] of Object.entries( attrs ) ) {
+			if ( value === undefined || value === null || value === false ) continue;
+			if ( key === 'class' || key === 'className' ) node.className = value;
+			else if ( key === 'html' ) node.innerHTML = value;
+			else if ( key.startsWith( 'on' ) ) node.addEventListener( key.slice( 2 ), value );
+			else if ( PROPS.has( key ) ) node[ key ] = value;
+			else node.setAttribute( key, value === true ? '' : value );
+		}
+		node.append( ...children.flat( Infinity ).filter( ( c ) => c !== null && c !== undefined && c !== false ) );
 		return node;
+	};
+
+	const plural = ( n, one, many = `${ one }s` ) => `${ n } ${ n === 1 ? one : many }`;
+	const errorText = ( error ) => error?.message || String( error );
+	const fileSize = ( bytes ) => ( bytes < 1024 * 1024 ? `${ Math.max( 1, Math.round( bytes / 1024 ) ) } KB` : `${ ( bytes / 1024 / 1024 ).toFixed( 1 ) } MB` );
+
+	// A class attribute's names, split the way Etch splits them: on whitespace outside {…},
+	// so a dynamic part like {item.on ? 'is-on' : ''} is one name. Mirrors etch_toolkit_class_tokens().
+	const classNames = ( value ) => ( typeof value === 'string' ? value.trim().split( /\s+(?![^{]*})/ ).filter( Boolean ) : [] );
+
+	// Every element's class names on the open page, through edit( names ), which returns
+	// them changed. Etch updates the elements whose names change.
+	const editPageClasses = ( edit ) => {
+		const walk = ( blocks ) => {
+			for ( const block of blocks ) {
+				const names = classNames( block.attributes?.class );
+				const next = edit( names );
+				if ( next.join( ' ' ) !== names.join( ' ' ) ) window.etch.blocks.update( block.id, { attributes: { class: next.join( ' ' ) || undefined } } );
+				walk( block.children || [] );
+			}
+		};
+		walk( window.etch.blocks.getTree() );
 	};
 
 	/**
@@ -428,6 +466,6 @@
 		if ( place && place !== 'builder' ) tick();
 	} catch {}
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, confirmDialog, slider, rebuild, reload, classesIn, isClassSelector, DELETE_ICON } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, slider, rebuild, reload, classesIn, isClassSelector, DELETE_ICON } );
 	window.etchToolkit = toolkit;
 } )();

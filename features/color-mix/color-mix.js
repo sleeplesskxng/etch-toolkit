@@ -409,7 +409,7 @@
 	const colorField = ( { id, label, value, placeholder = '', oninput } ) => {
 		const swatch = el( 'span', { className: 'etk-mix-swatch etk-mix-swatch--field' } );
 		swatch.setAttribute( 'aria-hidden', 'true' );
-		const input = el( 'input', { type: 'text', id, value, placeholder, spellcheck: false, autocomplete: 'off' } );
+		const input = el( 'input', { type: 'text', id, value, placeholder, spellcheck: 'false', autocomplete: 'off' } );
 		input.setAttribute( 'list', LIST );
 		const paint = () => {
 			swatch.style.setProperty( '--etk-mix-color', resolve( input.value.trim() ) || 'transparent' );

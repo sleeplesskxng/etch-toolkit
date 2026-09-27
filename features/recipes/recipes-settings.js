@@ -6,13 +6,12 @@
  * changes on top.
  */
 ( () => {
-	const { settings, api } = window.etchToolkit || {};
+	const { settings, api, el, confirmDialog, plural, errorText } = window.etchToolkit || {};
 	if ( ! settings ) return;
 
-	const { h, button, group, row, dropzone, download, announce, warn, refresh, confirmDialog, errorText, builder } = settings.ui;
+	const { button, group, row, dropzone, download, announce, warn, refresh, builder } = settings.ui;
 	const EXPORT_TYPE = 'etch-toolkit-recipes';
 	const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/; // Mirrors ETCH_TOOLKIT_RECIPES_NAME.
-	const plural = ( n ) => `${ n } ${ n === 1 ? 'recipe' : 'recipes' }`;
 
 	let recipes = null; // As saved.
 
@@ -21,7 +20,7 @@
 
 	const exportRecipes = () => {
 		download( JSON.stringify( { type: EXPORT_TYPE, version: 1, recipes: recipes.map( ( { name, css } ) => ( { name, css } ) ) }, null, '\t' ), 'etch-recipes.json' );
-		announce( `Exported ${ plural( recipes.length ) }.` );
+		announce( `Exported ${ plural( recipes.length, 'recipe' ) }.` );
 	};
 
 	// What importing a file's recipes would do, sorted by outcome. A name Etch has is skipped,
@@ -49,11 +48,11 @@
 
 	const nameList = ( title, list ) =>
 		list.length
-			? h(
+			? el(
 					'div',
 					{ class: 'etk-settings-import' },
-					h( 'p', { class: 'etk-settings-import__title', textContent: title } ),
-					h( 'ul', { class: 'etk-settings-import__list' }, list.map( ( r ) => h( 'li', {}, h( 'code', { textContent: `?${ r.name }` } ) ) ) )
+					el( 'p', { class: 'etk-settings-import__title', textContent: title } ),
+					el( 'ul', { class: 'etk-settings-import__list' }, list.map( ( r ) => el( 'li', {}, el( 'code', { textContent: `?${ r.name }` } ) ) ) )
 			  )
 			: null;
 
@@ -75,13 +74,13 @@
 		const plan = planImport( data.recipes );
 		const count = plan.added.length + plan.replaced.length;
 		const dialog = confirmDialog( {
-			title: count ? `Import ${ plural( count ) }?` : 'Nothing to import',
+			title: count ? `Import ${ plural( count, 'recipe' ) }?` : 'Nothing to import',
 			message: [
 				nameList( 'New', plan.added ),
 				nameList( 'Replaces yours', plan.replaced ),
 				nameList( 'Skipped, you already have these', plan.same ),
 				nameList( 'Skipped, Etch has recipes with these names', plan.etch ),
-				plan.unusable ? h( 'p', { textContent: `${ plural( plan.unusable ) } in the file couldn’t be used.` } ) : null,
+				plan.unusable ? el( 'p', { textContent: `${ plural( plan.unusable, 'recipe' ) } in the file couldn’t be used.` } ) : null,
 			].filter( Boolean ),
 			confirmLabel: 'Import',
 			busyLabel: 'Importing…',
@@ -97,7 +96,7 @@
 			if ( builder ) window.dispatchEvent( new CustomEvent( 'etk:recipes-saved', { detail: recipes } ) );
 			dialog.close();
 			refresh();
-			announce( `Imported ${ plural( count ) }.` );
+			announce( `Imported ${ plural( count, 'recipe' ) }.` );
 		} catch ( error ) {
 			dialog.fail( errorText( error ) );
 		}
@@ -113,12 +112,12 @@
 			recipes = ( await api( 'recipes' ) ).recipes;
 		},
 		render: () => {
-			if ( ! recipes ) return h( 'p', { class: 'etk-settings__muted', textContent: 'Loading recipes…' } );
+			if ( ! recipes ) return el( 'p', { class: 'etk-settings__muted', textContent: 'Loading recipes…' } );
 			return [
 				group(
 					{ title: 'Export', note: builder ? 'Save first to include recent changes.' : null },
 					row(
-						h( 'span', { class: 'etk-settings__row-title', textContent: recipes.length ? `${ plural( recipes.length ) } of yours` : 'You haven’t added any recipes.' } ),
+						el( 'span', { class: 'etk-settings__row-title', textContent: recipes.length ? `${ plural( recipes.length, 'recipe' ) } of yours` : 'You haven’t added any recipes.' } ),
 						button( 'Export recipes', exportRecipes, { attrs: { disabled: ! recipes.length } } )
 					)
 				),

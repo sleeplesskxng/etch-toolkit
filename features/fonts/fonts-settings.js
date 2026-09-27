@@ -7,11 +7,11 @@
  * changes on top, and writes the stylesheet. In WordPress, the server writes it.
  */
 ( () => {
-	const { settings, api } = window.etchToolkit || {};
+	const { settings, api, el, confirmDialog, plural, errorText, fileSize: size } = window.etchToolkit || {};
 	const config = window.etchToolkitFontsSettings || {};
 	if ( ! settings ) return;
 
-	const { h, button, group, row, value, toggle, check, dropzone, download, announce, warn, refresh, confirmDialog, plural, size, errorText, builder } = settings.ui;
+	const { button, group, row, value, toggle, check, dropzone, download, announce, warn, refresh, builder } = settings.ui;
 	const ROLES = { heading: 'Headings', text: 'Body text' };
 
 	let state = null; // As the server has it: { families, files, settings, … }
@@ -76,12 +76,12 @@
 		const summary = ( f ) => `${ f.name } · ${ plural( f.variants?.length || 0, 'file', 'files' ) }`;
 		const list = ( title, items, help ) =>
 			items.length
-				? h(
+				? el(
 						'div',
 						{ class: 'etk-settings-import' },
-						h( 'p', { class: 'etk-settings-import__title', textContent: title } ),
-						h( 'ul', { class: 'etk-settings-import__list' }, items.map( ( text ) => h( 'li', { textContent: text } ) ) ),
-						help ? h( 'p', { textContent: help } ) : null
+						el( 'p', { class: 'etk-settings-import__title', textContent: title } ),
+						el( 'ul', { class: 'etk-settings-import__list' }, items.map( ( text ) => el( 'li', { textContent: text } ) ) ),
+						help ? el( 'p', { textContent: help } ) : null
 				  )
 				: null;
 
@@ -91,7 +91,7 @@
 				list( 'Adds', added.map( summary ) ),
 				list( 'Replaces', replaced.map( summary ), 'Their current files stay in the fonts folder, unused.' ),
 				list( 'Typography tokens', tokens ),
-				h( 'p', { textContent: `${ size( bytes ) } of font files. Nothing changes until you import.` } ),
+				el( 'p', { textContent: `${ size( bytes ) } of font files. Nothing changes until you import.` } ),
 			].filter( Boolean ),
 			confirmLabel: 'Import',
 			busyLabel: 'Importing…',
@@ -120,7 +120,7 @@
 
 	const exportGroup = () => {
 		const families = state.families;
-		if ( ! families.length ) return group( 'Export', row( h( 'p', { class: 'etk-settings__help', textContent: 'Add a family in the Fonts manager to export it.' } ) ) );
+		if ( ! families.length ) return group( 'Export', row( el( 'p', { class: 'etk-settings__help', textContent: 'Add a family in the Fonts manager to export it.' } ) ) );
 
 		const chosen = families.filter( ( f ) => ! skip.has( f.name ) );
 		const bytesOf = ( family ) => family.variants.reduce( ( sum, v ) => sum + ( state.files.find( ( f ) => f.name === v.file )?.size || 0 ), 0 );
@@ -138,11 +138,11 @@
 
 		return group(
 			'Export',
-			h(
+			el(
 				'fieldset',
 				{ class: 'etk-settings__fieldset' },
-				h( 'legend', { class: 'screen-reader-text', textContent: 'Families to export' } ),
-				row( all, h( 'span', { class: 'etk-settings__help', textContent: chosen.length ? `About ${ size( total ) }` : '' } ) ),
+				el( 'legend', { class: 'screen-reader-text', textContent: 'Families to export' } ),
+				row( all, el( 'span', { class: 'etk-settings__help', textContent: chosen.length ? `About ${ size( total ) }` : '' } ) ),
 				...families.map( ( family ) =>
 					row(
 						check(
@@ -153,12 +153,12 @@
 								refresh();
 							}
 						),
-						h( 'span', { class: 'etk-settings__help', textContent: plural( family.variants.length, 'file', 'files' ) } )
+						el( 'span', { class: 'etk-settings__help', textContent: plural( family.variants.length, 'file', 'files' ) } )
 					)
 				)
 			),
 			row(
-				h( 'span', { class: 'etk-settings__row-title' } ),
+				el( 'span', { class: 'etk-settings__row-title' } ),
 				button( exporting ? 'Exporting…' : chosen.length ? `Export ${ plural( chosen.length, 'family', 'families' ) }` : 'Export', () => exportFonts( chosen.map( ( f ) => f.name ) ), {
 					attrs: { disabled: ! chosen.length, 'aria-disabled': exporting ? 'true' : null },
 				} )
@@ -176,13 +176,13 @@
 			state = await api( 'fonts' );
 		},
 		render: () => {
-			if ( ! state ) return h( 'p', { class: 'etk-settings__muted', textContent: 'Loading fonts…' } );
+			if ( ! state ) return el( 'p', { class: 'etk-settings__muted', textContent: 'Loading fonts…' } );
 			const enabled = state.families.filter( ( f ) => f.enabled ).length;
 			return [
 				group(
 					{ title: 'Output', note: 'Works without Etch Toolkit. Edits here are overwritten when fonts change.' },
 					value( 'Stylesheet', config.stylesheetName || '' ),
-					value( 'Status', h( 'span', { class: 'etk-settings__status-value' }, h( 'span', { class: 'etk-settings__dot', 'aria-hidden': 'true' } ), enabled ? `${ plural( enabled, 'family', 'families' ) }, loaded by Etch` : 'No families loaded' ) )
+					value( 'Status', el( 'span', { class: 'etk-settings__status-value' }, el( 'span', { class: 'etk-settings__dot', 'aria-hidden': 'true' } ), enabled ? `${ plural( enabled, 'family', 'families' ) }, loaded by Etch` : 'No families loaded' ) )
 				),
 				group( 'Privacy', toggle( 'Block Google Fonts from other plugins', state.settings.blockGoogle, setBlockGoogle, 'Removes fonts.googleapis.com requests on the front end.' ) ),
 				exportGroup(),

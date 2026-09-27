@@ -24,7 +24,7 @@
  * checkboxes too, and Select All and ranges follow what it lists.
  */
 ( () => {
-	const { api, save, afterSave, syncStyles, el, confirmDialog, reload, classesIn, isClassSelector } = window.etchToolkit || {};
+	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, reload, classesIn, isClassSelector } = window.etchToolkit || {};
 	if ( ! confirmDialog ) return;
 
 	const MODAL = '.style-overview-modal__inner'; // Where every Style Manager tab renders.
@@ -160,17 +160,7 @@
 
 		// Linked classes follow their styles. The rest are renamed on the open page, in the same undo step.
 		const map = plan.classMap;
-		const walk = ( blocks ) => {
-			for ( const block of blocks ) {
-				const value = block.attributes?.class;
-				const names = typeof value === 'string' ? value.trim().split( /\s+(?![^{]*})/ ) : [];
-				if ( names.some( ( name ) => Object.hasOwn( map, name ) ) ) {
-					window.etch.blocks.update( block.id, { attributes: { class: names.map( ( name ) => ( Object.hasOwn( map, name ) ? map[ name ] : name ) ).join( ' ' ) } } );
-				}
-				walk( block.children || [] );
-			}
-		};
-		await syncStyles( () => walk( window.etch.blocks.getTree() ) );
+		await syncStyles( () => editPageClasses( ( names ) => names.map( ( name ) => ( Object.hasOwn( map, name ) ? map[ name ] : name ) ) ) );
 
 		await save();
 		return true;
@@ -250,9 +240,7 @@
 		}
 	};
 
-	const plural = ( n, word ) => `${ n } ${ word }${ n === 1 ? '' : 's' }`;
-
-	const classes = ( n ) => `${ n } class${ n === 1 ? '' : 'es' }`;
+	const classes = ( n ) => plural( n, 'class', 'classes' );
 	// Etch only reads a selector as a class when the name starts with a letter.
 	const CLASS_NAME = /^[a-zA-Z][\w-]*$/;
 	// Why a new name isn't a class name, in a few words.
@@ -304,10 +292,10 @@
 			const id = `etk-rn-${ ++count }`;
 			const check = el( 'input', { type: 'checkbox', className: 'etk-checkbox', checked: true } );
 			check.setAttribute( 'aria-label', `Rename .${ name }` );
-			const input = el( 'input', { id, type: 'text', className: 'etk-rn__input', value: name, spellcheck: false, autocomplete: 'off' } );
+			const input = el( 'input', { id, type: 'text', className: 'etk-rn__input', value: name, spellcheck: 'false', autocomplete: 'off' } );
 			input.setAttribute( 'aria-label', `New name for .${ name }` );
-			const mirror = el( 'span', { className: 'etk-rn__mirror', ariaHidden: 'true' } );
-			const toggle = el( 'button', { type: 'button', className: 'etk-rn__toggle', innerHTML: CHEVRON, hidden: true } );
+			const mirror = el( 'span', { className: 'etk-rn__mirror', 'aria-hidden': 'true' } );
+			const toggle = el( 'button', { type: 'button', className: 'etk-rn__toggle', html: CHEVRON, hidden: true } );
 			const pill = el( 'span', { className: 'etk-rn__pill', hidden: true } );
 			const message = el( 'span', { className: 'etk-rn__message', id: `${ id }-message`, hidden: true } );
 			const reset = el( 'button', { type: 'button', className: 'etk-rn__reset', textContent: 'Reset', hidden: true } );
@@ -383,7 +371,7 @@
 		);
 		modeSelect.setAttribute( 'aria-label', 'Rename by' );
 		const textInput = ( label ) => {
-			const input = el( 'input', { type: 'text', className: 'etk-rn__action-input', spellcheck: false, autocomplete: 'off', placeholder: label } );
+			const input = el( 'input', { type: 'text', className: 'etk-rn__action-input', spellcheck: 'false', autocomplete: 'off', placeholder: label } );
 			input.setAttribute( 'aria-label', label );
 			return input;
 		};
@@ -471,9 +459,9 @@
 			const id = `etk-rn-${ ++count }`;
 			const check = el( 'input', { type: 'checkbox', className: 'etk-checkbox', checked: true } );
 			check.setAttribute( 'aria-label', `Rename .${ name }` );
-			const input = el( 'input', { id, type: 'text', className: 'etk-rn__input', spellcheck: false, autocomplete: 'off' } );
+			const input = el( 'input', { id, type: 'text', className: 'etk-rn__input', spellcheck: 'false', autocomplete: 'off' } );
 			input.setAttribute( 'aria-label', `New name for .${ name }` );
-			const mirror = el( 'span', { className: 'etk-rn__mirror', ariaHidden: 'true' } );
+			const mirror = el( 'span', { className: 'etk-rn__mirror', 'aria-hidden': 'true' } );
 			const pill = el( 'span', { className: 'etk-rn__pill', hidden: true } );
 			const message = el( 'span', { className: 'etk-rn__message', id: `${ id }-message`, hidden: true } );
 			const reset = el( 'button', { type: 'button', className: 'etk-rn__reset', textContent: 'Reset', hidden: true } );

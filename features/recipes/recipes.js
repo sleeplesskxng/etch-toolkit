@@ -221,7 +221,7 @@
 			type: 'text',
 			className: 'etk-recipes__search-input',
 			placeholder: 'Search recipes',
-			spellcheck: false,
+			spellcheck: 'false',
 			autocomplete: 'off',
 			oninput: () => {
 				query = search.value.trim().replace( /^\?/, '' ).toLowerCase();
@@ -387,7 +387,7 @@
 				className: 'etk-recipes__name-input',
 				value: draft.name,
 				placeholder: 'recipe-name',
-				spellcheck: false,
+				spellcheck: 'false',
 				autocomplete: 'off',
 				oninput: () => ( ( draft.name = nameInput.value.trim() ), nameProblem.set( '' ) ),
 				onchange: () => existing && useName(),
@@ -397,7 +397,7 @@
 		const cssInput = attrs(
 			el( 'textarea', {
 				value: draft.css,
-				spellcheck: false,
+				spellcheck: 'false',
 				className: 'etk-recipes__textarea',
 				oninput: () => {
 					draft.css = cssInput.value;
