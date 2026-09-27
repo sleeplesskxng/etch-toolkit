@@ -906,6 +906,50 @@
 	}
 }
 
+/* ---- Search ---- */
+
+/* Measured from the Style Manager's Selectors tab: Etch's magnifier, then a bare 29px field. See etchToolkit.searchBox(). */
+.etk-search {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	box-sizing: border-box;
+	min-inline-size: 0;
+	block-size: 29px;
+	padding: 6px 8px;
+	border-radius: var(--e-border-radius, 6px);
+}
+
+.etk-search__icon {
+	display: flex;
+	flex: none;
+	margin-inline-start: 6px;
+	color: var(--e-light, color-mix(in srgb, var(--e-foreground-color, #e1e1e5) 60%, transparent));
+}
+
+.etk-search .etk-search__input {
+	flex: 1;
+	min-inline-size: 0;
+	block-size: 17px;
+	margin: 0;
+	padding: 1px 2px;
+	border: 0;
+	background: none;
+	box-shadow: none;
+	color: inherit;
+	font: inherit;
+	line-height: 19.1px;
+
+	&::placeholder {
+		color: #757575;
+	}
+
+	&:focus-visible {
+		outline: none;
+		box-shadow: none;
+	}
+}
+
 /* ---- Checkboxes and switches ---- */
 
 /*

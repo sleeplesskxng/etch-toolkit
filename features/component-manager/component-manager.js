@@ -24,7 +24,7 @@
 	if ( ! toolkit.api ) return;
 
 	const CONTROL_ID = 'etch-toolkit-component-manager';
-	const { el, plural, errorText, settingsBarButton, managerKeys, openManager, downloadJson, jsonDropzone } = toolkit;
+	const { el, plural, errorText, settingsBarButton, managerKeys, openManager, downloadJson, jsonDropzone, searchBox } = toolkit;
 	const icon = ( name, size ) => toolkit.icon( name, { size, className: 'etk-components__icon' } );
 
 	const enabled = () => window.etchToolkitSettings?.settings?.componentManager === true && typeof window.etch?.components?.updateAsync === 'function';
@@ -665,14 +665,9 @@
 					'div',
 					{ class: 'etk-components__toolbar' },
 					filters( fill ),
-					// Built like Recipes' search: Etch's magnifier and a bare field.
-					el(
-						'div',
-						{ class: 'etk-components__search' },
-						el( 'span', { class: 'etk-components__search-icon', html: icon( 'search', 14 ) } ),
+					searchBox(
 						el( 'input', {
 							type: 'text',
-							class: 'etk-components__search-input',
 							placeholder: 'Search components',
 							'aria-label': 'Search components',
 							spellcheck: 'false',
@@ -683,7 +678,8 @@
 								search = e.target.value;
 								fill();
 							},
-						} )
+						} ),
+						{ class: 'etk-components__search' }
 					),
 					count
 				),

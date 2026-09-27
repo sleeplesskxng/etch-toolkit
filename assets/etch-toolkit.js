@@ -750,6 +750,12 @@
 		panel.hidden = false;
 	};
 
+	// A search field like the Selectors tab's: Etch's magnifier, then input, a bare field. attrs go on the box.
+	const searchBox = ( input, attrs = {} ) => {
+		input.classList.add( 'etk-search__input' );
+		return el( 'div', { ...attrs, class: `etk-search${ attrs.class ? ` ${ attrs.class }` : '' }` }, el( 'span', { class: 'etk-search__icon', html: icon( 'search', { size: 14 } ) } ), input );
+	};
+
 	// Save data as a .json file. A string goes as it is, anything else as JSON.
 	const downloadJson = ( data, name ) => {
 		const url = URL.createObjectURL( new Blob( [ typeof data === 'string' ? data : JSON.stringify( data ) ], { type: 'application/json' } ) );
@@ -832,6 +838,6 @@
 		if ( place && place !== 'builder' ) tick();
 	} catch {}
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, onMenu, menuItem, findMenuItem, settingsBarButton, managerKeys, openManager, announce, downloadJson, jsonDropzone, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, onMenu, menuItem, findMenuItem, settingsBarButton, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
 	window.etchToolkit = toolkit;
 } )();

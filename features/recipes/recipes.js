@@ -11,7 +11,7 @@
  * recipes-settings.js, which saves an import at once.
  */
 ( () => {
-	const { api, el, icon, confirmDialog, afterSave, unsaved, onPageChange } = window.etchToolkit || {};
+	const { api, el, confirmDialog, afterSave, unsaved, onPageChange, searchBox } = window.etchToolkit || {};
 	if ( ! api ) return;
 
 	// The real Object.entries, kept before the hook below replaces it. Reading recipes
@@ -219,7 +219,6 @@
 	const search = attrs(
 		el( 'input', {
 			type: 'text',
-			className: 'etk-recipes__search-input',
 			placeholder: 'Search recipes',
 			spellcheck: 'false',
 			autocomplete: 'off',
@@ -230,9 +229,7 @@
 		} ),
 		{ 'aria-label': 'Search recipes' }
 	);
-	// Built like the Selectors tab's search: Etch's magnifier (hugeicons "search-01") and a bare input.
-	const searchBox = el( 'div', { className: 'etk-recipes__search' }, [ search ] );
-	searchBox.insertAdjacentHTML( 'afterbegin', icon( 'search', { size: 14, className: 'etk-recipes__search-icon' } ) );
+	const searchField = searchBox( search, { class: 'etk-recipes__search' } );
 	const list = el( 'div', { className: 'etk-recipes__list' } );
 	const addButton = button( 'Add recipe', 'etch-builder-button--variant-default etk-recipes__add', () => select( { kind: 'new' } ) );
 	const detail = el( 'div', { className: 'etk-recipes__detail' } );
@@ -260,7 +257,7 @@
 				},
 				onkeyup: ( e ) => e.stopPropagation(),
 			},
-			[ el( 'div', { className: 'etk-recipes__side' }, [ searchBox, list, addButton ] ), detail ]
+			[ el( 'div', { className: 'etk-recipes__side' }, [ searchField, list, addButton ] ), detail ]
 		),
 		{ 'aria-label': 'Recipes' }
 	);

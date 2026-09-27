@@ -100,41 +100,9 @@
 	}
 }
 
-/* Recipes' search, measured from Etch's Selectors tab: a 29px bare field after the magnifier. */
+/* The core's .etk-search, beside the filter. */
 .etk-components__search {
-	display: flex;
 	flex: 0 1 320px;
-	align-items: center;
-	gap: 8px;
-	min-inline-size: 0;
-	block-size: 29px;
-	padding: 6px 8px;
-	border-radius: var(--etk-radius);
-}
-
-.etk-components__search-icon {
-	display: flex;
-	flex: none;
-	margin-inline-start: 6px;
-	color: var(--e-light, var(--etk-text-60));
-}
-
-.etk-components .etk-components__search-input {
-	flex: 1;
-	min-inline-size: 0;
-	block-size: 17px;
-	margin: 0;
-	padding: 1px 2px;
-	border: 0;
-	background: none;
-	box-shadow: none;
-	color: inherit;
-	font: inherit;
-	line-height: 19.1px;
-
-	&::placeholder {
-		color: #757575;
-	}
 }
 
 /* The Fonts manager's files table, after Etch's content hub: a rounded 35px header, then 46px rows with soft dividers. */
