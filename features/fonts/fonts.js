@@ -995,7 +995,7 @@
 					: el( 'span', { class: 'etk-fonts__files-progress' }, busy ? el( 'span', { class: 'etk-fonts__progress' } ) : null, el( 'span', { class: 'etk-manager__muted', textContent: STAGES[ entry.stage ] } ) )
 			),
 			el( 'td', { textContent: size( entry.size ) } ),
-			el( 'td', { class: entry.family ? null : 'etk-fonts__files-none', textContent: entry.family || '—' } ),
+			el( 'td', { class: entry.family ? null : 'etk-table__none', textContent: entry.family || '—' } ),
 			el(
 				'td',
 				{},
@@ -1143,7 +1143,7 @@
 	const weightCell = ( file ) => {
 		const family = state.families.find( ( f ) => f.name === file.family );
 		const variant = family?.variants.find( ( v ) => v.file === file.name );
-		if ( ! variant ) return el( 'td', { class: 'etk-fonts__files-none', title: 'Add it to a family to set its weight and style.', textContent: '—' } );
+		if ( ! variant ) return el( 'td', { class: 'etk-table__none', title: 'Add it to a family to set its weight and style.', textContent: '—' } );
 		const label = variantLabel( variant );
 		const trigger = el(
 			'button',
@@ -1219,10 +1219,10 @@
 			el( 'td', { class: 'etk-fonts__files-pick' }, own ? pickBox( file ) : null ),
 			iconCell( done ? 'tick' : null ),
 			el( 'td', {}, el( 'span', { class: 'etk-fonts__files-name', textContent: file.name } ) ),
-			own ? weightCell( file ) : el( 'td', { class: 'etk-fonts__files-none', textContent: '—' } ),
-			el( 'td', {}, done ? el( 'span', { class: 'etk-manager__muted', textContent: done.text } ) : file.unsafe ? el( 'span', { class: 'etk-fonts__files-status etk-fonts__files-status--warning', textContent: 'Needs rename', title: 'Added outside Etch Toolkit with characters it can\'t use, like brackets.' } ) : el( 'span', { class: `etk-fonts__files-status etk-fonts__files-status--${ unused ? 'warning' : 'success' }`, textContent: unused ? 'Unused' : 'In use' } ) ),
+			own ? weightCell( file ) : el( 'td', { class: 'etk-table__none', textContent: '—' } ),
+			el( 'td', {}, done ? el( 'span', { class: 'etk-manager__muted', textContent: done.text } ) : file.unsafe ? el( 'span', { class: 'etk-badge etk-badge--warning', textContent: 'Needs rename', title: 'Added outside Etch Toolkit with characters it can\'t use, like brackets.' } ) : el( 'span', { class: `etk-badge etk-badge--${ unused ? 'warning' : 'success' }`, textContent: unused ? 'Unused' : 'In use' } ) ),
 			el( 'td', { textContent: size( file.size ) } ),
-			el( 'td', { class: unused ? 'etk-fonts__files-none' : null, textContent: file.family || 'No family' } ),
+			el( 'td', { class: unused ? 'etk-table__none' : null, textContent: file.family || 'No family' } ),
 			el( 'td', {}, own ? fileMenu( file ) : file.unsafe ? menu( iconButton( `Actions for ${ file.name }`, 'more', null ), () => [ { label: 'Rename file', onselect: () => renameFile( file ) } ] ) : null )
 		);
 	};
@@ -1286,7 +1286,7 @@
 					el( 'div', { class: 'etk-fonts__files-toolbar' }, filter, config.fontsPath ? el( 'span', { class: 'etk-fonts__files-path', textContent: config.fontsPath } ) : null ),
 					el(
 						'table',
-						{ class: 'etk-fonts__table etk-fonts__files-table', 'aria-label': 'Font files' },
+						{ class: 'etk-table etk-table--pick etk-fonts__files-table', 'aria-label': 'Font files' },
 						el(
 							'thead',
 							{},

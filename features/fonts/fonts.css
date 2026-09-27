@@ -337,45 +337,6 @@
 	gap: 4px;
 }
 
-/* Tables, after Etch's content hub: a rounded 35px header, then 46px rows with soft dividers. */
-.etk-fonts__table {
-	inline-size: 100%;
-	border-collapse: separate;
-	border-spacing: 0;
-
-	th {
-		block-size: 35px;
-		padding: 0 8px;
-		background: var(--etk-surface);
-		font-weight: 500;
-		line-height: 16px;
-		text-align: start;
-		white-space: nowrap;
-	}
-
-	th:first-child {
-		border-start-start-radius: var(--etk-radius);
-	}
-
-	th:last-child {
-		border-start-end-radius: var(--etk-radius);
-	}
-
-	td {
-		block-size: 46px;
-		padding: 0 8px;
-		border-block-end: 1px solid var(--etk-line-soft);
-		font-weight: 400;
-		vertical-align: middle;
-	}
-
-	td:last-child,
-	th:last-child {
-		inline-size: 1%;
-		text-align: end;
-	}
-}
-
 .etk-fonts__actions {
 	display: flex;
 	flex-wrap: wrap;
@@ -1500,147 +1461,37 @@
 }
 
 .etk-fonts__files-table {
-	table-layout: fixed;
-
-	th,
-	td {
-		box-sizing: content-box;
-	}
-
-	thead td {
-		block-size: 35px;
-		border: 0;
-		background: var(--etk-surface);
-	}
-
 	/* The checkbox, then the status icon, sharing the gap between them. */
 	.etk-fonts__files-pick {
-		inline-size: 14px;
+		inline-size: 26px;
 		padding-inline-end: 0;
 		line-height: 0;
 	}
 
 	.etk-fonts__files-icon {
-		inline-size: 18px;
+		inline-size: 34px;
 		text-align: center;
 	}
 
 	th:nth-child(4) {
-		inline-size: 170px;
+		inline-size: 186px;
 	}
 
 	th:nth-child(5) {
-		inline-size: 210px;
+		inline-size: 226px;
 	}
 
 	th:nth-child(6) {
-		inline-size: 64px;
+		inline-size: 80px;
 	}
 
 	th:nth-child(7) {
-		inline-size: 140px;
+		inline-size: 156px;
 	}
 
-	/*
-	 * Picked rows join into rounded cards. The body sits 4px in from the table's
-	 * edges: transparent borders on the outer cells, the header's bottom and the
-	 * table's own padding. The header pads its outer cells to match.
-	 */
-	--inset: 4px;
-	--card-radius: var(--etk-radius);
-	padding-block-end: var(--inset);
-
-	thead > tr > * {
-		border-block-end: var(--inset) solid transparent;
-		background-clip: padding-box;
-	}
-
-	/*
-	 * The header is rounded all round, clear of the rows. Its transparent
-	 * bottom border is the gap, so its bottom curves are that much taller to
-	 * land on the fill.
-	 */
-	thead > tr > :first-child {
-		padding-inline-start: calc(8px + var(--inset));
-		border-top-left-radius: var(--card-radius);
-		border-bottom-left-radius: var(--card-radius) calc(var(--card-radius) + var(--inset));
-	}
-
+	/* One 28px button. */
 	thead > tr > :last-child {
-		padding-inline-end: calc(8px + var(--inset));
-		border-top-right-radius: var(--card-radius);
-		border-bottom-right-radius: var(--card-radius) calc(var(--card-radius) + var(--inset));
-	}
-
-	/*
-	 * Every row stays 46px, so nothing moves as rows are picked. Picking only
-	 * fades the card's fill, corners and dividers, like the bulk rename table.
-	 * Dividers are inset shadows, so they stop at the transparent borders.
-	 */
-	tbody td {
-		box-sizing: border-box;
-		block-size: 46px;
-		border: 0 solid transparent;
-		background-clip: padding-box;
-		transition-property: background-color, border-radius, box-shadow;
-		transition-duration: 0.18s;
-		transition-timing-function: ease;
-
-		@media (prefers-reduced-motion: reduce) {
-			transition: none;
-		}
-	}
-
-	tbody td:first-child {
-		border-inline-start-width: var(--inset);
-	}
-
-	tbody td:last-child {
-		border-inline-end-width: var(--inset);
-	}
-
-	tbody tr:not(.is-picked):has(+ tr:not(.is-picked)) > td {
-		box-shadow: inset 0 -1px var(--etk-line-soft);
-	}
-
-	tr.is-picked > td {
-		background-color: var(--etk-raised);
-	}
-
-	tr.is-picked:has(+ .is-picked) > td {
-		box-shadow: inset 0 -1px rgb(0 0 0 / 0.25);
-	}
-
-	/* The outer cells' 4px side border would flatten the curve, so their radii are 4px wider across. */
-	tr.is-picked:not(.is-picked + tr) > td:first-child {
-		border-top-left-radius: calc(var(--card-radius) + var(--inset)) var(--card-radius);
-	}
-
-	tr.is-picked:not(.is-picked + tr) > td:last-child {
-		border-top-right-radius: calc(var(--card-radius) + var(--inset)) var(--card-radius);
-	}
-
-	tr.is-picked:not(:has(+ .is-picked)) > td:first-child {
-		border-bottom-left-radius: calc(var(--card-radius) + var(--inset)) var(--card-radius);
-	}
-
-	tr.is-picked:not(:has(+ .is-picked)) > td:last-child {
-		border-bottom-right-radius: calc(var(--card-radius) + var(--inset)) var(--card-radius);
-	}
-
-	td:last-child,
-	th:last-child {
-		inline-size: 28px;
-	}
-
-	td {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	td:last-child {
-		overflow: visible;
+		inline-size: calc(28px + 8px + 12px);
 	}
 
 	/* Bordered like the content hub's row actions. */
@@ -1701,29 +1552,6 @@
 	display: inline-flex;
 	flex: none;
 	color: var(--etk-text-45);
-}
-
-/* Etch's post status badge. */
-.etk-fonts__files-status {
-	display: inline-block;
-	padding: 6px;
-	border-radius: 3px;
-	font-size: var(--e-font-size-m, 12px);
-	line-height: 9px;
-}
-
-.etk-fonts__files-status--success {
-	background: var(--e-success-dark, #32433a);
-	color: var(--e-success, #67d992);
-}
-
-.etk-fonts__files-status--warning {
-	background: var(--e-warning-dark, #4c4233);
-	color: var(--e-warning, #f2c960);
-}
-
-.etk-fonts__files-none {
-	color: var(--etk-text-40);
 }
 
 .etk-fonts__files-error {

@@ -906,6 +906,165 @@
 	}
 }
 
+/* ---- Tables ---- */
+
+/*
+ * .etk-table, after Etch's content hub: a 35px header rounded all round and
+ * a gap clear of the rows, then 46px rows with soft dividers. The header's
+ * transparent bottom border is the gap, so its bottom curves are that much
+ * taller to land on the fill. Column widths are the feature's.
+ */
+.etk-table {
+	--etk-table-gap: 4px;
+
+	inline-size: 100%;
+	table-layout: fixed;
+	border-collapse: separate;
+	border-spacing: 0;
+
+	th,
+	td {
+		box-sizing: border-box;
+		padding: 0 8px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		text-align: start;
+		vertical-align: middle;
+	}
+
+	thead > tr > * {
+		block-size: calc(35px + var(--etk-table-gap));
+		border-block-end: var(--etk-table-gap) solid transparent;
+		background: var(--etk-surface);
+		background-clip: padding-box;
+		font-weight: 500;
+		line-height: 16px;
+	}
+
+	thead > tr > :first-child {
+		padding-inline-start: 12px;
+		border-top-left-radius: var(--etk-radius);
+		border-bottom-left-radius: var(--etk-radius) calc(var(--etk-radius) + var(--etk-table-gap));
+	}
+
+	thead > tr > :last-child {
+		padding-inline-end: 12px;
+		border-top-right-radius: var(--etk-radius);
+		border-bottom-right-radius: var(--etk-radius) calc(var(--etk-radius) + var(--etk-table-gap));
+		text-align: end;
+	}
+
+	tbody > tr > * {
+		block-size: 46px;
+		font-weight: 400;
+	}
+
+	tbody > tr > :first-child {
+		padding-inline-start: 12px;
+	}
+
+	/* Row actions, which can overflow for their focus rings. */
+	tbody > tr > :last-child {
+		padding-inline-end: 12px;
+		overflow: visible;
+		text-align: end;
+	}
+
+	tbody tr:not(:last-child) > * {
+		box-shadow: inset 0 -1px var(--etk-line-soft);
+	}
+}
+
+/*
+ * --pick: picked rows (tr.is-picked) join into rounded cards. The body sits
+ * the gap in from the table's edges: transparent borders on its outer
+ * cells, and padding under it. Every row stays 46px, so nothing moves as
+ * rows are picked. Picking only fades the card's fill, corners and
+ * dividers. Dividers are inset shadows, so they stop at the borders.
+ */
+.etk-table--pick {
+	padding-block-end: var(--etk-table-gap);
+
+	tbody > tr > * {
+		border: 0 solid transparent;
+		background-clip: padding-box;
+		transition-property: background-color, border-radius, box-shadow;
+		transition-duration: 0.18s;
+		transition-timing-function: ease;
+
+		@media (prefers-reduced-motion: reduce) {
+			transition: none;
+		}
+	}
+
+	tbody > tr > :first-child {
+		padding-inline-start: 8px;
+		border-inline-start-width: var(--etk-table-gap);
+	}
+
+	tbody > tr > :last-child {
+		padding-inline-end: 8px;
+		border-inline-end-width: var(--etk-table-gap);
+	}
+
+	tbody tr:not(:last-child) > * {
+		box-shadow: none;
+	}
+
+	tbody tr:not(.is-picked):has(+ tr:not(.is-picked)) > * {
+		box-shadow: inset 0 -1px var(--etk-line-soft);
+	}
+
+	tr.is-picked > * {
+		background-color: var(--etk-raised);
+	}
+
+	tr.is-picked:has(+ .is-picked) > * {
+		box-shadow: inset 0 -1px rgb(0 0 0 / 0.25);
+	}
+
+	/* The outer cells' side border would flatten the curve, so their radii are that much wider across. */
+	tr.is-picked:not(.is-picked + tr) > :first-child {
+		border-top-left-radius: calc(var(--etk-radius) + var(--etk-table-gap)) var(--etk-radius);
+	}
+
+	tr.is-picked:not(.is-picked + tr) > :last-child {
+		border-top-right-radius: calc(var(--etk-radius) + var(--etk-table-gap)) var(--etk-radius);
+	}
+
+	tr.is-picked:not(:has(+ .is-picked)) > :first-child {
+		border-bottom-left-radius: calc(var(--etk-radius) + var(--etk-table-gap)) var(--etk-radius);
+	}
+
+	tr.is-picked:not(:has(+ .is-picked)) > :last-child {
+		border-bottom-right-radius: calc(var(--etk-radius) + var(--etk-table-gap)) var(--etk-radius);
+	}
+}
+
+/* Nothing there, like a dash for no family. */
+.etk-table__none {
+	color: var(--etk-text-40);
+}
+
+/* A status, like Etch's post status badge. */
+.etk-badge {
+	display: inline-block;
+	padding: 6px;
+	border-radius: 3px;
+	line-height: 9px;
+}
+
+.etk-badge--success {
+	background: var(--e-success-dark, #32433a);
+	color: var(--e-success, #67d992);
+}
+
+.etk-badge--warning {
+	background: var(--e-warning-dark, #4c4233);
+	color: var(--e-warning, #f2c960);
+}
+
 /* ---- Search ---- */
 
 /* Measured from the Style Manager's Selectors tab: Etch's magnifier, then a bare 29px field. See etchToolkit.searchBox(). */

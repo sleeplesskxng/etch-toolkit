@@ -627,8 +627,8 @@
 			{ class: used === false ? 'is-unused' : null },
 			el( 'th', { scope: 'row' }, el( 'span', { class: 'etk-components__cell-name', textContent: component.name } ) ),
 			el( 'td', {}, el( 'code', { class: 'etk-components__key', textContent: component.key } ) ),
-			el( 'td', {}, used === null ? null : el( 'span', { class: `etk-components__status-badge etk-components__status-badge--${ used ? 'success' : 'warning' }`, textContent: used ? 'In use' : 'Unused' } ) ),
-			used ? el( 'td', { class: 'etk-components__uses-cell' }, usesCell( component ) ) : el( 'td', { class: 'etk-components__none', textContent: used === null ? 'Checking…' : '—' } ),
+			el( 'td', {}, used === null ? null : el( 'span', { class: `etk-badge etk-badge--${ used ? 'success' : 'warning' }`, textContent: used ? 'In use' : 'Unused' } ) ),
+			used ? el( 'td', { class: 'etk-components__uses-cell' }, usesCell( component ) ) : el( 'td', { class: 'etk-table__none', textContent: used === null ? 'Checking…' : '—' } ),
 			el(
 				'td',
 				{},
@@ -685,7 +685,7 @@
 				),
 				el(
 					'table',
-					{ class: 'etk-components__table', 'aria-label': 'Components' },
+					{ class: 'etk-table etk-components__table', 'aria-label': 'Components' },
 					el( 'thead', {}, el( 'tr', {}, th( 'Component' ), th( 'Key' ), th( 'Status' ), th( 'Used on' ), el( 'th', { scope: 'col' }, el( 'span', { class: 'etk-sr', textContent: 'Actions' } ) ) ) ),
 					body
 				),
