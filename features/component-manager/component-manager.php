@@ -4,8 +4,7 @@
  * and deleting.
  *
  * Lists the site's components with the pages that use them. Edit opens one
- * in Etch: on a page that uses it, or on a private draft, the workbench,
- * for one no page uses. Update takes a JSON file or pasted JSON, from Etch's
+ * in Etch as the pattern it's saved as. Update takes a JSON file or pasted JSON, from Etch's
  * copy (Cmd+C on a component) or a component's JSON, and shows its layers
  * the way the Structure panel does with what changed in each, and its props.
  * Delete asks first, and says where it's used.
@@ -13,8 +12,6 @@
  */
 
 defined( 'ABSPATH' ) || exit;
-
-const ETCH_TOOLKIT_WORKBENCH_OPTION = 'etch_toolkit_component_workbench';
 
 add_action(
 	'rest_api_init',
@@ -25,15 +22,6 @@ add_action(
 			array(
 				'methods'             => 'GET',
 				'callback'            => fn() => etch_toolkit_rest_try( fn() => rest_ensure_response( array( 'usage' => (object) etch_toolkit_component_usage() ) ) ),
-				'permission_callback' => 'etch_toolkit_can_manage',
-			)
-		);
-		register_rest_route(
-			ETCH_TOOLKIT_REST_NAMESPACE,
-			'/components/workbench',
-			array(
-				'methods'             => 'POST',
-				'callback'            => fn() => etch_toolkit_rest_try( fn() => rest_ensure_response( array( 'id' => etch_toolkit_component_workbench() ) ) ),
 				'permission_callback' => 'etch_toolkit_can_manage',
 			)
 		);
@@ -51,16 +39,14 @@ add_action(
 
 /**
  * Where each component is used: component ID => the posts with an instance of
- * it, pages and templates first, then other components it's nested in. The
- * workbench doesn't count.
+ * it, pages and templates first, then other components it's nested in.
  *
  * @return array<int, array<int, array{id: int, title: string, type: string, postType: string, elements: int}>>
  */
 function etch_toolkit_component_usage(): array {
-	$workbench = (int) get_option( ETCH_TOOLKIT_WORKBENCH_OPTION, 0 );
-	$found     = array(); // Component ID => post ID => instances.
+	$found = array(); // Component ID => post ID => instances.
 	foreach ( etch_toolkit_contents() as $post_id => $content ) {
-		if ( $post_id === $workbench || ! str_contains( $content, 'wp:etch/component' ) ) {
+		if ( ! str_contains( $content, 'wp:etch/component' ) ) {
 			continue;
 		}
 		// Gutenberg writes < and > in attributes as escapes, so a block comment's attributes hold no ">".
@@ -93,31 +79,4 @@ function etch_toolkit_component_usage(): array {
 		$usage[ $component_id ] = $list;
 	}
 	return $usage;
-}
-
-/**
- * The workbench: a private draft page to edit components no page uses, made
- * the first time it's needed.
- */
-function etch_toolkit_component_workbench(): int {
-	$id   = (int) get_option( ETCH_TOOLKIT_WORKBENCH_OPTION, 0 );
-	$post = $id ? get_post( $id ) : null;
-	if ( $post && 'trash' !== $post->post_status ) {
-		return $id;
-	}
-
-	$id = wp_insert_post(
-		array(
-			'post_type'    => 'page',
-			'post_status'  => 'draft',
-			'post_title'   => 'Component workbench',
-			'post_content' => '',
-		),
-		true
-	);
-	if ( is_wp_error( $id ) ) {
-		throw new RuntimeException( $id->get_error_message() );
-	}
-	update_option( ETCH_TOOLKIT_WORKBENCH_OPTION, $id, false );
-	return (int) $id;
 }

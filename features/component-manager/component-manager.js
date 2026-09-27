@@ -1717,24 +1717,9 @@
 		go( 'import' );
 	};
 
-	// Wait for something, a tenth of a second at a time.
-	const until = async ( check, ms = 5000 ) => {
-		for ( let waited = 0; waited <= ms; waited += 100 ) {
-			const value = check();
-			if ( value ) return value;
-			await new Promise( ( resolve ) => window.setTimeout( resolve, 100 ) );
-		}
-		return null;
-	};
-
-	// An instance of a component on the page that's open.
-	const instanceOf = ( id ) => window.etch.blocks.find( { type: 'etch/component' } ).find( ( blockId ) => window.etch.blocks.getJson( blockId ).componentId === id ) ?? null;
-
 	/**
-	 * Open a component in Etch's component editor. Etch edits a component
-	 * through an instance on the open page, so this opens a page or template
-	 * that uses it (the one you're on, if it does), or the workbench, a
-	 * private draft, with an instance added for one no page uses.
+	 * Open a component in Etch as the pattern it's saved as (a wp_block
+	 * post), so its layers are the page's and Save saves the component.
 	 */
 	const editInEtch = async ( component, trigger ) => {
 		if ( window.etch.blocks.isInComponentEditMode() ) {
@@ -1744,28 +1729,8 @@
 		trigger.disabled = true;
 		announce( `Opening ${ component.name }…` );
 		try {
-			if ( ! usedOn ) await loadUsedOn();
-			const pages = ( usedOn?.[ component.id ] || [] ).filter( ( post ) => post.postType !== 'wp_block' );
-			const active = window.etch.navigation.getActivePostId();
-			const page = pages.find( ( post ) => post.id === active ) || pages[ 0 ];
-			const postId = page ? page.id : ( await toolkit.api( 'components/workbench', 'POST' ) ).id;
-
-			// Etch's editor needs the component loaded.
-			window.etch.components.getJson( component.id );
-			if ( active !== postId ) {
-				page?.postType === 'wp_template' ? await window.etch.navigation.openTemplateAsync( postId ) : await window.etch.navigation.openPostAsync( postId );
-			}
-			let blockId = await until( () => instanceOf( component.id ), page ? 5000 : 1000 );
-			if ( ! blockId && ! page ) {
-				// The workbench holds one instance at a time.
-				window.etch.blocks.getTree().forEach( ( block ) => window.etch.blocks.delete( block.id ) );
-				blockId = window.etch.blocks.create( { type: 'etch/component', version: 1, context: {}, options: {}, children: [], componentId: component.id, attributes: {} } );
-			}
-			if ( ! blockId ) throw new Error( `${ component.name } wasn’t found on ${ page.title }.` );
-
+			if ( window.etch.navigation.getActivePostId() !== component.id ) await window.etch.navigation.openPostAsync( component.id );
 			close( { focus: false } );
-			window.etch.blocks.select( blockId );
-			window.etch.blocks.enterComponentEditMode( blockId );
 		} catch ( error ) {
 			warn( `Couldn’t open ${ component.name }: ${ errorText( error ) }` );
 		} finally {
@@ -1909,6 +1874,18 @@
 			if ( ! enabled() || addControl() || ++tries > 120 ) window.clearInterval( timer );
 		}, 250 );
 	};
+
+	/*
+	 * A component opened as its pattern saves as a post, which Etch's own copy
+	 * of the component doesn't hear about. Its layers go through Etch's
+	 * components too, so pages using it show the change and Etch's component
+	 * editor doesn't save the old version over it.
+	 */
+	toolkit.afterSave?.( async () => {
+		const id = window.etch?.navigation?.getActivePostId();
+		if ( ! enabled() || ! window.etch.components.list().some( ( c ) => c.id === id ) ) return;
+		await window.etch.components.updateAsync( id, { blocks: window.etch.blocks.getTree().map( ( block ) => bare( window.etch.blocks.getJson( block.id ) ) ) } );
+	} );
 
 	// Turned on or off in the toolkit's settings.
 	window.addEventListener( 'etch-toolkit-settings', () => ( enabled() ? ! added && boot() : removeControl() ) );
