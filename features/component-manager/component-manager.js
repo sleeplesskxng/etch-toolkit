@@ -231,15 +231,28 @@
 		};
 	};
 
-	// How alike two layers are, 0 to 1. Layers of different types never pair.
+	// How much two lists share, 0 to 1. Two empty lists count as half alike.
+	const overlap = ( a, b ) => {
+		const ours = new Set( a );
+		const all = new Set( [ ...a, ...b ] );
+		return all.size ? b.filter( ( item ) => ours.has( item ) ).length / all.size : 0.5;
+	};
+
+	// Attributes other than class, as name=value.
+	const attributePairs = ( layer ) => Object.entries( layer.block.attributes || {} ).filter( ( [ key ] ) => key !== 'class' ).map( ( [ key, value ] ) => `${ key }=${ asText( value ) }` );
+
+	/**
+	 * How alike two layers are, 0 to 1. Layers of different types never pair.
+	 * Name, tag, classes and other attributes each count, so a layer that was
+	 * renamed and given a class still pairs when the rest of it is the same.
+	 */
 	const similarity = ( a, b ) => {
 		if ( a.block.type !== b.block.type ) return 0;
 		let score = 0.1;
-		if ( a.name && a.name === b.name ) score += 0.4;
+		if ( a.name && a.name === b.name ) score += 0.35;
 		if ( a.tag === b.tag ) score += 0.15;
-		const ours = new Set( a.classes );
-		const all = new Set( [ ...a.classes, ...b.classes ] );
-		score += all.size ? ( 0.3 * b.classes.filter( ( name ) => ours.has( name ) ).length ) / all.size : 0.15;
+		score += 0.2 * overlap( a.classes, b.classes );
+		score += 0.2 * overlap( attributePairs( a ), attributePairs( b ) );
 		if ( a.html.get( 'text' )?.value && a.html.get( 'text' )?.value === b.html.get( 'text' )?.value ) score += 0.05;
 		return score;
 	};
