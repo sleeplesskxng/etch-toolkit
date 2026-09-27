@@ -120,7 +120,7 @@
 
 	const exportGroup = () => {
 		const families = state.families;
-		if ( ! families.length ) return group( 'Export', row( el( 'p', { class: 'etk-settings__help', textContent: 'Add a family in the Fonts manager to export it.' } ) ) );
+		if ( ! families.length ) return group( 'Export', row( el( 'p', { class: 'etk-manager__help', textContent: 'Add a family in the Fonts manager to export it.' } ) ) );
 
 		const chosen = families.filter( ( f ) => ! skip.has( f.name ) );
 		const bytesOf = ( family ) => family.variants.reduce( ( sum, v ) => sum + ( state.files.find( ( f ) => f.name === v.file )?.size || 0 ), 0 );
@@ -142,7 +142,7 @@
 				'fieldset',
 				{ class: 'etk-settings__fieldset' },
 				el( 'legend', { class: 'screen-reader-text', textContent: 'Families to export' } ),
-				row( all, el( 'span', { class: 'etk-settings__help', textContent: chosen.length ? `About ${ size( total ) }` : '' } ) ),
+				row( all, el( 'span', { class: 'etk-manager__help', textContent: chosen.length ? `About ${ size( total ) }` : '' } ) ),
 				...families.map( ( family ) =>
 					row(
 						check(
@@ -153,7 +153,7 @@
 								refresh();
 							}
 						),
-						el( 'span', { class: 'etk-settings__help', textContent: plural( family.variants.length, 'file', 'files' ) } )
+						el( 'span', { class: 'etk-manager__help', textContent: plural( family.variants.length, 'file', 'files' ) } )
 					)
 				)
 			),
@@ -175,7 +175,7 @@
 			state = await api( 'fonts' );
 		},
 		render: () => {
-			if ( ! state ) return el( 'p', { class: 'etk-settings__muted', textContent: 'Loading fonts…' } );
+			if ( ! state ) return el( 'p', { class: 'etk-manager__muted', textContent: 'Loading fonts…' } );
 			const enabled = state.families.filter( ( f ) => f.enabled ).length;
 			return [
 				group(

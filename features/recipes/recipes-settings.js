@@ -111,7 +111,7 @@
 			recipes = ( await api( 'recipes' ) ).recipes;
 		},
 		render: () => {
-			if ( ! recipes ) return el( 'p', { class: 'etk-settings__muted', textContent: 'Loading recipes…' } );
+			if ( ! recipes ) return el( 'p', { class: 'etk-manager__muted', textContent: 'Loading recipes…' } );
 			return [
 				group(
 					{ title: 'Export', note: builder ? 'Save first to include recent changes.' : null },

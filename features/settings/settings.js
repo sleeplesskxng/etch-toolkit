@@ -48,17 +48,17 @@
 		const { title: text, action, note, bare } = title && typeof title === 'object' ? title : { title };
 		return el(
 			'section',
-			{ class: 'etk-settings__group' },
-			el( 'div', { class: 'etk-settings__group-head' }, el( 'h3', { class: 'etk-settings__label', textContent: text } ), action || null ),
-			bare ? rows : el( 'div', { class: 'etk-settings__card' }, ...rows ),
-			note ? el( 'p', { class: 'etk-settings__help etk-settings__note', textContent: note } ) : null
+			{ class: 'etk-manager__group' },
+			el( 'div', { class: 'etk-manager__group-head' }, el( 'h3', { class: 'etk-manager__label', textContent: text } ), action || null ),
+			bare ? rows : el( 'div', { class: 'etk-manager__card' }, ...rows ),
+			note ? el( 'p', { class: 'etk-manager__help etk-settings__note', textContent: note } ) : null
 		);
 	};
 
-	const row = ( ...children ) => el( 'div', { class: 'etk-settings__row' }, ...children );
+	const row = ( ...children ) => el( 'div', { class: 'etk-manager__row' }, ...children );
 
 	// A setting's name and its value, on one row.
-	const value = ( label, text ) => row( el( 'span', { class: 'etk-settings__row-title', textContent: label } ), typeof text === 'string' ? el( 'span', { class: 'etk-settings__muted', textContent: text } ) : text );
+	const value = ( label, text ) => row( el( 'span', { class: 'etk-settings__row-title', textContent: label } ), typeof text === 'string' ? el( 'span', { class: 'etk-manager__muted', textContent: text } ) : text );
 
 	/**
 	 * A switch row: title and help on the left, the switch on the right. A
@@ -86,7 +86,7 @@
 			},
 		} );
 		return row(
-			el( 'div', { class: 'etk-settings__toggle' }, el( 'div', { class: 'etk-settings__toggle-text' }, el( 'label', { class: 'etk-settings__row-title', htmlFor: id, textContent: label } ), help ? el( 'p', { class: 'etk-settings__help', id: helpId, textContent: help } ) : null ), input )
+			el( 'div', { class: 'etk-settings__toggle' }, el( 'div', { class: 'etk-settings__toggle-text' }, el( 'label', { class: 'etk-settings__row-title', htmlFor: id, textContent: label } ), help ? el( 'p', { class: 'etk-manager__help', id: helpId, textContent: help } ) : null ), input )
 		);
 	};
 
@@ -197,7 +197,7 @@
 
 	const renderNav = () => {
 		if ( ! nav ) return;
-		nav.replaceChildren( ...sections.map( ( s ) => el( 'button', { type: 'button', class: 'etk-settings__nav-item', 'data-id': s.id, html: s.icon ? icon( s.icon ) : null, 'aria-current': s === current ? 'page' : null, onclick: () => show( s ) }, s.title ) ) );
+		nav.replaceChildren( ...sections.map( ( s ) => el( 'button', { type: 'button', class: 'etk-manager__nav-item', 'data-id': s.id, html: s.icon ? icon( s.icon ) : null, 'aria-current': s === current ? 'page' : null, onclick: () => show( s ) }, s.title ) ) );
 	};
 
 	const ui = { button, group, row, value, toggle, check, dropzone, download, announce, warn, refresh, builder };
@@ -268,14 +268,14 @@
 	/* ------------------------------------------------------------------ */
 
 	const build = ( root ) => {
-		status = el( 'div', { class: 'etk-settings__status', role: 'status', 'aria-live': 'polite' } );
-		main = el( 'div', { class: 'etk-settings__main' } );
-		nav = el( 'nav', { class: 'etk-settings__nav etk-track', 'aria-label': 'Settings' } );
+		status = el( 'div', { class: 'etk-manager__status', role: 'status', 'aria-live': 'polite' } );
+		main = el( 'div', { class: 'etk-manager__main' } );
+		nav = el( 'nav', { class: 'etk-manager__nav etk-track', 'aria-label': 'Settings' } );
 		panel = el(
 			builder ? 'section' : 'div',
 			{
 				id: 'etk-settings',
-				class: `etk-settings ${ builder ? 'etk-settings--panel' : 'etk-settings--page' }`,
+				class: `etk-manager etk-settings ${ builder ? 'etk-manager--panel' : 'etk-settings--page' }`,
 				hidden: builder,
 				'aria-labelledby': 'etk-settings-title',
 				// In the builder, keep typing here away from Etch's shortcuts. Esc closes.
@@ -292,17 +292,17 @@
 			},
 			el(
 				'div',
-				{ class: 'etk-settings__sidebar' },
+				{ class: 'etk-manager__sidebar' },
 				el(
 					'header',
-					{ class: 'etk-settings__header' },
+					{ class: 'etk-manager__header' },
 					builder ? el( 'button', { type: 'button', class: 'etk-settings__btn etk-settings__btn--secondary etk-settings__icon-btn', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: icon( 'arrow-left' ), onclick: () => close() } ) : null,
 					el( 'span', { class: 'etk-settings__logo', html: `<svg viewBox="0 0 88 88" width="18" height="18" aria-hidden="true" focusable="false">${ LOGO }</svg>` } ),
-					el( 'h1', { id: 'etk-settings-title', class: 'etk-settings__title', textContent: 'Etch Toolkit' } )
+					el( 'h1', { id: 'etk-settings-title', class: 'etk-manager__title', textContent: 'Etch Toolkit' } )
 				),
 				nav
 			),
-			el( 'div', { class: 'etk-settings__body' }, status, el( 'div', { class: 'etk-settings__content' }, main ) )
+			el( 'div', { class: 'etk-manager__body' }, status, el( 'div', { class: 'etk-manager__content' }, main ) )
 		);
 		root.append( panel );
 		renderNav();

@@ -595,3 +595,292 @@
 	justify-content: center;
 	flex-shrink: 0;
 }
+
+/* ---- Managers ---- */
+
+/*
+ * .etk-manager: a screen laid out like Etch's Content Hub, for the Fonts
+ * manager, the component manager and settings. A 256px sidebar with the
+ * header and nav, then the body: a status line over the scrolling content.
+ * Add .etk-manager--panel to place it beside the settings bar, above the
+ * action bar. Colors and type come from Etch's tokens. A hex value only
+ * appears as a fallback, except where Etch has no token for it.
+ *
+ * The tokens are set here, not on :root, so they read Etch's tokens where
+ * the manager is.
+ */
+.etk-manager {
+	/* Surfaces, darkest first. The view sits a step above the sidebar and its cards. */
+	--etk-field: var(--e-base-dark, #1d1d20);
+	--etk-canvas: color-mix(in srgb, var(--e-base-dark, #1d1d20), var(--e-base, #27272b) 60%);
+	--etk-surface: var(--e-base, #27272b);
+	--etk-view: color-mix(in srgb, var(--e-base, #27272b), var(--e-base-light, #36363a) 47%);
+	--etk-raised: var(--e-base-light, #36363a);
+	--etk-selected: var(--e-base-semi-light, #3e3e41);
+
+	/* Lines, faintest first. */
+	--etk-line-soft: color-mix(in srgb, var(--e-base-ultra-light, #4a4a4f) 50%, transparent);
+	--etk-line: var(--e-border-color, #36363a);
+	--etk-line-strong: var(--e-base-semi-light, #3e3e41);
+	--etk-line-heavy: var(--e-base-ultra-light, #4a4a4f);
+
+	/* Text: the foreground at the opacities the designs use. */
+	--etk-text: var(--e-foreground-color, #e1e1e5);
+	--etk-text-85: color-mix(in srgb, var(--etk-text) 85%, transparent);
+	--etk-text-75: color-mix(in srgb, var(--etk-text) 75%, transparent);
+	--etk-text-70: color-mix(in srgb, var(--etk-text) 70%, transparent);
+	--etk-text-60: color-mix(in srgb, var(--etk-text) 60%, transparent);
+	--etk-text-55: color-mix(in srgb, var(--etk-text) 55%, transparent);
+	--etk-text-50: color-mix(in srgb, var(--etk-text) 50%, transparent);
+	--etk-text-45: color-mix(in srgb, var(--etk-text) 45%, transparent);
+	--etk-text-40: color-mix(in srgb, var(--etk-text) 40%, transparent);
+	--etk-text-25: color-mix(in srgb, var(--etk-text) 25%, transparent);
+	--etk-spotlight: color-mix(in srgb, var(--etk-text) 6%, transparent);
+
+	/* Accent and status. */
+	--etk-accent: var(--e-primary, #57e9db);
+	--etk-accent-soft: color-mix(in srgb, var(--etk-accent) 12%, transparent);
+	--etk-on-accent: var(--e-base-dark, #1d1d20);
+	--etk-code: var(--etch-css-css-variable, #85b7e0);
+	--etk-success: var(--e-success, #67d992);
+	--etk-danger: var(--e-danger, #f26060);
+	--etk-danger-line: var(--e-danger-dark, #633636);
+	--etk-warning: var(--e-condition, #d1b771);
+	--etk-warning-soft: color-mix(in srgb, var(--etk-warning) 45%, black);
+	/* No Etch token: the switch knob when off. */
+	--etk-knob-off: #8a8a8f;
+
+	/* Shape. */
+	--etk-radius-sm: var(--etch-radius-md, 4px);
+	--etk-radius: var(--e-border-radius, 6px);
+	--etk-radius-lg: 8px;
+	--etk-focus: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+
+	display: grid;
+	grid-template-columns: 256px minmax(0, 1fr);
+	background: var(--etk-surface);
+	color: var(--etk-text);
+	font-family: var(--e-font-interface, Inter, system-ui, sans-serif);
+	font-size: var(--e-font-size-m, 12px);
+	font-weight: 500;
+	line-height: 1.34;
+	-webkit-font-smoothing: antialiased;
+
+	&[hidden] {
+		display: none;
+	}
+
+	*,
+	*::before,
+	*::after {
+		box-sizing: border-box;
+	}
+
+	:focus-visible {
+		outline: none;
+		box-shadow: var(--etk-focus);
+	}
+
+	/* Text fields show no ring, like Etch's. Browsers count any click in one as keyboard focus. */
+	:is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']), textarea):focus-visible {
+		box-shadow: none;
+	}
+
+	/* Etch's buttons keep their own focus outline. */
+	.etch-builder-button:focus-visible {
+		box-shadow: none;
+	}
+
+	/* Headings get focus on navigation, for screen readers, without a ring. */
+	[tabindex="-1"]:focus {
+		box-shadow: none;
+	}
+
+	h1,
+	h2,
+	h3,
+	p {
+		margin: 0;
+	}
+
+	/* WordPress colors headings. These inherit instead, unless a class sets a color. */
+	:where(h1, h2, h3, p) {
+		color: inherit;
+	}
+
+	.screen-reader-text {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+}
+
+/* Beside the settings bar, above the action bar. */
+.etk-manager--panel {
+	position: fixed;
+	inset: 0 0 var(--etch-action-bar-height, 48px) var(--e-settings-bar-width, 46.5px);
+	/* Above the builder panels, below Etch's tooltips and dialogs. */
+	z-index: 60;
+
+	/* Automatic.css's pinned dashboard moves the builder aside with a margin on <body>, which fixed positioning ignores. */
+	body.push-right & {
+		inset-inline-start: calc(var(--acss-dashboard-width, 0px) + var(--e-settings-bar-width, 46.5px));
+	}
+
+	body.push-left & {
+		inset-inline-end: var(--acss-dashboard-width, 0px);
+	}
+}
+
+.etk-manager__sidebar {
+	display: flex;
+	flex-direction: column;
+	min-block-size: 0;
+	background: var(--etk-surface);
+}
+
+.etk-manager__header {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	block-size: 57px;
+	padding: 0 12px;
+	border-block-end: 1px solid var(--etk-line);
+}
+
+.etk-manager__title {
+	font-size: var(--e-hub-title-font-size, 16px);
+	font-weight: 400;
+	line-height: 20px;
+}
+
+/* The current view's highlight slides between them (.etk-track). */
+.etk-manager__nav {
+	--etk-track-item-radius: var(--etk-radius);
+	--etk-track-highlight: var(--etk-raised);
+
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 16px;
+	overflow-y: auto;
+}
+
+.etk-manager__nav-item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 9px 14px 9px 12px;
+	border: 0;
+	background: none;
+	color: var(--etk-text-60);
+	font: inherit;
+	line-height: 16px;
+	text-align: start;
+	cursor: pointer;
+	transition:
+		background-color var(--e-transition, 0.15s ease-in-out),
+		color var(--e-transition, 0.15s ease-in-out);
+
+	&:hover,
+	&[aria-current="page"] {
+		color: var(--etk-text);
+	}
+}
+
+/* The view: status, then the scrolling content. */
+.etk-manager__body {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	min-block-size: 0;
+	min-inline-size: 0;
+	background: var(--etk-view);
+}
+
+.etk-manager__content {
+	flex: 1;
+	min-block-size: 0;
+	overflow-y: auto;
+	scrollbar-gutter: stable;
+}
+
+.etk-manager__main {
+	padding: 24px 32px;
+}
+
+/* Errors show above the view. Confirmations are for screen readers only. */
+.etk-manager__status:not(.is-error) {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.etk-manager__status.is-error {
+	padding: 8px 32px;
+	border-block-end: 1px solid var(--etk-line);
+	color: var(--etk-danger);
+	font-size: var(--e-font-size-s, 11px);
+}
+
+/* Section and field labels. */
+.etk-manager__label {
+	color: var(--etk-text-50);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 600;
+	line-height: 14px;
+}
+
+.etk-manager__muted {
+	color: var(--etk-text-60);
+	font-weight: 400;
+}
+
+.etk-manager__help {
+	max-inline-size: 70ch;
+	color: var(--etk-text-50);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 400;
+	line-height: 16px;
+}
+
+/* A labelled group: the label, then a card of rows. */
+.etk-manager__group {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.etk-manager__group-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding-inline-start: 2px;
+}
+
+.etk-manager__card {
+	display: flex;
+	flex-direction: column;
+	overflow: clip;
+	border: 1px solid var(--etk-line);
+	border-radius: var(--etk-radius-lg);
+	background: var(--etk-surface);
+}
+
+.etk-manager__row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px 16px;
+
+	& + & {
+		border-block-start: 1px solid var(--etk-line);
+	}
+}
