@@ -3,9 +3,9 @@
  *
  * A Settings Bar control opens a manager beside the bar, headed like Etch's
  * Style Manager. It lists the site's components and where they're used, in
- * a table like the Fonts manager's files. Each row's menu edits one in
- * Etch's component editor, updates it from a JSON file or pasted JSON, and
- * reviews the changes first, or deletes it.
+ * a table like the Fonts manager's files. Each row's buttons edit one in
+ * Etch's component editor, update it from a JSON file or pasted JSON after
+ * reviewing the changes, or delete it.
  *
  * It reads three shapes:
  * - Etch's copy (Cmd+C on a layer): { version, gutenbergBlock, styles,
@@ -28,8 +28,7 @@
 	const BACK = '<path d="M8.99996 16.9998L4 11.9997L9 6.99976"/><path d="M4 12H20"/>';
 	// Etch's hugeicons:search-01, as on the Selectors tab and Recipes.
 	const SEARCH = '<path d="M17.5 17.5L22 22"/><path d="M20 11C20 6.02944 15.9706 2 11 2C6.02944 2 2 6.02944 2 11C2 15.9706 6.02944 20 11 20C15.9706 20 20 15.9706 20 11Z"/>';
-	// Hugeicons more-horizontal and pencil-edit-01, for each row's menu.
-	const MORE = '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>';
+	// Hugeicons pencil-edit-01, for each row's Edit.
 	const EDIT = '<path d="M15.2141 5.98239L16.6158 4.58063C17.39 3.80646 18.6452 3.80646 19.4194 4.58063C20.1935 5.3548 20.1935 6.60998 19.4194 7.38415L18.0176 8.78591M15.2141 5.98239L6.98023 14.2163C5.93493 15.2616 5.41226 15.7842 5.05637 16.4211C4.70047 17.058 4.3424 18.5619 4 20C5.43809 19.6576 6.94199 19.2995 7.57889 18.9436C8.21579 18.5877 8.73844 18.0651 9.78375 17.0198L18.0176 8.78591M15.2141 5.98239L18.0176 8.78591"/><path d="M11 20H17"/>';
 	const UPLOAD = '<path d="M12 4.5L12 14.5M12 4.5C11.2998 4.5 9.99153 6.4943 9.5 7M12 4.5C12.7002 4.5 14.0085 6.4943 14.5 7"/><path d="M20 16.5C20 18.982 19.482 19.5 17 19.5H7C4.518 19.5 4 18.982 4 16.5"/>';
 	const stroke = ( paths, size = 16 ) =>
@@ -538,101 +537,6 @@
 		return zone;
 	};
 
-	/* ---- The row menu, like Etch's context menu ---- */
-
-	/*
-	 * items: [ { label, icon, onselect, danger } ], '-' for a separator.
-	 * Arrow keys, Home and End move, Enter picks, Escape closes, Tab closes
-	 * and moves on. Focus goes back to the button.
-	 */
-	let openMenu = null;
-	const onMenuOutside = ( e ) => {
-		if ( e.type === 'pointerdown' && ( openMenu?.popup.contains( e.target ) || openMenu?.trigger.contains( e.target ) ) ) return;
-		closeMenu();
-	};
-	const closeMenu = ( { focus = false } = {} ) => {
-		if ( ! openMenu ) return;
-		const { trigger, popup } = openMenu;
-		openMenu = null;
-		popup.remove();
-		trigger.setAttribute( 'aria-expanded', 'false' );
-		document.removeEventListener( 'pointerdown', onMenuOutside, true );
-		document.removeEventListener( 'scroll', onMenuOutside, true );
-		window.removeEventListener( 'resize', onMenuOutside );
-		if ( focus && trigger.isConnected ) trigger.focus();
-	};
-
-	const menu = ( trigger, items ) => {
-		trigger.setAttribute( 'aria-haspopup', 'menu' );
-		trigger.setAttribute( 'aria-expanded', 'false' );
-		const show = ( first ) => {
-			closeMenu();
-			const choices = [];
-			const popup = h(
-				'div',
-				{
-					class: 'etk-components__menu',
-					role: 'menu',
-					'aria-label': trigger.getAttribute( 'aria-label' ),
-					onkeydown: ( e ) => {
-						const i = choices.indexOf( document.activeElement );
-						const next = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: choices.length - 1 }[ e.key ];
-						if ( next !== undefined ) {
-							e.preventDefault();
-							choices[ ( next + choices.length ) % choices.length ].focus();
-						} else if ( e.key === 'Escape' ) {
-							// Not the panel's Escape, which would close the manager.
-							e.preventDefault();
-							e.stopPropagation();
-							closeMenu( { focus: true } );
-						} else if ( e.key === 'Tab' ) {
-							closeMenu( { focus: true } );
-						}
-					},
-				},
-				items().map( ( item ) => {
-					if ( item === '-' ) return h( 'div', { class: 'etk-components__menu-separator', role: 'separator' } );
-					const choice = h(
-						'button',
-						{
-							type: 'button',
-							role: 'menuitem',
-							tabindex: '-1',
-							class: `etk-components__menu-item${ item.danger ? ' is-danger' : '' }`,
-							onclick: () => {
-								closeMenu( { focus: true } );
-								item.onselect();
-							},
-						},
-						h( 'span', { class: 'etk-components__menu-icon', html: item.icon === 'delete' ? toolkit.DELETE_ICON : stroke( item.icon, 14 ) } ),
-						item.label
-					);
-					choices.push( choice );
-					return choice;
-				} )
-			);
-			// In the panel, for its tokens and its keyboard fence. Fixed, so the table doesn't clip it.
-			panel.append( popup );
-			const box = trigger.getBoundingClientRect();
-			const size = popup.getBoundingClientRect();
-			popup.style.left = `${ Math.max( 8, box.right - size.width ) }px`;
-			popup.style.top = `${ box.bottom + 4 + size.height > window.innerHeight - 8 ? Math.max( 8, box.top - 4 - size.height ) : box.bottom + 4 }px`;
-			openMenu = { trigger, popup };
-			trigger.setAttribute( 'aria-expanded', 'true' );
-			document.addEventListener( 'pointerdown', onMenuOutside, true );
-			document.addEventListener( 'scroll', onMenuOutside, true );
-			window.addEventListener( 'resize', onMenuOutside );
-			choices.at( first )?.focus();
-		};
-		trigger.addEventListener( 'click', () => ( openMenu?.trigger === trigger ? closeMenu() : show( 0 ) ) );
-		trigger.addEventListener( 'keydown', ( e ) => {
-			if ( e.key !== 'ArrowDown' && e.key !== 'ArrowUp' ) return;
-			e.preventDefault();
-			show( e.key === 'ArrowUp' ? -1 : 0 );
-		} );
-		return trigger;
-	};
-
 	/* ---- Components ---- */
 
 	// Where a component is used: pages and templates, then components it's inside.
@@ -675,9 +579,9 @@
 		}
 		here.forEach( ( id ) => window.etch.blocks.delete( id ) );
 		dialog.close();
-		// Focus moves to the next row's menu, or the one before, or the search.
-		const rows = [ ...main.querySelectorAll( '.etk-components__row-menu' ) ];
-		const at = rows.findIndex( ( row ) => row.dataset.focus === `menu:${ component.id }` );
+		// Focus moves to the next row's Delete, or the one before, or the search.
+		const rows = [ ...main.querySelectorAll( '.etk-components__row-delete' ) ];
+		const at = rows.findIndex( ( row ) => row.dataset.focus === `delete:${ component.id }` );
 		const next = rows[ at + 1 ] || rows[ at - 1 ];
 		render();
 		main.querySelector( `[data-focus="${ next ? CSS.escape( next.dataset.focus ) : 'search' }"]` )?.focus();
@@ -687,14 +591,8 @@
 
 	const componentRow = ( component ) => {
 		const used = usedOn ? usedTitles( component ).length > 0 : null;
-		const trigger = h( 'button', {
-			type: 'button',
-			class: 'etk-components__btn etk-components__btn--secondary etk-components__row-menu',
-			'aria-label': `Actions for ${ component.name }`,
-			title: 'Actions',
-			html: stroke( MORE, 14 ),
-			'data-focus': `menu:${ component.id }`,
-		} );
+		const action = ( key, label, title, icon, onclick, extra = '' ) =>
+			button( '', onclick, { class: `etk-components__btn etk-components__btn--secondary etk-components__row-action${ extra }`, 'aria-label': label, title, html: icon, 'data-focus': `${ key }:${ component.id }` } );
 		return h(
 			'tr',
 			{ class: used === false ? 'is-unused' : null },
@@ -705,12 +603,13 @@
 			h(
 				'td',
 				{},
-				menu( trigger, () => [
-					{ label: 'Edit in Etch', icon: EDIT, onselect: () => editInEtch( component ) },
-					{ label: 'Update from JSON', icon: UPLOAD, onselect: () => updateOne( component ) },
-					'-',
-					{ label: 'Delete component', icon: 'delete', danger: true, onselect: () => remove( component ) },
-				] )
+				h(
+					'div',
+					{ class: 'etk-components__row-actions' },
+					action( 'edit', `Edit ${ component.name } in Etch`, 'Edit in Etch', stroke( EDIT, 14 ), () => editInEtch( component ) ),
+					action( 'update', `Update ${ component.name } from JSON`, 'Update from JSON', stroke( UPLOAD, 14 ), () => updateOne( component ) ),
+					action( 'delete', `Delete ${ component.name }`, 'Delete', toolkit.DELETE_ICON, () => remove( component ), ' etk-components__row-delete' )
+				)
 			)
 		);
 	};
@@ -721,7 +620,6 @@
 			const body = h( 'tbody' );
 			// Only the rows change as you type, so the field keeps its caret.
 			const fill = () => {
-				closeMenu();
 				const all = window.etch.components.list().sort( ( a, b ) => a.name.localeCompare( b.name ) );
 				const term = search.trim().toLowerCase();
 				const shown = term ? all.filter( ( c ) => `${ c.name } ${ c.key }`.toLowerCase().includes( term ) ) : all;
@@ -1681,7 +1579,6 @@
 	// Render the view again, keeping focus on the same control and panes scrolled where they were.
 	const render = () => {
 		if ( ! main ) return;
-		closeMenu();
 		const focused = main.contains( document.activeElement ) ? document.activeElement.dataset.focus : null;
 		const scrolled = new Map( [ ...main.querySelectorAll( '[data-scroll]' ) ].map( ( pane ) => [ pane.dataset.scroll, pane.scrollTop ] ) );
 		main.replaceChildren( h( 'div', { class: `etk-components__page etk-components__page--${ view }` }, ...views[ view ]() ) );

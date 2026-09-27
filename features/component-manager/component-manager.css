@@ -432,7 +432,7 @@
 		padding-inline-end: 12px;
 	}
 
-	/* Key, Status and the menu keep their width. Component and Used on share the rest. */
+	/* Key, Status and the buttons keep their width. Component and Used on share the rest. */
 	thead th:nth-child(2) {
 		inline-size: 24%;
 	}
@@ -441,9 +441,9 @@
 		inline-size: 96px;
 	}
 
-	/* The 28px button and its cell's padding. */
+	/* Three 28px buttons 4px apart, and the cell's padding. */
 	thead th:last-child {
-		inline-size: calc(28px + 8px + 12px);
+		inline-size: calc(3 * 28px + 2 * 4px + 8px + 12px);
 		text-align: end;
 	}
 
@@ -495,70 +495,23 @@
 	color: var(--etk-components-text-60);
 }
 
-/* 28px square and bordered, like the content hub's row actions. */
-.etk-components .etk-components__row-menu {
+/* Edit, Update and Delete: 28px squares, bordered like the content hub's row actions. */
+.etk-components__row-actions {
+	display: inline-flex;
+	gap: 4px;
+	vertical-align: middle;
+}
+
+.etk-components .etk-components__row-action {
 	inline-size: 28px;
 	padding: 0;
-	vertical-align: middle;
 	border-color: color-mix(in oklch, white 10%, transparent);
 	background: color-mix(in oklch, white 10%, transparent);
 	color: var(--etk-components-text-60);
 
-	&:is(:hover, [aria-expanded="true"]) {
+	&:hover {
 		color: var(--etk-components-text);
 	}
-}
-
-/* Etch's context menu, value for value. Its own styles only load once Etch shows one. */
-.etk-components__menu {
-	position: fixed;
-	z-index: 10;
-	display: flex;
-	flex-direction: column;
-	min-inline-size: 175px;
-	padding: var(--etch-space-sm, 6px);
-	border: var(--e-border, 1px solid #36363a);
-	border-radius: var(--etch-border-radius, 6px);
-	background: var(--etch-panel-bg, #27272b);
-	box-shadow:
-		0 4px 12px rgb(0 0 0 / 0.25),
-		0 1px 3px rgb(0 0 0 / 0.2);
-}
-
-.etk-components .etk-components__menu-item {
-	display: flex;
-	align-items: center;
-	gap: var(--e-content-gap, 12px);
-	inline-size: 100%;
-	margin: 0;
-	padding: var(--etch-space-sm, 6px) var(--etch-space-lg, 10px);
-	border: 0;
-	border-radius: var(--etch-radius-sm, 3px);
-	background: none;
-	color: var(--etch-text-color, #f7f7f8);
-	font: inherit;
-	font-weight: 400;
-	line-height: 16px;
-	text-align: start;
-	cursor: pointer;
-
-	&:is(:hover, :focus) {
-		background: var(--etch-menu-item-bg, #36363a);
-		box-shadow: none;
-	}
-
-	&.is-danger {
-		color: var(--etch-danger, #f84b4b);
-
-		&:is(:hover, :focus) {
-			background: var(--etch-danger-trans, color-mix(in srgb, var(--etk-components-danger) 10%, transparent));
-		}
-	}
-}
-
-.etk-components__menu-icon {
-	display: inline-flex;
-	opacity: 0.65;
 
 	svg {
 		inline-size: 14px;
@@ -566,10 +519,8 @@
 	}
 }
 
-.etk-components__menu-separator {
-	block-size: 1px;
-	margin-block: var(--etch-space-sm, 6px);
-	background: var(--etch-border-color, #36363a);
+.etk-components .etk-components__row-delete:hover {
+	color: var(--etk-components-danger);
 }
 
 /* ------------------------------------------------------------------ */
