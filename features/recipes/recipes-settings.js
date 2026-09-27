@@ -116,7 +116,7 @@
 			if ( ! recipes ) return h( 'p', { class: 'etk-settings__muted', textContent: 'Loading recipes…' } );
 			return [
 				group(
-					{ title: 'Export', note: builder ? 'Exports your saved recipes. Save first to include changes made in the Recipes tab.' : null },
+					{ title: 'Export', note: builder ? 'Save first to include recent changes.' : null },
 					row(
 						h( 'span', { class: 'etk-settings__row-title', textContent: recipes.length ? `${ plural( recipes.length ) } of yours` : 'You haven’t added any recipes.' } ),
 						button( 'Export recipes', exportRecipes, { attrs: { disabled: ! recipes.length } } )

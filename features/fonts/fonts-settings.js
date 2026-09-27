@@ -180,7 +180,7 @@
 			const enabled = state.families.filter( ( f ) => f.enabled ).length;
 			return [
 				group(
-					{ title: 'Output', note: 'Fonts keep working without Etch Toolkit. Direct edits to the stylesheet are overwritten when fonts change.' },
+					{ title: 'Output', note: 'Works without Etch Toolkit. Edits here are overwritten when fonts change.' },
 					value( 'Stylesheet', config.stylesheetName || '' ),
 					value( 'Status', h( 'span', { class: 'etk-settings__status-value' }, h( 'span', { class: 'etk-settings__dot', 'aria-hidden': 'true' } ), enabled ? `${ plural( enabled, 'family', 'families' ) }, loaded by Etch` : 'No families loaded' ) )
 				),

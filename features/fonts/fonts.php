@@ -1086,7 +1086,7 @@ function etch_toolkit_fonts_export( array $names = array() ) {
 				// An export import can't take is no use, and could run out of memory.
 				$total += (int) filesize( $path );
 				if ( $total > ETCH_TOOLKIT_FONTS_MAX_IMPORT ) {
-					return new WP_Error( 'etch_toolkit_font_export', 'Those families hold more than 50 MB of fonts, more than an import takes. Export fewer at a time.', array( 'status' => 400 ) );
+					return new WP_Error( 'etch_toolkit_font_export', 'Over the 50 MB import limit. Export fewer families.', array( 'status' => 400 ) );
 				}
 				$files[ $variant['file'] ] = base64_encode( (string) file_get_contents( $path ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 			}

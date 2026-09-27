@@ -268,7 +268,7 @@
 					'Enhanced layer sorting',
 					settings.layerSorting,
 					( on ) => save( { layerSorting: on }, on ? 'Enhanced layer sorting is on.' : 'Enhanced layer sorting is off.' ),
-					'Smooth dragging, even on big pages. A line shows where the layer will land, in the panel and on the canvas, and the page updates once you let go.'
+					'Smoother dragging, with a drop line in the panel and on the canvas.'
 				)
 			),
 			group(
@@ -277,11 +277,11 @@
 					'Component manager',
 					settings.componentManager,
 					( on ) => save( { componentManager: on }, on ? 'The component manager is on.' : 'The component manager is off.' ),
-					'Lists your components and where they’re used. Open one in Etch to edit it, or update it from a JSON file or pasted JSON, reviewing what changed in each layer and its props first. Opens from the Settings Bar.'
+					'See your components and where they’re used. Update one from JSON after reviewing the changes. Opens from the Settings Bar.'
 				)
 			),
 			group(
-				{ title: 'Uninstall', note: 'Fonts always stay, so the site’s fonts keep working: the Etch Toolkit Fonts stylesheet and the font files. So do changes the toolkit made in Etch, like renamed classes.' },
+				{ title: 'Uninstall', note: 'Fonts and renamed classes always stay, so your site keeps working.' },
 				toggle(
 					'Delete data when the plugin is deleted',
 					settings.deleteData,

@@ -218,17 +218,16 @@
 
 		const noun = styles.length === 1 ? 'style' : 'styles';
 		const dialog = confirmDialog( {
-			title: `Deleting ${ styles.length } ${ noun }`,
+			title: `Delete ${ styles.length } ${ noun }?`,
 			confirmLabel: 'Yes, delete',
 			failTitle: 'Delete failed',
 			message: [
-				el( 'p', { textContent: `You're about to delete these ${ noun }:` } ),
 				el(
 					'ul',
 					{ className: 'etk-confirm__list' },
 					styles.map( ( s ) => el( 'li', {}, [ el( 'code', { textContent: s.selector } ) ] ) )
 				),
-				el( 'p', { textContent: 'Elements that use them keep their class names, the same as deleting one row at a time.' } ),
+				el( 'p', { textContent: 'Elements keep their class names.' } ),
 			],
 		} );
 		if ( ! ( await dialog.result ) ) return;

@@ -149,13 +149,13 @@
 			const sources = Object.values( data.components || {} );
 			const components = Object.fromEntries( sources.filter( isObject ).map( ( c ) => [ c.id, { key: c.key, name: c.name } ] ) );
 			found = sources.map( ( source ) => readComponent( source, { styles: data.styles, components } ) );
-			if ( ! found.length ) throw new Error( 'This JSON has layers but no components. In Etch, select a component and copy it (Cmd+C), then paste that here.' );
+			if ( ! found.length ) throw new Error( 'No component in this JSON. In Etch, select one, press Cmd+C and paste it here.' );
 		} else {
 			found = ( Array.isArray( data ) ? data : [ data ] ).map( ( source ) => readComponent( source ) );
 		}
 
 		found = found.filter( Boolean );
-		if ( ! found.length ) throw new Error( 'No components found. Paste Etch’s copy of a component, or a component’s JSON with its key and blocks.' );
+		if ( ! found.length ) throw new Error( 'No components found. In Etch, select one, press Cmd+C and paste it here.' );
 		return found;
 	};
 
@@ -506,7 +506,7 @@
 				status.textContent = '';
 				status.classList.remove( 'is-error' );
 				review( { incoming, current: target } );
-				if ( incoming.key && incoming.key !== target.key ) announce( `This JSON is for ${ incoming.name } (key ${ incoming.key }). You’re comparing it with ${ target.name }, whose key stays.` );
+				if ( incoming.key && incoming.key !== target.key ) announce( `This JSON is for ${ incoming.name }. ${ target.name } keeps its own key.` );
 				return;
 			}
 			matches = match( parse( text ) );
@@ -647,8 +647,8 @@
 			h(
 				'p',
 				{ class: 'etk-components__help', textContent: target
-					? `Drop in a JSON file or paste JSON for ${ target.name }: Etch’s copy of it from another site (select it and press Cmd+C), or its JSON. You’ll see what changed before anything is saved.`
-					: 'Drop in a JSON file or paste JSON: Etch’s copy of a component (select it and press Cmd+C), or a component’s JSON. You’ll see what changed before anything is saved.' }
+					? `Drop or paste JSON for ${ target.name }. In Etch, select it and press Cmd+C. You’ll review changes before saving.`
+					: 'Drop or paste component JSON. In Etch, select one and press Cmd+C. You’ll review changes before saving.' }
 			),
 			dropzone(),
 			h(
@@ -927,7 +927,7 @@
 			return;
 		}
 		if ( result.missing.size ) {
-			warn( `This uses components this site doesn’t have: ${ [ ...result.missing ].join( ', ' ) }. Add them first, then try again.` );
+			warn( `Add these components first: ${ [ ...result.missing ].join( ', ' ) }.` );
 			return;
 		}
 
@@ -936,9 +936,9 @@
 		const dialog = toolkit.confirmDialog( {
 			title: `Update ${ current.name }?`,
 			message: [
-				h( 'p', { textContent: `${ approved } of ${ plural( total, 'change', 'changes' ) } approved. The component is saved now, the way Etch saves a pasted one.` } ),
+				h( 'p', { textContent: `Saves ${ approved } of ${ plural( total, 'change', 'changes' ) } now.` } ),
 				classes ? h( 'p', { textContent: classes === 1 ? '1 class changes in the builder too. Save to keep it.' : `${ classes } classes change in the builder too. Save to keep them.` } ) : null,
-				h( 'p', { textContent: 'You can put the previous version back afterwards.' } ),
+				h( 'p', { textContent: 'You can restore the previous version later.' } ),
 			].filter( Boolean ),
 			confirmLabel: 'Update component',
 			busyLabel: 'Updating…',
@@ -1297,7 +1297,7 @@
 		const prop = selected?.kind === 'prop' && reviewing.props.find( ( p ) => p.key === selected.id );
 		if ( prop ) return propDetails( prop );
 		if ( selected?.kind === 'meta' && reviewing.meta.length ) return metaDetails();
-		return h( 'p', { class: 'etk-components__empty', textContent: tally().total ? 'Select a layer or prop to see what changed.' : 'Nothing changed. This JSON matches the component on this site.' } );
+		return h( 'p', { class: 'etk-components__empty', textContent: tally().total ? 'Select a layer or prop to see what changed.' : 'No changes. This matches the site’s version.' } );
 	};
 
 	// The first thing that changed: a layer, a prop, or the name and description.
@@ -1498,7 +1498,7 @@
 	 */
 	const editInEtch = async ( component, trigger ) => {
 		if ( window.etch.blocks.isInComponentEditMode() ) {
-			warn( 'You’re editing a component in Etch. Finish that first, then try again.' );
+			warn( 'Finish editing the open component first.' );
 			return;
 		}
 		trigger.disabled = true;

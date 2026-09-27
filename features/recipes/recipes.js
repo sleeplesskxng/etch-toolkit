@@ -420,7 +420,7 @@
 		const showShadowed = () => {
 			const name = ownRecipe()?.name;
 			shadowed.hidden = ! name || ! etchNames().has( name );
-			shadowed.textContent = shadowed.hidden ? '' : `Etch now has its own recipe with this name, so “?${ name }” adds Etch’s. Rename this one to use it.`;
+			shadowed.textContent = shadowed.hidden ? '' : `Etch has its own ?${ name } now. Rename yours to keep using it.`;
 		};
 
 		// A new name for this recipe, if it can have it.
@@ -440,7 +440,7 @@
 		const remove = async () => {
 			const dialog = confirmDialog( {
 				title: `Delete ?${ existing.name }?`,
-				message: [ el( 'p', { textContent: 'It won’t be offered after “?” any more. CSS already added with it stays as it is.' } ) ],
+				message: [ el( 'p', { textContent: 'CSS you already added with it stays.' } ) ],
 				confirmLabel: 'Delete',
 			} );
 			if ( ! ( await dialog.result ) ) return;

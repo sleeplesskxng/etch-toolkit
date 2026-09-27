@@ -1343,7 +1343,7 @@
 				{ class: 'etk-fonts__upload-text' },
 				h( 'p', { class: 'etk-fonts__upload-eyebrow', textContent: 'Upload' } ),
 				h( 'h3', { class: 'etk-fonts__upload-title', textContent: 'Drop font files anywhere.' } ),
-				h( 'p', { class: 'etk-fonts__upload-body', textContent: 'Files are grouped into families by name, like Inter-BoldItalic.woff2. Anything but WOFF2 is converted in your browser first.' } ),
+				h( 'p', { class: 'etk-fonts__upload-body', textContent: 'Files group by name, like Inter-BoldItalic.woff2. Other formats convert to WOFF2.' } ),
 				h( 'div', { class: 'etk-fonts__upload-actions' }, h( 'label', { class: btnClass( 'primary', 'etk-fonts__file-btn' ) }, input, btnIcon( 'upload' ), 'Choose files' ), h( 'span', { class: 'etk-fonts__upload-formats', textContent: '.woff2 .woff .ttf .otf' } ) )
 			),
 			h( 'div', { class: 'etk-fonts__upload-art', html: GLYPH_STACK } )
@@ -1480,7 +1480,7 @@
 		const dialog = confirmDialog( {
 			title: `Delete ${ family.name }?`,
 			message: [
-				h( 'p', { textContent: 'Its @font-face rules and CSS variable are removed from the stylesheet when you save. Anything using it falls back to the next font in the stack.' } ),
+				h( 'p', { textContent: 'Removed when you save. Text using it falls back to the next font.' } ),
 				own.length ? check( `Also delete its ${ plural( own.length, 'font file', 'font files' ) }, now`, false, ( value ) => ( alsoFiles = value ) ) : null,
 			].filter( Boolean ),
 			confirmLabel: 'Delete',
@@ -2333,7 +2333,7 @@
 					  }, 'Fewer files, every weight in between.' )
 					: null,
 				cutsBox,
-				current ? h( 'p', { class: 'etk-fonts__help', textContent: 'This replaces the family’s current files. Settings like fallback and tokens are kept.' } ) : null,
+				current ? h( 'p', { class: 'etk-fonts__help', textContent: 'Replaces its files. Fallback and tokens stay.' } ) : null,
 			].filter( Boolean ),
 			confirmLabel: current ? 'Update' : 'Add',
 			busyLabel: 'Downloading…',
@@ -2552,7 +2552,7 @@
 							h( 'div', {}, h( 'dt', { textContent: 'Files' } ), h( 'dd', { textContent: String( files ) } ) ),
 							h( 'div', {}, h( 'dt', { textContent: 'CSS variable' } ), h( 'dd', {}, h( 'code', { class: 'etk-fonts__code', textContent: googleVar( font.family ) } ) ) )
 						),
-						pick.current ? h( 'p', { class: 'etk-fonts__help', textContent: 'This replaces the family’s current files. Settings like fallback and tokens are kept.' } ) : null
+						pick.current ? h( 'p', { class: 'etk-fonts__help', textContent: 'Replaces its files. Fallback and tokens stay.' } ) : null
 					),
 					h(
 						'div',

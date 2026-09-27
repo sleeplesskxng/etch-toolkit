@@ -241,7 +241,7 @@ function etch_toolkit_fonts_google_install( string $family, array $subsets, bool
 		// An earlier download is reused if it's whole.
 		$have = '' !== $path && is_file( $path ) && etch_toolkit_fonts_is_font( (string) file_get_contents( $path ), 'woff2' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 		if ( ! $have && ( '' === $path || ! preg_match( '/url\((https:\/\/fonts\.gstatic\.com\/[^)]+\.woff2)\)/', $body, $url ) || ! etch_toolkit_fonts_download( $url[1], $path ) ) ) {
-			return new WP_Error( 'etch_toolkit_google_download', sprintf( 'Could not download all of %s, so nothing changed. Try again.', $meta['family'] ), array( 'status' => 502 ) );
+			return new WP_Error( 'etch_toolkit_google_download', sprintf( 'Couldn\'t download %s. Nothing changed.', $meta['family'] ), array( 'status' => 502 ) );
 		}
 
 		$variants[] = array(
