@@ -1053,12 +1053,11 @@
 	}
 }
 
-.etk-fonts__inputbox-label {
+/* Like the search field's magnifier. */
+.etk-fonts__inputbox-icon {
+	display: flex;
 	flex: none;
-	color: var(--etk-fonts-text-45);
-	font-size: var(--e-font-size-s, 11px);
-	font-weight: 600;
-	line-height: 14px;
+	color: var(--etk-fonts-text-55);
 }
 
 .etk-fonts .etk-fonts__inputbox-control {
@@ -2452,11 +2451,6 @@
 	gap: 10px;
 	block-size: 36px;
 	padding-inline: 12px;
-
-	.etk-fonts__inputbox-label {
-		color: var(--etk-fonts-text-50);
-		font-weight: 500;
-	}
 
 	.etk-fonts__inputbox-control {
 		font-size: var(--e-font-size-l, 13px);

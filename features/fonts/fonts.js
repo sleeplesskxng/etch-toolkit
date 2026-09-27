@@ -90,6 +90,7 @@
 		'chevron-right': '<path d="M9 6l6 6-6 6"/>',
 		more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
 		search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+		eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>',
 		check: '<path d="M5 13l4 4 10-10"/>',
 		alert: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.5"/>',
 		trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
@@ -568,13 +569,13 @@
 	};
 
 	/**
-	 * A bordered box with a small label, the control, then anything trailing,
-	 * like the Preview field. The control loses its own box.
+	 * A bordered box with an icon, the control, then anything trailing, like the
+	 * Preview field. The control loses its own box and names itself.
 	 */
-	const inputBox = ( label, control, ...trailing ) => {
+	const inputBox = ( iconName, control, ...trailing ) => {
 		const id = control.id || ( control.id = uid() );
 		control.classList.add( 'etk-fonts__inputbox-control' );
-		return h( 'div', { class: 'etk-fonts__inputbox' }, h( 'label', { class: 'etk-fonts__inputbox-label', htmlFor: id, textContent: label } ), control, ...trailing );
+		return h( 'div', { class: 'etk-fonts__inputbox' }, h( 'label', { class: 'etk-fonts__inputbox-icon', htmlFor: id, html: icon( iconName, 14 ) } ), control, ...trailing );
 	};
 
 	// Variants: neutral, accent (roles), warning (unused), tag (categories).
@@ -2094,7 +2095,7 @@
 	const detailToolbar = ( onchange ) => {
 		const preview = previewInput( onchange );
 		const box = inputBox(
-			'Preview',
+			'eye',
 			preview,
 			button(
 				'Reset',
@@ -2425,7 +2426,7 @@
 					'div',
 					{ class: 'etk-fonts__pane etk-fonts__gresults' },
 					pageHeader( 'Google Fonts' ),
-					h( 'div', { class: 'etk-fonts__gtoolbar' }, inputBox( 'Preview', previewInput( reloadGooglePreviews ) ), weightSlider(), sizeSlider(), layoutToggle( 'google' ) ),
+					h( 'div', { class: 'etk-fonts__gtoolbar' }, inputBox( 'eye', previewInput( reloadGooglePreviews ) ), weightSlider(), sizeSlider(), layoutToggle( 'google' ) ),
 					h( 'p', { class: 'etk-fonts__help etk-fonts__google-summary', role: 'status' } ),
 					h( 'ul', { class: 'etk-fonts__tiles etk-fonts__google-results', role: 'list', 'data-layout': prefs.google } ),
 					h( 'div', { class: 'etk-fonts__actions etk-fonts__actions--center' }, button( 'Load more', () => google.loading || searchGoogle( true ), { variant: 'ghost', attrs: { class: 'etk-fonts__more', hidden: true } } ) )
