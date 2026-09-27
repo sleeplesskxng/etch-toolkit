@@ -667,50 +667,6 @@
 	cursor: pointer;
 }
 
-/* The same switch as the toolkit's settings. */
-.etk-rn__switch {
-	display: inline-flex;
-	flex: none;
-	align-items: center;
-	inline-size: 28px;
-	block-size: 16px;
-	margin: 0;
-	padding: 2px;
-	border: 0;
-	border-radius: 8px;
-	background: var(--etch-neutral-semi-dark);
-	cursor: pointer;
-	appearance: none;
-	transition: background-color 0.15s ease-in-out;
-
-	&::before {
-		content: '';
-		inline-size: 12px;
-		block-size: 12px;
-		border-radius: 50%;
-		background: #8a8a8f;
-		transition:
-			translate 0.15s ease-in-out,
-			background-color 0.15s ease-in-out;
-	}
-
-	&:checked {
-		background: var(--e-primary, var(--etch-primary));
-
-		&::before {
-			translate: 12px 0;
-			background: var(--e-base-dark);
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		&,
-		&::before {
-			transition: none;
-		}
-	}
-}
-
 /* ---- Action bar ---- */
 
 /* Its styles are in the shared core. */

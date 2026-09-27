@@ -486,7 +486,7 @@
 	};
 
 	const check = ( label, checked, onchange, help ) => {
-		const input = el( 'input', { type: 'checkbox', checked, onchange: ( e ) => onchange( e.target.checked ) } );
+		const input = el( 'input', { type: 'checkbox', class: 'etk-checkbox etk-checkbox--accent', checked, onchange: ( e ) => onchange( e.target.checked ) } );
 		return el( 'label', { class: 'etk-fonts__check' }, input, el( 'span', {}, label, help ? el( 'span', { class: 'etk-manager__help', textContent: help } ) : null ) );
 	};
 
@@ -501,7 +501,7 @@
 			'div',
 			{ class: 'etk-fonts__toggle' },
 			el( 'div', { class: 'etk-fonts__toggle-text' }, el( 'label', { class: 'etk-fonts__toggle-title', htmlFor: id, textContent: label } ), help ? el( 'p', { class: 'etk-fonts__toggle-help', id: helpId, textContent: help } ) : null ),
-			el( 'input', { type: 'checkbox', role: 'switch', id, class: 'etk-fonts__switch', checked, 'aria-describedby': helpId, onchange: ( e ) => onchange( e.target.checked ), ...attrs } )
+			el( 'input', { type: 'checkbox', role: 'switch', id, class: 'etk-switch', checked, 'aria-describedby': helpId, onchange: ( e ) => onchange( e.target.checked ), ...attrs } )
 		);
 	};
 
@@ -1285,7 +1285,7 @@
 		} );
 		const zone = el(
 			'div',
-			{ class: 'etk-fonts__dropzone etk-fonts__upload' },
+			{ class: 'etk-dropzone etk-fonts__upload' },
 			el(
 				'div',
 				{ class: 'etk-fonts__upload-text' },

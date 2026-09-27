@@ -72,7 +72,7 @@
 			type: 'checkbox',
 			role: 'switch',
 			id,
-			class: 'etk-settings__switch',
+			class: 'etk-switch',
 			checked,
 			'aria-describedby': helpId,
 			onchange: async ( e ) => {
@@ -91,7 +91,7 @@
 	};
 
 	const check = ( label, checked, onchange, extra ) =>
-		el( 'label', { class: 'etk-settings__check' }, el( 'input', { type: 'checkbox', checked, onchange: ( e ) => onchange( e.target.checked ) } ), label, extra || null );
+		el( 'label', { class: 'etk-settings__check' }, el( 'input', { type: 'checkbox', class: 'etk-checkbox etk-checkbox--accent', checked, onchange: ( e ) => onchange( e.target.checked ) } ), label, extra || null );
 
 	// A dashed drop target for one .json file, with a Choose file button.
 	const dropzone = ( text, onfile ) => {
@@ -103,7 +103,7 @@
 		const zone = el(
 			'div',
 			{
-				class: 'etk-settings__dropzone',
+				class: 'etk-dropzone',
 				ondragover: ( e ) => {
 					e.preventDefault();
 					zone.classList.add( 'is-over' );
@@ -115,8 +115,8 @@
 					if ( e.dataTransfer.files[ 0 ] ) onfile( e.dataTransfer.files[ 0 ] );
 				},
 			},
-			el( 'span', { class: 'etk-settings__dropzone-icon', html: icon( 'upload' ) } ),
-			el( 'p', { class: 'etk-settings__dropzone-text', textContent: text } ),
+			el( 'span', { class: 'etk-dropzone__icon', html: icon( 'upload' ) } ),
+			el( 'p', { class: 'etk-dropzone__text', textContent: text } ),
 			el( 'label', { class: 'etk-settings__btn etk-settings__btn--secondary etk-settings__file-btn' }, input, 'Choose file' )
 		);
 		return zone;

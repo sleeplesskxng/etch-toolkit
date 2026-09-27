@@ -423,7 +423,7 @@
 			warnButton.setAttribute( 'aria-expanded', String( show ) );
 		};
 		warnButton.addEventListener( 'click', () => showWarnings( warnList.hidden ) );
-		const bemBox = el( 'input', { type: 'checkbox', className: 'etk-rn__switch', id: 'etk-rn-bem' } );
+		const bemBox = el( 'input', { type: 'checkbox', className: 'etk-switch', id: 'etk-rn-bem' } );
 		bemBox.setAttribute( 'role', 'switch' );
 		const bemText = el( 'label', { className: 'etk-rn__switch-label', htmlFor: bemBox.id } );
 		const bemOption = el( 'div', { className: 'etk-rn__option', hidden: true }, [ bemText, bemBox ] );

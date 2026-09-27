@@ -178,58 +178,9 @@
 	}
 }
 
-.etk-settings .etk-settings__switch {
-	display: inline-flex;
-	flex: none;
-	align-items: center;
-	inline-size: 28px;
-	block-size: 16px;
-	margin: 0;
-	padding: 2px;
-	border: 0;
-	border-radius: 8px;
-	background: var(--etk-selected);
-	box-shadow: none;
-	cursor: pointer;
-	appearance: none;
-	transition: background-color var(--e-transition, 0.15s ease-in-out);
-
-	&::before {
-		content: "";
-		inline-size: 12px;
-		block-size: 12px;
-		margin: 0;
-		border-radius: 50%;
-		background: var(--etk-knob-off);
-		transition:
-			translate var(--e-transition, 0.15s ease-in-out),
-			background-color var(--e-transition, 0.15s ease-in-out);
-	}
-
-	&:checked {
-		background: var(--etk-accent);
-
-		&::before {
-			translate: 12px 0;
-			background: var(--etk-on-accent);
-		}
-	}
-
-	&:disabled {
-		opacity: 0.4;
-		cursor: progress;
-	}
-
-	&:focus-visible {
-		box-shadow: var(--etk-focus);
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		&,
-		&::before {
-			transition: none;
-		}
-	}
+/* Busy while its change saves. */
+.etk-settings input.etk-switch:disabled {
+	cursor: progress;
 }
 
 .etk-settings__check {
@@ -238,81 +189,6 @@
 	align-items: center;
 	gap: 8px;
 	cursor: pointer;
-}
-
-.etk-settings .etk-settings__check input[type="checkbox"] {
-	display: grid;
-	flex: none;
-	place-items: center;
-	inline-size: 14px;
-	min-inline-size: 0;
-	block-size: 14px;
-	margin: 0;
-	border: 1px solid var(--etk-line-heavy);
-	border-radius: 3px;
-	background: none;
-	box-shadow: none;
-	cursor: pointer;
-	appearance: none;
-
-	&::before {
-		content: "";
-		inline-size: 10px;
-		block-size: 10px;
-		margin: 0;
-		background: var(--etk-on-accent);
-		mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 13l4 4 10-10'/%3E%3C/svg%3E") center / contain no-repeat;
-		scale: 0;
-	}
-
-	&:is(:checked, :indeterminate) {
-		border-color: transparent;
-		background: var(--etk-accent);
-
-		&::before {
-			scale: 1;
-		}
-	}
-
-	&:indeterminate::before {
-		block-size: 2px;
-		inline-size: 8px;
-		border-radius: 1px;
-		mask: none;
-	}
-
-	&:focus-visible {
-		box-shadow: var(--etk-focus);
-	}
-}
-
-/* A dashed drop target. is-over while a file is dragged over it. */
-.etk-settings__dropzone {
-	display: flex;
-	align-items: center;
-	gap: 14px;
-	padding: 16px;
-	border: 1px dashed var(--etk-line-heavy);
-	border-radius: var(--etk-radius-lg);
-	transition:
-		background-color var(--e-transition, 0.15s ease-in-out),
-		border-color var(--e-transition, 0.15s ease-in-out);
-
-	&.is-over {
-		border-color: var(--etk-accent);
-		background: var(--etk-accent-soft);
-	}
-}
-
-.etk-settings__dropzone-icon {
-	display: flex;
-	color: var(--etk-text-75);
-}
-
-.etk-settings__dropzone-text {
-	flex: 1;
-	color: var(--etk-text-75);
-	font-weight: 400;
 }
 
 /* ------------------------------------------------------------------ */

@@ -202,38 +202,6 @@
 	}
 }
 
-/* ---- Table checkboxes ---- */
-
-/* White when ticked, in the rename and font files tables. */
-.etk-checkbox {
-	appearance: none;
-	flex: none;
-	inline-size: 14px;
-	block-size: 14px;
-	margin: 0;
-	border: 1px solid rgb(255 255 255 / 0.35);
-	border-radius: 3px;
-	background: transparent no-repeat center / 10px;
-	cursor: pointer;
-
-	&:checked {
-		border-color: var(--e-foreground-color);
-		background-color: var(--e-foreground-color);
-		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d1d20' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 13l4 4 10-10'/%3E%3C/svg%3E");
-	}
-
-	&:indeterminate {
-		border-color: var(--e-foreground-color);
-		background-color: var(--e-foreground-color);
-		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d1d20' stroke-width='3.5' stroke-linecap='round'%3E%3Cpath d='M7 12h10'/%3E%3C/svg%3E");
-	}
-
-	&:disabled {
-		cursor: default;
-		opacity: 0.5;
-	}
-}
-
 /* ---- Tabs, segmented controls and navs ---- */
 
 /*
@@ -431,169 +399,6 @@
 	opacity: 0;
 	appearance: none;
 	cursor: inherit;
-}
-
-/* ---- Bulk action bar ---- */
-
-/*
- * A copy of the Asset Manager's bulk bar (.bulk-bar), whose styles are scoped to that
- * component. Used by the Style Manager's multi-select and the fonts manager's Files tab.
- * It floats at the bottom of its positioned parent.
- */
-
-.etk-bulk-bar-scrim {
-	position: absolute;
-	inset: auto 0 0;
-	height: 130px;
-	background: radial-gradient(50% 128.03% at 50% 128.03%, #36363a 0%, rgb(54 54 58 / 0) 100%);
-	pointer-events: none;
-	z-index: 100;
-	transition: opacity 150ms, display 150ms allow-discrete;
-
-	@starting-style {
-		opacity: 0;
-	}
-
-	&[hidden] {
-		display: none;
-		opacity: 0;
-	}
-}
-
-.etk-bulk-bar {
-	position: absolute;
-	bottom: var(--etch-space-xl);
-	left: 50%;
-	translate: -50% 0;
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: var(--etch-space-xl);
-	padding: var(--etch-space-sm);
-	background-color: var(--etch-panel-bg);
-	border: 1px solid var(--etch-border-color);
-	border-radius: 12px;
-	z-index: 101;
-	box-shadow:
-		0 0 0 1px rgb(0 0 0 / 0.05),
-		0 1px 3px 0 rgb(0 0 0 / 0.15),
-		0 3px 6px 0 rgb(0 0 0 / 0.1),
-		0 6px 12px 0 rgb(0 0 0 / 0.08),
-		0 18px 24px 0 rgb(0 0 0 / 0.1);
-	transition:
-		opacity 200ms,
-		transform 200ms cubic-bezier(0.215, 0.61, 0.355, 1),
-		display 200ms allow-discrete;
-
-	@starting-style {
-		opacity: 0;
-		transform: translateY(20px);
-	}
-
-	&[hidden] {
-		display: none;
-		opacity: 0;
-		transform: translateY(20px);
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.etk-bulk-bar {
-		transition-property: opacity, display;
-	}
-}
-
-.etk-bulk-bar__left {
-	display: flex;
-	align-items: center;
-	gap: var(--etch-space-xl);
-	padding-inline-end: var(--etch-space-md);
-}
-
-/* Extra class so these beat Etch's button variants regardless of load order. */
-.etk-bulk-bar .etk-bulk-bar__clear.etch-builder-button {
-	width: 24px;
-	height: 24px;
-	padding: var(--e-space-sm);
-	border-radius: var(--etch-border-radius);
-	background: var(--etch-secondary-btn);
-}
-
-/* "3 selected", as one line of text. */
-.etk-bulk-bar__count {
-	font-size: var(--etch-font-size-m);
-	font-weight: 500;
-	color: var(--etch-neutral-semi-light);
-	white-space: nowrap;
-	opacity: var(--etch-opacity-high);
-}
-
-.etk-bulk-bar__count-number {
-	font-variant-numeric: tabular-nums;
-}
-
-.etk-bulk-bar__select-all {
-	all: unset;
-	cursor: pointer;
-	font-size: var(--etch-font-size-m);
-	font-weight: 600;
-	line-height: 100%;
-	color: var(--etch-text-color);
-	text-decoration: underline;
-	white-space: nowrap;
-
-	&[hidden] {
-		display: none;
-	}
-
-	&:focus-visible {
-		outline: 1px solid var(--e-primary);
-		outline-offset: 2px;
-	}
-}
-
-.etk-bulk-bar__divider {
-	width: 1px;
-	align-self: stretch;
-	background-color: var(--etch-divider-color);
-}
-
-.etk-bulk-bar .etk-bulk-bar__actions {
-	display: flex;
-	align-items: center;
-	gap: var(--etch-space-xs);
-
-	.etch-builder-button {
-		padding: var(--etch-space-sm) var(--etch-space-md) var(--etch-space-sm) var(--etch-space-sm);
-		border-radius: var(--etch-radius-lg);
-		min-height: 24px;
-		line-height: 1;
-		white-space: nowrap;
-		gap: var(--etch-space-xs);
-		opacity: var(--etch-opacity-high);
-
-		&:hover {
-			background-color: var(--etch-secondary-btn);
-			border-color: var(--etch-secondary-btn);
-		}
-
-		/* Etch dims disabled buttons for its other variants, not this one. */
-		&:disabled {
-			opacity: 0.3;
-		}
-	}
-}
-
-.etk-bulk-bar__delete > * {
-	color: var(--e-danger);
-}
-
-/* Etch's .icon-wrapper, also component-scoped. */
-.etk-bulk-bar__icon {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	flex-shrink: 0;
 }
 
 /* ---- Managers ---- */
@@ -883,4 +688,321 @@
 	& + & {
 		border-block-start: 1px solid var(--etk-line);
 	}
+}
+
+/* ---- Checkboxes and switches ---- */
+
+/*
+ * Written as input.etk-…, and with each state spelled out, so WordPress's
+ * own checkbox styles on the settings page don't show through.
+ */
+
+/* .etk-checkbox: white when ticked, as in the rename and font files tables. Add --accent for a manager's accent. */
+input.etk-checkbox {
+	--etk-check-line: rgb(255 255 255 / 0.35);
+	--etk-check-fill: var(--e-foreground-color, #e1e1e5);
+
+	appearance: none;
+	flex: none;
+	inline-size: 14px;
+	min-inline-size: 0;
+	block-size: 14px;
+	margin: 0;
+	border: 1px solid var(--etk-check-line);
+	border-radius: 3px;
+	background: transparent;
+	box-shadow: none;
+	cursor: pointer;
+
+	&:focus {
+		border-color: var(--etk-check-line);
+		box-shadow: none;
+	}
+
+	&:focus-visible {
+		outline: none;
+		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+	}
+
+	&:checked {
+		border-color: transparent;
+		background: var(--etk-check-fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d1d20' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 13l4 4 10-10'/%3E%3C/svg%3E") no-repeat center / 10px;
+	}
+
+	&:indeterminate {
+		border-color: transparent;
+		background: var(--etk-check-fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d1d20' stroke-width='3.5' stroke-linecap='round'%3E%3Cpath d='M7 12h10'/%3E%3C/svg%3E") no-repeat center / 10px;
+	}
+
+	&:checked::before {
+		content: none;
+	}
+
+	&:disabled {
+		cursor: default;
+		opacity: 0.5;
+	}
+}
+
+input.etk-checkbox--accent {
+	--etk-check-line: var(--e-base-ultra-light, #4a4a4f);
+	--etk-check-fill: var(--e-primary, #57e9db);
+}
+
+/* .etk-switch, on a checkbox with role="switch". */
+input.etk-switch {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	inline-size: 28px;
+	min-inline-size: 0;
+	block-size: 16px;
+	margin: 0;
+	padding: 2px;
+	border: 0;
+	border-radius: 8px;
+	background: var(--e-base-semi-light, #3e3e41);
+	box-shadow: none;
+	cursor: pointer;
+	appearance: none;
+	transition: background-color var(--e-transition, 0.15s ease-in-out);
+
+	&::before,
+	&:checked::before {
+		content: "";
+		float: none;
+		inline-size: 12px;
+		block-size: 12px;
+		margin: 0;
+		border-radius: 50%;
+		/* No Etch token: the knob when off. */
+		background: #8a8a8f;
+		transition:
+			translate var(--e-transition, 0.15s ease-in-out),
+			background-color var(--e-transition, 0.15s ease-in-out);
+	}
+
+	&:checked {
+		background: var(--e-primary, #57e9db);
+
+		&::before {
+			translate: 12px 0;
+			background: var(--e-base-dark, #1d1d20);
+		}
+	}
+
+	&:focus {
+		box-shadow: none;
+	}
+
+	&:focus-visible {
+		outline: none;
+		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+	}
+
+	&:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		&,
+		&::before {
+			transition: none;
+		}
+	}
+}
+
+/* ---- Drop zones ---- */
+
+/* A dashed drop target in a manager: an icon, some text, a Choose file button. Lit while a file is over it (.is-over). */
+.etk-dropzone {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	padding: 16px;
+	border: 1px dashed var(--etk-line-heavy);
+	border-radius: var(--etk-radius-lg);
+	transition:
+		background-color var(--e-transition, 0.15s ease-in-out),
+		border-color var(--e-transition, 0.15s ease-in-out);
+
+	&.is-over {
+		border-color: var(--etk-accent);
+		background: var(--etk-accent-soft);
+	}
+}
+
+.etk-dropzone__icon {
+	display: flex;
+	color: var(--etk-text-75);
+}
+
+.etk-dropzone__text {
+	flex: 1;
+	color: var(--etk-text-75);
+	font-weight: 400;
+}
+
+/* ---- Bulk action bar ---- */
+
+/*
+ * A copy of the Asset Manager's bulk bar (.bulk-bar), whose styles are scoped to that
+ * component. Used by the Style Manager's multi-select and the fonts manager's Files tab.
+ * It floats at the bottom of its positioned parent.
+ */
+
+.etk-bulk-bar-scrim {
+	position: absolute;
+	inset: auto 0 0;
+	height: 130px;
+	background: radial-gradient(50% 128.03% at 50% 128.03%, #36363a 0%, rgb(54 54 58 / 0) 100%);
+	pointer-events: none;
+	z-index: 100;
+	transition: opacity 150ms, display 150ms allow-discrete;
+
+	@starting-style {
+		opacity: 0;
+	}
+
+	&[hidden] {
+		display: none;
+		opacity: 0;
+	}
+}
+
+.etk-bulk-bar {
+	position: absolute;
+	bottom: var(--etch-space-xl);
+	left: 50%;
+	translate: -50% 0;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--etch-space-xl);
+	padding: var(--etch-space-sm);
+	background-color: var(--etch-panel-bg);
+	border: 1px solid var(--etch-border-color);
+	border-radius: 12px;
+	z-index: 101;
+	box-shadow:
+		0 0 0 1px rgb(0 0 0 / 0.05),
+		0 1px 3px 0 rgb(0 0 0 / 0.15),
+		0 3px 6px 0 rgb(0 0 0 / 0.1),
+		0 6px 12px 0 rgb(0 0 0 / 0.08),
+		0 18px 24px 0 rgb(0 0 0 / 0.1);
+	transition:
+		opacity 200ms,
+		transform 200ms cubic-bezier(0.215, 0.61, 0.355, 1),
+		display 200ms allow-discrete;
+
+	@starting-style {
+		opacity: 0;
+		transform: translateY(20px);
+	}
+
+	&[hidden] {
+		display: none;
+		opacity: 0;
+		transform: translateY(20px);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.etk-bulk-bar {
+		transition-property: opacity, display;
+	}
+}
+
+.etk-bulk-bar__left {
+	display: flex;
+	align-items: center;
+	gap: var(--etch-space-xl);
+	padding-inline-end: var(--etch-space-md);
+}
+
+/* Extra class so these beat Etch's button variants regardless of load order. */
+.etk-bulk-bar .etk-bulk-bar__clear.etch-builder-button {
+	width: 24px;
+	height: 24px;
+	padding: var(--e-space-sm);
+	border-radius: var(--etch-border-radius);
+	background: var(--etch-secondary-btn);
+}
+
+/* "3 selected", as one line of text. */
+.etk-bulk-bar__count {
+	font-size: var(--etch-font-size-m);
+	font-weight: 500;
+	color: var(--etch-neutral-semi-light);
+	white-space: nowrap;
+	opacity: var(--etch-opacity-high);
+}
+
+.etk-bulk-bar__count-number {
+	font-variant-numeric: tabular-nums;
+}
+
+.etk-bulk-bar__select-all {
+	all: unset;
+	cursor: pointer;
+	font-size: var(--etch-font-size-m);
+	font-weight: 600;
+	line-height: 100%;
+	color: var(--etch-text-color);
+	text-decoration: underline;
+	white-space: nowrap;
+
+	&[hidden] {
+		display: none;
+	}
+
+	&:focus-visible {
+		outline: 1px solid var(--e-primary);
+		outline-offset: 2px;
+	}
+}
+
+.etk-bulk-bar__divider {
+	width: 1px;
+	align-self: stretch;
+	background-color: var(--etch-divider-color);
+}
+
+.etk-bulk-bar .etk-bulk-bar__actions {
+	display: flex;
+	align-items: center;
+	gap: var(--etch-space-xs);
+
+	.etch-builder-button {
+		padding: var(--etch-space-sm) var(--etch-space-md) var(--etch-space-sm) var(--etch-space-sm);
+		border-radius: var(--etch-radius-lg);
+		min-height: 24px;
+		line-height: 1;
+		white-space: nowrap;
+		gap: var(--etch-space-xs);
+		opacity: var(--etch-opacity-high);
+
+		&:hover {
+			background-color: var(--etch-secondary-btn);
+			border-color: var(--etch-secondary-btn);
+		}
+
+		/* Etch dims disabled buttons for its other variants, not this one. */
+		&:disabled {
+			opacity: 0.3;
+		}
+	}
+}
+
+.etk-bulk-bar__delete > * {
+	color: var(--e-danger);
+}
+
+/* Etch's .icon-wrapper, also component-scoped. */
+.etk-bulk-bar__icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
 }
