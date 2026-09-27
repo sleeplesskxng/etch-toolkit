@@ -24,38 +24,11 @@
 	if ( ! toolkit.api ) return;
 
 	const CONTROL_ID = 'etch-toolkit-component-manager';
-	// Etch's hugeicons:arrow-left-02, the back button on its own managers.
-	const BACK = '<path d="M8.99996 16.9998L4 11.9997L9 6.99976"/><path d="M4 12H20"/>';
-	// Etch's hugeicons:search-01, as on the Selectors tab and Recipes.
-	const SEARCH = '<path d="M17.5 17.5L22 22"/><path d="M20 11C20 6.02944 15.9706 2 11 2C6.02944 2 2 6.02944 2 11C2 15.9706 6.02944 20 11 20C15.9706 20 20 15.9706 20 11Z"/>';
-	// Hugeicons free arrow-up-right-01, as Etch uses for "Open in Builder".
-	const OPEN = '<path d="M9 6.65s6.938-.542 7.915.435S17.35 15 17.35 15m-.85-7.5l-10 10"/>';
-	// Hugeicons pencil-edit-01, for each row's Edit.
-	const EDIT = '<path d="M15.2141 5.98239L16.6158 4.58063C17.39 3.80646 18.6452 3.80646 19.4194 4.58063C20.1935 5.3548 20.1935 6.60998 19.4194 7.38415L18.0176 8.78591M15.2141 5.98239L6.98023 14.2163C5.93493 15.2616 5.41226 15.7842 5.05637 16.4211C4.70047 17.058 4.3424 18.5619 4 20C5.43809 19.6576 6.94199 19.2995 7.57889 18.9436C8.21579 18.5877 8.73844 18.0651 9.78375 17.0198L18.0176 8.78591M15.2141 5.98239L18.0176 8.78591"/><path d="M11 20H17"/>';
-	const UPLOAD = '<path d="M12 4.5L12 14.5M12 4.5C11.2998 4.5 9.99153 6.4943 9.5 7M12 4.5C12.7002 4.5 14.0085 6.4943 14.5 7"/><path d="M20 16.5C20 18.982 19.482 19.5 17 19.5H7C4.518 19.5 4 18.982 4 16.5"/>';
-	const stroke = ( paths, size = 16 ) =>
-		`<svg class="etk-components__icon" viewBox="0 0 24 24" width="${ size }" height="${ size }" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ paths }</svg>`;
+	const { el, plural, errorText } = toolkit;
+	const icon = ( name, size ) => toolkit.icon( name, { size, className: 'etk-components__icon' } );
 
 	const enabled = () => window.etchToolkitSettings?.settings?.componentManager === true && typeof window.etch?.components?.updateAsync === 'function';
 
-	// h( 'button', { class: 'x', onclick }, child, … ), like the settings screen's.
-	const PROPS = new Set( [ 'value', 'checked', 'indeterminate', 'disabled', 'hidden', 'textContent', 'htmlFor' ] );
-	const h = ( tag, attrs = {}, ...children ) => {
-		const node = document.createElement( tag );
-		for ( const [ key, value ] of Object.entries( attrs ) ) {
-			if ( value === undefined || value === null || value === false ) continue;
-			if ( key === 'class' ) node.className = value;
-			else if ( key === 'html' ) node.innerHTML = value;
-			else if ( key.startsWith( 'on' ) ) node.addEventListener( key.slice( 2 ), value );
-			else if ( PROPS.has( key ) ) node[ key ] = value;
-			else node.setAttribute( key, value === true ? '' : value );
-		}
-		node.append( ...children.flat().filter( ( c ) => c !== null && c !== undefined && c !== false ) );
-		return node;
-	};
-
-	const plural = ( n, one, many ) => `${ n } ${ n === 1 ? one : many }`;
-	const errorText = ( error ) => error?.message || String( error );
 	const isObject = ( value ) => !! value && typeof value === 'object' && ! Array.isArray( value );
 
 	/* ------------------------------------------------------------------ */
@@ -167,12 +140,8 @@
 	// A value as text to compare and show. Objects as indented JSON.
 	const asText = ( value ) => ( typeof value === 'string' ? value : value === undefined || value === null ? '' : JSON.stringify( value, null, 2 ) );
 
-	// A class attribute's names, split on whitespace outside {…} the way Etch splits
-	// them. Dynamic parts like {props.extra} aren't names, so they're left out.
-	const classNames = ( value ) =>
-		String( value || '' )
-			.split( /\s+(?![^{]*})/ )
-			.filter( ( name ) => name && ! name.includes( '{' ) );
+	// A class attribute's names. Dynamic parts like {props.extra} aren't names, so they're left out.
+	const classNames = ( value ) => toolkit.classNames( value ).filter( ( name ) => ! name.includes( '{' ) );
 
 	const TYPE_NAMES = {
 		'etch/text': 'Text',
@@ -495,7 +464,7 @@
 	};
 	const warn = ( message ) => announce( message, { error: true } );
 
-	const button = ( label, onclick, { variant = 'secondary', ...attrs } = {} ) => h( 'button', { type: 'button', class: `etk-components__btn etk-components__btn--${ variant }`, onclick, ...attrs }, label );
+	const button = ( label, onclick, { variant = 'secondary', ...attrs } = {} ) => el( 'button', { type: 'button', class: `etk-components__btn etk-components__btn--${ variant }`, onclick, ...attrs }, label );
 
 	const read = ( text ) => {
 		try {
@@ -515,17 +484,17 @@
 	const readFile = async ( file ) => read( await file.text() );
 
 	const dropzone = () => {
-		const input = h( 'input', {
+		const input = el( 'input', {
 			type: 'file',
 			accept: '.json,application/json',
-			class: 'screen-reader-text',
+			class: 'etk-sr',
 			onchange: ( e ) => {
 				const [ file ] = e.target.files;
 				e.target.value = '';
 				if ( file ) readFile( file );
 			},
 		} );
-		const zone = h(
+		const zone = el(
 			'div',
 			{
 				class: 'etk-components__dropzone',
@@ -540,9 +509,9 @@
 					if ( e.dataTransfer.files[ 0 ] ) readFile( e.dataTransfer.files[ 0 ] );
 				},
 			},
-			h( 'span', { class: 'etk-components__dropzone-icon', html: stroke( UPLOAD ) } ),
-			h( 'p', { class: 'etk-components__dropzone-text', textContent: 'Drop a .json file here' } ),
-			h( 'label', { class: 'etk-components__btn etk-components__btn--secondary etk-components__file-btn' }, input, 'Choose file' )
+			el( 'span', { class: 'etk-components__dropzone-icon', html: icon( 'upload' ) } ),
+			el( 'p', { class: 'etk-components__dropzone-text', textContent: 'Drop a .json file here' } ),
+			el( 'label', { class: 'etk-components__btn etk-components__btn--secondary etk-components__file-btn' }, input, 'Choose file' )
 		);
 		return zone;
 	};
@@ -578,20 +547,20 @@
 		const posts = usedOn[ component.id ] || [];
 		const open = expanded.has( component.id );
 		const shown = open ? posts : posts.slice( 0, USES );
-		return h(
+		return el(
 			'div',
 			{ class: 'etk-components__uses' },
 			shown.map( ( post ) =>
-				h(
+				el(
 					'button',
 					{ type: 'button', class: 'etk-components__use', title: 'Open in Etch', 'data-focus': `use:${ component.id }:${ post.id }`, onclick: () => openUse( post ) },
 					post.postType === 'wp_block' ? `${ post.title } (component)` : post.title,
-					h( 'span', { class: 'screen-reader-text', textContent: ', open in Etch' } ),
-					h( 'span', { class: 'etk-components__use-icon', html: stroke( OPEN, 12 ) } )
+					el( 'span', { class: 'etk-sr', textContent: ', open in Etch' } ),
+					el( 'span', { class: 'etk-components__use-icon', html: icon( 'external', 12 ) } )
 				)
 			),
 			posts.length > USES
-				? h(
+				? el(
 						'button',
 						{
 							type: 'button',
@@ -622,12 +591,12 @@
 			title: `Delete ${ component.name }?`,
 			message: [
 				titles.length
-					? h( 'p', { textContent: `It’s used on ${ titles.length <= 3 ? listOf( titles ) : `${ titles.slice( 0, 2 ).join( ', ' ) } and ${ titles.length - 2 } more` }. It will disappear from ${ titles.length === 1 ? 'there' : 'all of them' }.` } )
+					? el( 'p', { textContent: `It’s used on ${ titles.length <= 3 ? listOf( titles ) : `${ titles.slice( 0, 2 ).join( ', ' ) } and ${ titles.length - 2 } more` }. It will disappear from ${ titles.length === 1 ? 'there' : 'all of them' }.` } )
 					: here.length
 						? null
-						: h( 'p', { textContent: 'No page uses it.' } ),
-				here.length ? h( 'p', { textContent: `It’s removed from the page you have open. Save to keep that.` } ) : null,
-				h( 'p', { textContent: 'This can’t be undone.' } ),
+						: el( 'p', { textContent: 'No page uses it.' } ),
+				here.length ? el( 'p', { textContent: `It’s removed from the page you have open. Save to keep that.` } ) : null,
+				el( 'p', { textContent: 'This can’t be undone.' } ),
 			].filter( Boolean ),
 			confirmLabel: 'Delete component',
 			failTitle: 'The component wasn’t deleted',
@@ -656,19 +625,19 @@
 	// All, In use or Unused, like the Fonts manager's file filter. Unused counts once usage loads.
 	const filters = ( fill ) => {
 		const unused = usedOn ? window.etch.components.list().filter( ( c ) => ! isUsed( c ) ).length : 0;
-		return h(
+		return el(
 			'fieldset',
 			{ class: 'etk-components__seg etk-track' },
-			h( 'legend', { class: 'screen-reader-text', textContent: 'Show' } ),
+			el( 'legend', { class: 'etk-sr', textContent: 'Show' } ),
 			[
 				[ 'all', 'All' ],
 				[ 'used', 'In use' ],
 				[ 'unused', 'Unused' ],
 			].map( ( [ value, label ] ) =>
-				h(
+				el(
 					'label',
 					{},
-					h( 'input', {
+					el( 'input', {
 						type: 'radio',
 						name: 'etk-components-filter',
 						value,
@@ -680,7 +649,7 @@
 						},
 					} ),
 					label,
-					value === 'unused' && unused ? h( 'span', { class: 'etk-components__count etk-components__count--unused', textContent: String( unused ) } ) : null
+					value === 'unused' && unused ? el( 'span', { class: 'etk-components__count etk-components__count--unused', textContent: String( unused ) } ) : null
 				)
 			)
 		);
@@ -690,22 +659,22 @@
 		const used = usedOn ? isUsed( component ) : null;
 		const action = ( key, label, title, icon, onclick, extra = '' ) =>
 			button( '', onclick, { class: `etk-components__btn etk-components__btn--secondary etk-components__row-action${ extra }`, 'aria-label': label, title, html: icon, 'data-focus': `${ key }:${ component.id }` } );
-		return h(
+		return el(
 			'tr',
 			{ class: used === false ? 'is-unused' : null },
-			h( 'th', { scope: 'row' }, h( 'span', { class: 'etk-components__cell-name', textContent: component.name } ) ),
-			h( 'td', {}, h( 'code', { class: 'etk-components__key', textContent: component.key } ) ),
-			h( 'td', {}, used === null ? null : h( 'span', { class: `etk-components__status-badge etk-components__status-badge--${ used ? 'success' : 'warning' }`, textContent: used ? 'In use' : 'Unused' } ) ),
-			used ? h( 'td', { class: 'etk-components__uses-cell' }, usesCell( component ) ) : h( 'td', { class: 'etk-components__none', textContent: used === null ? 'Checking…' : '—' } ),
-			h(
+			el( 'th', { scope: 'row' }, el( 'span', { class: 'etk-components__cell-name', textContent: component.name } ) ),
+			el( 'td', {}, el( 'code', { class: 'etk-components__key', textContent: component.key } ) ),
+			el( 'td', {}, used === null ? null : el( 'span', { class: `etk-components__status-badge etk-components__status-badge--${ used ? 'success' : 'warning' }`, textContent: used ? 'In use' : 'Unused' } ) ),
+			used ? el( 'td', { class: 'etk-components__uses-cell' }, usesCell( component ) ) : el( 'td', { class: 'etk-components__none', textContent: used === null ? 'Checking…' : '—' } ),
+			el(
 				'td',
 				{},
-				h(
+				el(
 					'div',
 					{ class: 'etk-components__row-actions' },
-					action( 'edit', `Edit ${ component.name } in Etch`, 'Edit in Etch', stroke( EDIT, 14 ), () => editInEtch( component ) ),
-					action( 'update', `Update ${ component.name } from JSON`, 'Update from JSON', stroke( UPLOAD, 14 ), () => updateOne( component ) ),
-					action( 'delete', `Delete ${ component.name }`, 'Delete', toolkit.DELETE_ICON, () => remove( component ), ' etk-components__row-delete' )
+					action( 'edit', `Edit ${ component.name } in Etch`, 'Edit in Etch', icon( 'edit', 14 ), () => editInEtch( component ) ),
+					action( 'update', `Update ${ component.name } from JSON`, 'Update from JSON', icon( 'upload', 14 ), () => updateOne( component ) ),
+					action( 'delete', `Delete ${ component.name }`, 'Delete', icon( 'delete', 14 ), () => remove( component ), ' etk-components__row-delete' )
 				)
 			)
 		);
@@ -713,8 +682,8 @@
 
 	const views = {
 		list: () => {
-			const count = h( 'span', { class: 'etk-components__muted', role: 'status' } );
-			const body = h( 'tbody' );
+			const count = el( 'span', { class: 'etk-components__muted', role: 'status' } );
+			const body = el( 'tbody' );
 			// Only the rows change as you type, so the field keeps its caret.
 			const fill = () => {
 				const all = window.etch.components.list().sort( ( a, b ) => a.name.localeCompare( b.name ) );
@@ -724,21 +693,21 @@
 				const shown = all.filter( ( c ) => inFilter( c ) && ( ! term || `${ c.name } ${ c.key }`.toLowerCase().includes( term ) ) );
 				count.textContent = shown.length === all.length ? plural( all.length, 'component', 'components' ) : `${ shown.length } of ${ plural( all.length, 'component', 'components' ) }`;
 				const empty = ! all.length ? 'This site has no components yet.' : term ? 'No components match.' : filter === 'used' ? 'No component is in use.' : 'Every component is in use.';
-				body.replaceChildren( ...( shown.length ? shown.map( componentRow ) : [ h( 'tr', {}, h( 'td', { colspan: '5', class: 'etk-components__empty-row', textContent: empty } ) ) ] ) );
+				body.replaceChildren( ...( shown.length ? shown.map( componentRow ) : [ el( 'tr', {}, el( 'td', { colspan: '5', class: 'etk-components__empty-row', textContent: empty } ) ) ] ) );
 			};
 			fill();
-			const th = ( text ) => h( 'th', { scope: 'col', textContent: text } );
+			const th = ( text ) => el( 'th', { scope: 'col', textContent: text } );
 			return [
-				h(
+				el(
 					'div',
 					{ class: 'etk-components__toolbar' },
 					filters( fill ),
 					// Built like Recipes' search: Etch's magnifier and a bare field.
-					h(
+					el(
 						'div',
 						{ class: 'etk-components__search' },
-						h( 'span', { class: 'etk-components__search-icon', html: stroke( SEARCH, 14 ) } ),
-						h( 'input', {
+						el( 'span', { class: 'etk-components__search-icon', html: icon( 'search', 14 ) } ),
+						el( 'input', {
 							type: 'text',
 							class: 'etk-components__search-input',
 							placeholder: 'Search components',
@@ -755,29 +724,29 @@
 					),
 					count
 				),
-				h(
+				el(
 					'table',
 					{ class: 'etk-components__table', 'aria-label': 'Components' },
-					h( 'thead', {}, h( 'tr', {}, th( 'Component' ), th( 'Key' ), th( 'Status' ), th( 'Used on' ), h( 'th', { scope: 'col' }, h( 'span', { class: 'screen-reader-text', textContent: 'Actions' } ) ) ) ),
+					el( 'thead', {}, el( 'tr', {}, th( 'Component' ), th( 'Key' ), th( 'Status' ), th( 'Used on' ), el( 'th', { scope: 'col' }, el( 'span', { class: 'etk-sr', textContent: 'Actions' } ) ) ) ),
 					body
 				),
 			];
 		},
 
 		import: () => [
-			h(
+			el(
 				'div',
 				{ class: 'etk-components__review-head' },
-				button( '', () => showList(), { class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to components', title: 'Back to components', html: stroke( BACK ), 'data-focus': 'back' } ),
-				h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: `Update ${ target.name }` } )
+				button( '', () => showList(), { class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to components', title: 'Back to components', html: icon( 'arrow-left' ), 'data-focus': 'back' } ),
+				el( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: `Update ${ target.name }` } )
 			),
-			h( 'p', { class: 'etk-components__help', textContent: `Drop or paste JSON for ${ target.name }. In Etch, select it and press Cmd+C. You’ll review changes before saving.` } ),
+			el( 'p', { class: 'etk-components__help', textContent: `Drop or paste JSON for ${ target.name }. In Etch, select it and press Cmd+C. You’ll review changes before saving.` } ),
 			dropzone(),
-			h(
+			el(
 				'div',
 				{ class: 'etk-components__paste' },
-				h( 'label', { class: 'etk-components__label', htmlFor: 'etk-components-json', textContent: 'Or paste JSON' } ),
-				h( 'textarea', {
+				el( 'label', { class: 'etk-components__label', htmlFor: 'etk-components-json', textContent: 'Or paste JSON' } ),
+				el( 'textarea', {
 					id: 'etk-components-json',
 					class: 'etk-components__textarea',
 					spellcheck: 'false',
@@ -785,16 +754,16 @@
 					value: pasted,
 					oninput: ( e ) => ( pasted = e.target.value ),
 				} ),
-				h( 'div', { class: 'etk-components__actions' }, button( 'Review changes', () => ( pasted.trim() ? read( pasted ) : warn( 'Paste some JSON first.' ) ), { variant: 'primary' } ) )
+				el( 'div', { class: 'etk-components__actions' }, button( 'Review changes', () => ( pasted.trim() ? read( pasted ) : warn( 'Paste some JSON first.' ) ), { variant: 'primary' } ) )
 			),
 		],
 
 		done: () =>
 			previous
 				? [
-						h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: `${ previous.name } is updated` } ),
-						h( 'p', { class: 'etk-components__help', textContent: previous.update.length || previous.made.length ? 'The component is saved. Save in Etch to keep the class changes too.' : 'The component is saved.' } ),
-						h(
+						el( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: `${ previous.name } is updated` } ),
+						el( 'p', { class: 'etk-components__help', textContent: previous.update.length || previous.made.length ? 'The component is saved. Save in Etch to keep the class changes too.' : 'The component is saved.' } ),
+						el(
 							'div',
 							{ class: 'etk-components__done-actions' },
 							button( 'Put back the previous version', ( e ) => restore( e.currentTarget ), { 'data-focus': 'restore' } ),
@@ -803,8 +772,8 @@
 						),
 				  ]
 				: [
-						h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: 'The previous version is back' } ),
-						h( 'div', { class: 'etk-components__done-actions' }, button( 'Back to components', showList, { 'data-focus': 'another' } ) ),
+						el( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: 'The previous version is back' } ),
+						el( 'div', { class: 'etk-components__done-actions' }, button( 'Back to components', showList, { 'data-focus': 'another' } ) ),
 				  ],
 
 		// Layers and props on the left, the picked one's code on the right.
@@ -813,37 +782,37 @@
 			const { approved, total } = tally();
 			const lines = lineTotals();
 			return [
-				h(
+				el(
 					'div',
 					{ class: 'etk-components__review-head' },
-					button( '', () => go( 'import' ), { class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to the JSON', title: 'Back to the JSON', html: stroke( BACK ), 'data-focus': 'back' } ),
-					h(
+					button( '', () => go( 'import' ), { class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to the JSON', title: 'Back to the JSON', html: icon( 'arrow-left' ), 'data-focus': 'back' } ),
+					el(
 						'div',
 						{ class: 'etk-components__review-title' },
-						h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: `Update ${ current.name }` } ),
-						h( 'p', { class: 'etk-components__muted', textContent: total ? 'Pick a layer to see its code.' : 'No changes. This matches the site’s version.' } )
+						el( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: `Update ${ current.name }` } ),
+						el( 'p', { class: 'etk-components__muted', textContent: total ? 'Pick a layer to see its code.' : 'No changes. This matches the site’s version.' } )
 					),
 					total
-						? h(
+						? el(
 								'div',
 								{ class: 'etk-components__review-actions' },
-								approved < total ? h( 'span', { class: 'etk-components__muted', textContent: `${ plural( total - approved, 'change', 'changes' ) } left out` } ) : null,
-								h(
+								approved < total ? el( 'span', { class: 'etk-components__muted', textContent: `${ plural( total - approved, 'change', 'changes' ) } left out` } ) : null,
+								el(
 									'span',
 									{ class: 'etk-components__lines' },
-									h( 'span', { class: 'etk-components__lines-added', 'aria-hidden': 'true', textContent: `+${ lines.added }` } ),
-									h( 'span', { class: 'etk-components__lines-removed', 'aria-hidden': 'true', textContent: `−${ lines.removed }` } ),
-									h( 'span', { class: 'screen-reader-text', textContent: `${ plural( lines.added, 'line', 'lines' ) } added, ${ lines.removed } removed` } )
+									el( 'span', { class: 'etk-components__lines-added', 'aria-hidden': 'true', textContent: `+${ lines.added }` } ),
+									el( 'span', { class: 'etk-components__lines-removed', 'aria-hidden': 'true', textContent: `−${ lines.removed }` } ),
+									el( 'span', { class: 'etk-sr', textContent: `${ plural( lines.added, 'line', 'lines' ) } added, ${ lines.removed } removed` } )
 								),
 								button( 'Update component', apply, { variant: 'primary', disabled: ! approved, 'data-focus': 'apply' } )
 						  )
 						: null
 				),
-				h(
+				el(
 					'div',
 					{ class: 'etk-components__workspace' },
-					h( 'div', { class: 'etk-components__side', 'data-scroll': 'side' }, layersView(), propsView(), metaView() ),
-					h( 'section', { id: CODE_PANE, class: 'etk-components__code', 'aria-label': 'Changes', 'data-scroll': 'code' }, codePane() )
+					el( 'div', { class: 'etk-components__side', 'data-scroll': 'side' }, layersView(), propsView(), metaView() ),
+					el( 'section', { id: CODE_PANE, class: 'etk-components__code', 'aria-label': 'Changes', 'data-scroll': 'code' }, codePane() )
 				),
 			];
 		},
@@ -1075,9 +1044,9 @@
 		const dialog = toolkit.confirmDialog( {
 			title: `Update ${ current.name }?`,
 			message: [
-				h( 'p', { textContent: `Saves ${ approved } of ${ plural( total, 'change', 'changes' ) } now.` } ),
-				classes ? h( 'p', { textContent: classes === 1 ? '1 class changes in the builder too. Save to keep it.' : `${ classes } classes change in the builder too. Save to keep them.` } ) : null,
-				h( 'p', { textContent: 'You can restore the previous version later.' } ),
+				el( 'p', { textContent: `Saves ${ approved } of ${ plural( total, 'change', 'changes' ) } now.` } ),
+				classes ? el( 'p', { textContent: classes === 1 ? '1 class changes in the builder too. Save to keep it.' : `${ classes } classes change in the builder too. Save to keep them.` } ) : null,
+				el( 'p', { textContent: 'You can restore the previous version later.' } ),
 			].filter( Boolean ),
 			confirmLabel: 'Update component',
 			busyLabel: 'Updating…',
@@ -1135,7 +1104,7 @@
 
 	const download = () => {
 		const url = URL.createObjectURL( new Blob( [ JSON.stringify( previous.json, null, 2 ) ], { type: 'application/json' } ) );
-		h( 'a', { href: url, download: `${ previous.json.key || 'component' }-before-update.json` } ).click();
+		el( 'a', { href: url, download: `${ previous.json.key || 'component' }-before-update.json` } ).click();
 		// Revoking straight away can cancel the download in some browsers.
 		window.setTimeout( () => URL.revokeObjectURL( url ), 60000 );
 	};
@@ -1181,7 +1150,7 @@
 	const CODE_PANE = 'etk-components-code';
 	const isSelected = ( kind, id ) => selected?.kind === kind && ( kind === 'meta' || selected.id === id );
 
-	const chip = ( kind, text ) => h( 'span', { class: `etk-components__chip etk-components__chip--${ kind }`, textContent: text } );
+	const chip = ( kind, text ) => el( 'span', { class: `etk-components__chip etk-components__chip--${ kind }`, textContent: text } );
 
 	// "a", "a and b", "a, b and c".
 	const listOf = ( items ) => ( items.length > 1 ? `${ items.slice( 0, -1 ).join( ', ' ) } and ${ items.at( -1 ) }` : items.join( '' ) );
@@ -1196,7 +1165,7 @@
 	 * site's, and 'some' shows a dash for one over several changes.
 	 */
 	const tick = ( label, value, onchange, focusKey ) =>
-		h( 'input', { type: 'checkbox', class: 'etk-checkbox', checked: value === true, indeterminate: value === 'some', 'aria-label': label, 'data-focus': focusKey, onchange: ( e ) => onchange( e.target.checked ) } );
+		el( 'input', { type: 'checkbox', class: 'etk-checkbox', checked: value === true, indeterminate: value === 'some', 'aria-label': label, 'data-focus': focusKey, onchange: ( e ) => onchange( e.target.checked ) } );
 
 	// Show all, or only what changed. Only offered when something didn't change.
 	const showToggle = ( key, what ) =>
@@ -1212,9 +1181,9 @@
 
 	// A group on the left: its label, Show all, and its rows.
 	const group = ( id, title, toggle, body ) =>
-		h( 'section', { class: 'etk-components__group', 'aria-labelledby': id }, h( 'div', { class: 'etk-components__group-head' }, h( 'h3', { id, class: 'etk-components__label', textContent: title } ), toggle ), body );
+		el( 'section', { class: 'etk-components__group', 'aria-labelledby': id }, el( 'div', { class: 'etk-components__group-head' }, el( 'h3', { id, class: 'etk-components__label', textContent: title } ), toggle ), body );
 
-	const rows = ( items ) => h( 'div', { class: 'etk-components__tree' }, h( 'ul', { class: 'etk-components__layers', role: 'list' }, items ) );
+	const rows = ( items ) => el( 'div', { class: 'etk-components__tree' }, el( 'ul', { class: 'etk-components__layers', role: 'list' }, items ) );
 
 	// A layer that changed shows, and one with changes inside, to hold them.
 	const shownLayer = ( node ) => showAll.layers || node.status !== 'same' || node.inside > 0;
@@ -1240,40 +1209,40 @@
 		const state = parts.length ? stateOf( parts ) : null;
 
 		// Partly ticked, how much. Otherwise what changed. Closed, how much changed inside.
-		const trailing = state === 'some' ? [ h( 'span', { class: 'etk-components__count', textContent: `${ parts.filter( Boolean ).length } of ${ parts.length }` } ) ] : hasChanges ? layerChips( node ) : [];
+		const trailing = state === 'some' ? [ el( 'span', { class: 'etk-components__count', textContent: `${ parts.filter( Boolean ).length } of ${ parts.length }` } ) ] : hasChanges ? layerChips( node ) : [];
 		if ( node.inside && ! open ) trailing.push( chip( 'inside', `${ node.inside } inside` ) );
 
-		const name = h(
+		const name = el(
 			'span',
 			{ class: 'etk-components__layer-name' },
-			layer.tag ? h( 'span', { class: 'etk-components__layer-tag', textContent: layer.tag } ) : null,
-			h( 'span', { class: 'etk-components__layer-label', textContent: layer.label } )
+			layer.tag ? el( 'span', { class: 'etk-components__layer-tag', textContent: layer.tag } ) : null,
+			el( 'span', { class: 'etk-components__layer-label', textContent: layer.label } )
 		);
-		const chipList = trailing.length ? h( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, trailing ) : null;
+		const chipList = trailing.length ? el( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, trailing ) : null;
 		const label = { added: `Add ${ title }`, removed: `Remove ${ title }` }[ node.status ] || `Changes to ${ title }`;
 
-		return h(
+		return el(
 			'li',
 			{ class: `etk-components__layer etk-components__layer--${ node.status } etk-components__layer--${ KINDS[ layer.block.type ] || 'default' }`, 'data-layer': node.id },
-			h(
+			el(
 				'div',
 				{ class: `etk-components__row${ showing ? ' is-showing' : '' }` },
 				kids.length
-					? h( 'button', { type: 'button', class: 'etk-components__caret', 'aria-expanded': String( open ), 'aria-label': `Layers inside ${ title }`, html: CARET, 'data-focus': `${ node.id }:caret`, onclick: () => toggleLayer( node ) } )
-					: h( 'span', { class: 'etk-components__leaf', 'aria-hidden': 'true' } ),
+					? el( 'button', { type: 'button', class: 'etk-components__caret', 'aria-expanded': String( open ), 'aria-label': `Layers inside ${ title }`, html: CARET, 'data-focus': `${ node.id }:caret`, onclick: () => toggleLayer( node ) } )
+					: el( 'span', { class: 'etk-components__leaf', 'aria-hidden': 'true' } ),
 				parts.length ? tick( label, state, ( yes ) => decideLayer( node, yes ), `${ node.id }:tick` ) : null,
 				// A layer with changes shows them in the code pane, like selecting a layer in the Structure panel.
 				hasChanges
-					? h(
+					? el(
 							'button',
 							{ type: 'button', class: 'etk-components__row-toggle', 'aria-current': showing ? 'true' : null, 'aria-controls': CODE_PANE, 'data-focus': `${ node.id }:toggle`, onclick: () => select( { kind: 'layer', id: node.id } ) },
 							name,
-							h( 'span', { class: 'screen-reader-text', textContent: `, ${ describeChanges( node ) }` } ),
+							el( 'span', { class: 'etk-sr', textContent: `, ${ describeChanges( node ) }` } ),
 							chipList
 					  )
 					: [ name, chipList ]
 			),
-			kids.length && open ? h( 'ul', { class: 'etk-components__layers etk-components__layers--inside', role: 'list' }, kids.map( layerRow ) ) : null
+			kids.length && open ? el( 'ul', { class: 'etk-components__layers etk-components__layers--inside', role: 'list' }, kids.map( layerRow ) ) : null
 		);
 	};
 
@@ -1284,7 +1253,7 @@
 			'etk-components-layers-title',
 			'Layers',
 			[ ...walk( tree ) ].some( ( node ) => node.status === 'same' ) ? showToggle( 'layers', 'layer' ) : null,
-			shown.length ? rows( shown.map( layerRow ) ) : h( 'p', { class: 'etk-components__help', textContent: 'No layer changes.' } )
+			shown.length ? rows( shown.map( layerRow ) ) : el( 'p', { class: 'etk-components__help', textContent: 'No layer changes.' } )
 		);
 	};
 
@@ -1294,13 +1263,13 @@
 	const CONTEXT = 3;
 
 	const diffLine = ( { op, text, before, after } ) =>
-		h(
+		el(
 			op === '-' ? 'del' : op === '+' ? 'ins' : 'div',
 			{ class: `etk-components__diff-line etk-components__diff-line--${ op === '-' ? 'del' : op === '+' ? 'ins' : 'same' }` },
-			h( 'span', { class: 'etk-components__diff-num', 'aria-hidden': 'true', textContent: before ?? '' } ),
-			h( 'span', { class: 'etk-components__diff-num', 'aria-hidden': 'true', textContent: after ?? '' } ),
-			h( 'span', { class: 'etk-components__diff-mark', textContent: op === '-' ? '−' : op === '+' ? '+' : '' } ),
-			h( 'span', { class: 'etk-components__diff-code', textContent: text || ' ' } )
+			el( 'span', { class: 'etk-components__diff-num', 'aria-hidden': 'true', textContent: before ?? '' } ),
+			el( 'span', { class: 'etk-components__diff-num', 'aria-hidden': 'true', textContent: after ?? '' } ),
+			el( 'span', { class: 'etk-components__diff-mark', textContent: op === '-' ? '−' : op === '+' ? '+' : '' } ),
+			el( 'span', { class: 'etk-components__diff-code', textContent: text || ' ' } )
 		);
 
 	/**
@@ -1330,10 +1299,10 @@
 				const open = unfolded.has( id );
 				out.push(
 					...numbered.slice( i, i + head ).map( diffLine ),
-					h(
+					el(
 						'button',
 						{ type: 'button', class: 'etk-components__fold', 'aria-expanded': String( open ), 'data-focus': `fold:${ id }`, onclick: () => toggleFold( id ) },
-						h( 'span', { class: 'etk-components__fold-mark', 'aria-hidden': 'true', textContent: '⋯' } ),
+						el( 'span', { class: 'etk-components__fold-mark', 'aria-hidden': 'true', textContent: '⋯' } ),
 						plural( hidden, 'unchanged line', 'unchanged lines' )
 					),
 					...( open ? numbered.slice( i + head, end - tail ).map( diffLine ) : [] ),
@@ -1342,7 +1311,7 @@
 			}
 			i = end;
 		}
-		return h( 'div', { class: 'etk-components__diff' }, out );
+		return el( 'div', { class: 'etk-components__diff' }, out );
 	};
 
 	const toggleFold = ( id ) => {
@@ -1353,21 +1322,21 @@
 	// One field: a one-line value as before and after, more lines as a line diff.
 	const fieldView = ( { label, from, to } ) => {
 		const short = ! from.includes( '\n' ) && ! to.includes( '\n' );
-		return h(
+		return el(
 			'div',
 			{ class: `etk-components__field${ label ? '' : ' etk-components__field--bare' }` },
-			label ? h( 'span', { class: 'etk-components__field-name', textContent: label } ) : null,
+			label ? el( 'span', { class: 'etk-components__field-name', textContent: label } ) : null,
 			short
-				? h(
+				? el(
 						'span',
 						{ class: 'etk-components__field-values' },
-						from ? h( 'del', { class: 'etk-components__value etk-components__value--del', textContent: from } ) : null,
-						to ? h( 'ins', { class: 'etk-components__value etk-components__value--ins', textContent: to } ) : null
+						from ? el( 'del', { class: 'etk-components__value etk-components__value--del', textContent: from } ) : null,
+						to ? el( 'ins', { class: 'etk-components__value etk-components__value--ins', textContent: to } ) : null
 				  )
 				: diffView( diffOf( from, to ) )
 		);
 	};
-	const fields = ( list ) => h( 'div', { class: 'etk-components__fields' }, list.map( fieldView ) );
+	const fields = ( list ) => el( 'div', { class: 'etk-components__fields' }, list.map( fieldView ) );
 
 	// How far a class's CSS change reaches, from the Style usage counts.
 	const reach = ( change ) => {
@@ -1382,22 +1351,22 @@
 	 * tickbox and label, then its code. Unticked, it says so and its code fades.
 	 */
 	const part = ( { kind, label, control = null, extra = [], unticked = '' }, ...body ) =>
-		h(
+		el(
 			'section',
 			{ class: `etk-components__part${ unticked ? ' is-unticked' : '' }` },
-			h(
+			el(
 				'div',
 				{ class: 'etk-components__part-head' },
 				control,
-				h( 'h4', { class: `etk-components__part-title etk-components__part-title--${ kind }`, textContent: label } ),
+				el( 'h4', { class: `etk-components__part-title etk-components__part-title--${ kind }`, textContent: label } ),
 				...extra,
-				unticked ? h( 'span', { class: 'etk-components__part-note', textContent: `· ${ unticked }` } ) : null
+				unticked ? el( 'span', { class: 'etk-components__part-note', textContent: `· ${ unticked }` } ) : null
 			),
-			h( 'div', { class: 'etk-components__part-body' }, ...body )
+			el( 'div', { class: 'etk-components__part-body' }, ...body )
 		);
 
 	// The code pane's title: what's picked, and a sentence about it.
-	const paneHead = ( title, text ) => h( 'div', { class: 'etk-components__pane-head' }, h( 'h3', { class: 'etk-components__pane-title' }, title ), h( 'p', { class: 'etk-components__muted', textContent: text } ) );
+	const paneHead = ( title, text ) => el( 'div', { class: 'etk-components__pane-head' }, el( 'h3', { class: 'etk-components__pane-title' }, title ), el( 'p', { class: 'etk-components__muted', textContent: text } ) );
 
 	// Elements that never close.
 	const VOID = new Set( [ 'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr' ] );
@@ -1498,7 +1467,7 @@
 						kind: 'css',
 						label: 'CSS',
 						control: tick( `CSS changes to ${ change.selector }`, yes, ( value ) => decided( () => decisions.css.set( change.selector, value ) ), `${ node.id }:css:${ change.selector }` ),
-						extra: [ h( 'code', { class: 'etk-components__part-selector', textContent: change.selector } ), h( 'span', { class: `etk-components__reach${ wide ? ' is-wide' : '' }`, textContent: reach( change ) } ) ],
+						extra: [ el( 'code', { class: 'etk-components__part-selector', textContent: change.selector } ), el( 'span', { class: `etk-components__reach${ wide ? ' is-wide' : '' }`, textContent: reach( change ) } ) ],
 						unticked: yes ? '' : change.from === null ? 'unticked, the new class stays empty' : 'unticked, keeps this site’s CSS',
 					},
 					diffView( diffOf( change.from ?? '', change.to ), `${ node.id }:css:${ change.selector }` )
@@ -1524,8 +1493,8 @@
 		}
 
 		return [
-			paneHead( [ layer.tag ? h( 'span', { class: 'etk-components__pane-tag etk-components__layer-tag', textContent: layer.tag } ) : null, h( 'span', { textContent: layer.label } ) ], layerText( node ) ),
-			h( 'div', { class: 'etk-components__card' }, parts ),
+			paneHead( [ layer.tag ? el( 'span', { class: 'etk-components__pane-tag etk-components__layer-tag', textContent: layer.tag } ) : null, el( 'span', { textContent: layer.label } ) ], layerText( node ) ),
+			el( 'div', { class: 'etk-components__card' }, parts ),
 		];
 	};
 
@@ -1536,7 +1505,7 @@
 		const prop = selected?.kind === 'prop' && propAt( selected.id );
 		if ( prop ) return propDetails( prop );
 		if ( selected?.kind === 'meta' && reviewing.meta.length ) return metaDetails();
-		return h( 'p', { class: 'etk-components__empty', textContent: tally().total ? 'Select a layer or prop to see what changed.' : 'No changes. This matches the site’s version.' } );
+		return el( 'p', { class: 'etk-components__empty', textContent: tally().total ? 'Select a layer or prop to see what changed.' : 'No changes. This matches the site’s version.' } );
 	};
 
 	// The first thing that changed: a layer, a prop, or the name and description.
@@ -1584,7 +1553,7 @@
 		const { type } = prop.incoming || prop.current;
 		const name = typeof type === 'string' ? type : type?.specialized ? `${ type.primitive }:${ type.specialized }` : type?.primitive;
 		const [ size, svg ] = PROP_ICON_SVGS[ PROP_ICONS[ name ] ?? 'text-font' ];
-		return h( 'span', { class: 'etk-components__prop-icon', 'aria-hidden': 'true', html: `<svg viewBox="0 0 ${ size } ${ size }" width="14" height="14" focusable="false">${ svg }</svg>` } );
+		return el( 'span', { class: 'etk-components__prop-icon', 'aria-hidden': 'true', html: `<svg viewBox="0 0 ${ size } ${ size }" width="14" height="14" focusable="false">${ svg }</svg>` } );
 	};
 
 	// Every compared prop, the ones inside groups and conditions too, depth first.
@@ -1613,29 +1582,29 @@
 		const showing = prop.status !== 'same' && isSelected( 'prop', prop.path );
 		const trailing = prop.status === 'same' ? [] : [ propChip( prop ) ];
 		if ( prop.inside && ! open ) trailing.push( chip( 'inside', `${ prop.inside } inside` ) );
-		const name = h( 'span', { class: 'etk-components__layer-name' }, propIcon( prop ), h( 'span', { class: 'etk-components__layer-label', textContent: propName( prop ) } ) );
-		const chipList = trailing.length ? h( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, trailing ) : null;
-		return h(
+		const name = el( 'span', { class: 'etk-components__layer-name' }, propIcon( prop ), el( 'span', { class: 'etk-components__layer-label', textContent: propName( prop ) } ) );
+		const chipList = trailing.length ? el( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, trailing ) : null;
+		return el(
 			'li',
 			{ class: `etk-components__layer etk-components__layer--${ prop.status }` },
-			h(
+			el(
 				'div',
 				{ class: `etk-components__row${ showing ? ' is-showing' : '' }` },
 				kids.length
-					? h( 'button', { type: 'button', class: 'etk-components__caret', 'aria-expanded': String( open ), 'aria-label': `Props inside ${ propName( prop ) }`, html: CARET, 'data-focus': `prop:${ prop.path }:caret`, onclick: () => toggleProp( prop ) } )
-					: h( 'span', { class: 'etk-components__leaf', 'aria-hidden': 'true' } ),
+					? el( 'button', { type: 'button', class: 'etk-components__caret', 'aria-expanded': String( open ), 'aria-label': `Props inside ${ propName( prop ) }`, html: CARET, 'data-focus': `prop:${ prop.path }:caret`, onclick: () => toggleProp( prop ) } )
+					: el( 'span', { class: 'etk-components__leaf', 'aria-hidden': 'true' } ),
 				prop.status !== 'same' && ! inside ? tick( propLabel( prop ), decisions.props.get( prop.key ), ( yes ) => decided( () => decisions.props.set( prop.key, yes ) ), `prop:${ prop.key }:tick` ) : null,
 				prop.status === 'same'
 					? [ name, chipList ]
-					: h(
+					: el(
 							'button',
 							{ type: 'button', class: 'etk-components__row-toggle', 'aria-current': showing ? 'true' : null, 'aria-controls': CODE_PANE, 'data-focus': `prop:${ prop.path }:toggle`, onclick: () => select( { kind: 'prop', id: prop.path } ) },
 							name,
-							h( 'span', { class: 'screen-reader-text', textContent: `, ${ prop.status }` } ),
+							el( 'span', { class: 'etk-sr', textContent: `, ${ prop.status }` } ),
 							chipList
 					  )
 			),
-			kids.length && open ? h( 'ul', { class: 'etk-components__layers etk-components__layers--inside', role: 'list' }, kids.map( propRow ) ) : null
+			kids.length && open ? el( 'ul', { class: 'etk-components__layers etk-components__layers--inside', role: 'list' }, kids.map( propRow ) ) : null
 		);
 	};
 
@@ -1643,18 +1612,18 @@
 	const innerProps = ( list ) => {
 		const shown = list.filter( ( prop ) => prop.status !== 'same' );
 		if ( ! shown.length ) return null;
-		return h(
+		return el(
 			'ul',
 			{ class: 'etk-components__inner-props' },
 			shown.map( ( prop ) =>
-				h(
+				el(
 					'li',
 					{ class: 'etk-components__inner-prop' },
-					h(
+					el(
 						'div',
 						{ class: 'etk-components__inner-head' },
-						h( 'span', { class: 'etk-components__inner-name', textContent: propName( prop ) } ),
-						h( 'code', { class: 'etk-components__pane-tag', textContent: prop.key } ),
+						el( 'span', { class: 'etk-components__inner-name', textContent: propName( prop ) } ),
+						el( 'code', { class: 'etk-components__pane-tag', textContent: prop.key } ),
 						propChip( prop )
 					),
 					prop.fields.length ? fields( prop.fields ) : null,
@@ -1674,8 +1643,8 @@
 		const how = inside ? `It’s inside ${ propName( top ) }, whose tickbox takes or leaves everything in it.` : { added: 'Untick it to leave it out.', removed: 'Untick it to keep it.', changed: 'Untick it to keep this site’s version.' }[ prop.status ];
 		const unticked = inside ? `${ propName( top ) } unticked, keeps this site’s version` : { added: 'unticked, not added', removed: 'unticked, stays on this site', changed: 'unticked, keeps this site’s prop' }[ prop.status ];
 		return [
-			paneHead( [ h( 'span', { textContent: propName( prop ) } ), source.name ? h( 'code', { class: 'etk-components__pane-tag', textContent: prop.key } ) : null ], `${ what } ${ how }` ),
-			h(
+			paneHead( [ el( 'span', { textContent: propName( prop ) } ), source.name ? el( 'code', { class: 'etk-components__pane-tag', textContent: prop.key } ) : null ], `${ what } ${ how }` ),
+			el(
 				'div',
 				{ class: 'etk-components__card' },
 				part( { kind: prop.status, label: `${ PROP_STATUS[ prop.status ] } prop`, control: inside ? null : tick( propLabel( prop ), yes, ( value ) => decided( () => decisions.props.set( prop.key, value ) ), `prop:${ prop.key }` ), unticked: yes ? '' : unticked }, prop.fields.length ? fields( prop.fields ) : null, innerProps( prop.inner ) )
@@ -1691,7 +1660,7 @@
 			'etk-components-props-title',
 			'Props',
 			[ ...walkProps( props ) ].some( ( prop ) => prop.status === 'same' ) ? showToggle( 'props', 'prop' ) : null,
-			shown.length ? rows( shown.map( propRow ) ) : h( 'p', { class: 'etk-components__help', textContent: 'No prop changes.' } )
+			shown.length ? rows( shown.map( propRow ) ) : el( 'p', { class: 'etk-components__help', textContent: 'No prop changes.' } )
 		);
 	};
 
@@ -1706,19 +1675,19 @@
 			'Component',
 			null,
 			rows(
-				h(
+				el(
 					'li',
 					{ class: 'etk-components__layer etk-components__layer--changed' },
-					h(
+					el(
 						'div',
 						{ class: `etk-components__row${ showing ? ' is-showing' : '' }` },
 						tick( `Changes to the ${ label.toLowerCase() }`, stateOf( meta.map( ( field ) => decisions.meta.get( field.key ) ) ), ( yes ) => decided( () => meta.forEach( ( field ) => decisions.meta.set( field.key, yes ) ) ), 'meta:tick' ),
-						h(
+						el(
 							'button',
 							{ type: 'button', class: 'etk-components__row-toggle', 'aria-current': showing ? 'true' : null, 'aria-controls': CODE_PANE, 'data-focus': 'meta:toggle', onclick: () => select( { kind: 'meta' } ) },
-							h( 'span', { class: 'etk-components__layer-name' }, h( 'span', { class: 'etk-components__layer-label', textContent: label } ) ),
-							h( 'span', { class: 'screen-reader-text', textContent: ', changed' } ),
-							h( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, chip( 'html', 'Changed' ) )
+							el( 'span', { class: 'etk-components__layer-name' }, el( 'span', { class: 'etk-components__layer-label', textContent: label } ) ),
+							el( 'span', { class: 'etk-sr', textContent: ', changed' } ),
+							el( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, chip( 'html', 'Changed' ) )
 						)
 					)
 				)
@@ -1728,7 +1697,7 @@
 
 	const metaDetails = () => [
 		paneHead( listOf( reviewing.meta.map( ( field ) => field.label ) ), reviewing.meta.length > 1 ? 'Both changed. Untick one to keep this site’s version of it.' : `The ${ reviewing.meta[ 0 ].label.toLowerCase() } changed. Untick it to keep this site’s version.` ),
-		h(
+		el(
 			'div',
 			{ class: 'etk-components__card' },
 			reviewing.meta.map( ( field ) => {
@@ -1751,7 +1720,7 @@
 		if ( ! main ) return;
 		const focused = main.contains( document.activeElement ) ? document.activeElement.dataset.focus : null;
 		const scrolled = new Map( [ ...main.querySelectorAll( '[data-scroll]' ) ].map( ( pane ) => [ pane.dataset.scroll, pane.scrollTop ] ) );
-		main.replaceChildren( h( 'div', { class: `etk-components__page etk-components__page--${ view }` }, ...views[ view ]() ) );
+		main.replaceChildren( el( 'div', { class: `etk-components__page etk-components__page--${ view }` }, ...views[ view ]() ) );
 		main.querySelectorAll( '[data-scroll]' ).forEach( ( pane ) => ( pane.scrollTop = scrolled.get( pane.dataset.scroll ) ?? 0 ) );
 		if ( focused ) main.querySelector( `[data-focus="${ CSS.escape( focused ) }"]` )?.focus( { preventScroll: true } );
 	};
@@ -1900,9 +1869,9 @@
 	/* ------------------------------------------------------------------ */
 
 	const build = () => {
-		status = h( 'div', { class: 'etk-components__status', role: 'status', 'aria-live': 'polite' } );
-		main = h( 'div', { class: 'etk-components__main' } );
-		panel = h(
+		status = el( 'div', { class: 'etk-components__status', role: 'status', 'aria-live': 'polite' } );
+		main = el( 'div', { class: 'etk-components__main' } );
+		panel = el(
 			'section',
 			{
 				id: 'etk-components',
@@ -1925,13 +1894,13 @@
 				onkeyup: ( e ) => e.stopPropagation(),
 			},
 			// Across the top, like Etch's Style Manager.
-			h(
+			el(
 				'header',
 				{ class: 'etk-components__header' },
-				h( 'button', { type: 'button', class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: stroke( BACK ), onclick: () => close() } ),
-				h( 'h1', { id: 'etk-components-title', class: 'etk-components__title', textContent: 'Components' } )
+				el( 'button', { type: 'button', class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: icon( 'arrow-left' ), onclick: () => close() } ),
+				el( 'h1', { id: 'etk-components-title', class: 'etk-components__title', textContent: 'Components' } )
 			),
-			h( 'div', { class: 'etk-components__body' }, status, h( 'div', { class: 'etk-components__content' }, main ) )
+			el( 'div', { class: 'etk-components__body' }, status, el( 'div', { class: 'etk-components__content' }, main ) )
 		);
 		document.body.append( panel );
 	};
