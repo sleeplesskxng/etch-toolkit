@@ -683,7 +683,7 @@
 
 .etk-components__workspace {
 	display: grid;
-	grid-template-columns: 320px minmax(0, 1fr);
+	grid-template-columns: 400px minmax(0, 1fr);
 	min-block-size: 0;
 }
 
@@ -903,6 +903,14 @@
 			transition: none;
 		}
 	}
+}
+
+/* A prop's type, with Etch's icon for it. */
+.etk-components__prop-icon {
+	display: flex;
+	flex: none;
+	margin-inline-end: 4px;
+	opacity: 0.6;
 }
 
 /* A layer with nothing inside gets the Structure panel's short dash. */
@@ -1206,6 +1214,51 @@
 
 .etk-components__field--bare {
 	grid-template-columns: minmax(0, 1fr);
+}
+
+/* The props inside a group or condition, each under a line down its side. */
+.etk-components__inner-props {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin: 0;
+	padding: 10px 14px;
+	list-style: none;
+
+	.etk-components__fields + & {
+		padding-block-start: 0;
+	}
+
+	/* Nested deeper, it sits under its prop's fields. */
+	& & {
+		padding: 8px 0 0;
+	}
+}
+
+.etk-components__inner-prop {
+	margin: 0;
+	padding-inline-start: 12px;
+	border-inline-start: 1px solid var(--etk-components-line);
+
+	.etk-components__fields {
+		padding: 8px 0 0;
+	}
+}
+
+.etk-components__inner-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 8px;
+
+	.etk-components__pane-tag {
+		font-size: var(--e-font-size-s, 11px);
+	}
+}
+
+.etk-components__inner-name {
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 600;
 }
 
 .etk-components__field-name {

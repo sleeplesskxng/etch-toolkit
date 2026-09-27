@@ -365,7 +365,7 @@
 		}
 	};
 
-	const PROP_FIELDS = { name: 'Name', type: 'Type', default: 'Default', description: 'Description', selectOptionsString: 'Options', properties: 'Props inside' };
+	const PROP_FIELDS = { name: 'Name', type: 'Type', default: 'Default', description: 'Description', selectOptionsString: 'Options' };
 
 	// A class prop's default is style IDs, which differ between sites. Their selectors don't.
 	const readableProp = ( prop, side ) =>
@@ -375,11 +375,11 @@
 			...( Array.isArray( prop.properties ) ? { properties: prop.properties.map( ( inner ) => readableProp( inner, side ) ) } : {} ),
 		};
 
-	// A prop's fields as text, key aside. Its type reads like Etch's picker: "string, select".
+	// A prop's fields as text, key and props inside aside. Its type reads like Etch's picker: "string, select".
 	const propFields = ( prop, side ) => {
 		const fields = new Map();
 		for ( const [ key, value ] of Object.entries( ( side ? readableProp( prop, side ) : prop ) || {} ) ) {
-			if ( key === 'key' ) continue;
+			if ( key === 'key' || key === 'properties' ) continue;
 			const text = key === 'type' && value && typeof value === 'object' && ! Array.isArray( value ) ? Object.values( value ).join( ', ' ) : asText( value );
 			fields.set( key, { label: PROP_FIELDS[ key ] || key, value: text } );
 		}
@@ -389,9 +389,12 @@
 	/**
 	 * Compare two components' props, matched by key. Returns them in the
 	 * incoming order, with removed ones where they were: { key, status,
-	 * current, incoming, fields }, fields the ones that differ.
+	 * current, incoming, fields, inner, path, root, inside }, fields the ones
+	 * that differ and inner the props inside a group or condition, compared
+	 * the same way. path is its keys from the top, root the top one's key,
+	 * inside how many props inside it changed, were added or removed.
 	 */
-	const compareProps = ( ours, theirs, sides ) => {
+	const compareProps = ( ours, theirs, sides, parent = null ) => {
 		const byKey = ( list ) => new Map( list.filter( ( prop ) => prop?.key ).map( ( prop ) => [ prop.key, prop ] ) );
 		const now = byKey( ours );
 		const next = byKey( theirs );
@@ -409,8 +412,11 @@
 				const to = b.get( field )?.value ?? '';
 				if ( from !== to ) fields.push( { key: field, label: ( a.get( field ) || b.get( field ) ).label, from, to } );
 			}
-			const status = ! current ? 'added' : ! incoming ? 'removed' : fields.length ? 'changed' : 'same';
-			result.push( { key, status, current, incoming, fields } );
+			const path = parent ? `${ parent.path }/${ key }` : key;
+			const inner = compareProps( current?.properties || [], incoming?.properties || [], sides, { path, root: parent?.root ?? key } );
+			const inside = inner.reduce( ( n, prop ) => n + ( prop.status === 'same' ? 0 : 1 ) + prop.inside, 0 );
+			const status = ! current ? 'added' : ! incoming ? 'removed' : fields.length || inside ? 'changed' : 'same';
+			result.push( { key, status, current, incoming, fields, inner, path, root: parent?.root ?? key, inside } );
 		}
 		return result;
 	};
@@ -1162,6 +1168,7 @@
 
 	// Layers closed in the tree (everything starts open).
 	let closedLayers = new Set();
+	let closedProps = new Set(); // Group and condition props folded shut, by path.
 
 	// Whether the Layers and Props groups show everything, or only what changed.
 	let showAll = { layers: false, props: false };
@@ -1526,7 +1533,7 @@
 	const codePane = () => {
 		const node = selected?.kind === 'layer' && [ ...walk( reviewing.tree ) ].find( ( n ) => n.id === selected.id );
 		if ( node ) return details( node );
-		const prop = selected?.kind === 'prop' && reviewing.props.find( ( p ) => p.key === selected.id );
+		const prop = selected?.kind === 'prop' && propAt( selected.id );
 		if ( prop ) return propDetails( prop );
 		if ( selected?.kind === 'meta' && reviewing.meta.length ) return metaDetails();
 		return h( 'p', { class: 'etk-components__empty', textContent: tally().total ? 'Select a layer or prop to see what changed.' : 'No changes. This matches the site’s version.' } );
@@ -1547,7 +1554,7 @@
 		// A newly picked layer's code starts at the top.
 		document.getElementById( CODE_PANE )?.scrollTo( 0, 0 );
 		const layer = next.kind === 'layer' && [ ...walk( reviewing.tree ) ].find( ( n ) => n.id === next.id );
-		announce( `Showing ${ layer ? layerTitle( layer.incoming || layer.current ) : next.kind === 'prop' ? `the ${ next.id } prop` : `the ${ listOf( reviewing.meta.map( ( field ) => field.label ) ).toLowerCase() }` }.` );
+		announce( `Showing ${ layer ? layerTitle( layer.incoming || layer.current ) : next.kind === 'prop' ? `the ${ propName( propAt( next.id ) ) } prop` : `the ${ listOf( reviewing.meta.map( ( field ) => field.label ) ).toLowerCase() }` }.` );
 	};
 
 	/* ---- Props, and the component's name and description ---- */
@@ -1559,23 +1566,99 @@
 	const propName = ( prop ) => ( prop.incoming || prop.current ).name || prop.key;
 	const propLabel = ( prop ) => ( { added: `Add the ${ propName( prop ) } prop`, removed: `Remove the ${ propName( prop ) } prop` }[ prop.status ] || `Changes to the ${ propName( prop ) } prop` );
 
+	// Etch's icons for each prop type, as its component editor shows them: name => [ viewBox size, SVG ].
+	const PROP_ICON_SVGS = {
+		'toggle-on': [ 24, '<path d="M18 6H6C3.79086 6 2 7.79086 2 10V14C2 16.2091 3.79086 18 6 18H18C20.2091 18 22 16.2091 22 14V10C22 7.79086 20.2091 6 18 6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/><path d="M17 9H15C13.8954 9 13 9.89543 13 11V13C13 14.1046 13.8954 15 15 15H17C18.1046 15 19 14.1046 19 13V11C19 9.89543 18.1046 9 17 9Z" stroke="currentColor" stroke-width="1.5" fill="none"/>' ],
+		'text-icon': [ 16, '<path d="M9.66667 14H6.33334M8 2V14M3.33334 3.66667V2.66667C3.33334 2.29848 3.63182 2 4 2H12C12.3682 2 12.6667 2.29848 12.6667 2.66667V3.66667" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="fill:none"/>' ],
+		'cursor-rectangle-selection-01': [ 24, '<path d="M2 8.5V11.5M11.5 2H8.5M8.5 18H9.5M18 4.5V4C18 2.89543 17.1046 2 16 2H15.5M2 4.5V4C2 2.89543 2.89543 2 4 2H4.5M4.5 18H4C2.89543 18 2 17.1046 2 16V15.5M18 9.5V8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M13.8951 21.6448L10.0224 10.5183C9.91531 10.2107 10.2108 9.91536 10.5186 10.0224L21.6539 13.8929C21.9657 14.0013 22.01 14.4237 21.7274 14.5943L18.728 16.4051C18.511 16.5361 18.4749 16.8361 18.6547 17.0148L21.8851 20.2258C22.038 20.3778 22.0383 20.625 21.8858 20.7775L20.7766 21.8859C20.6244 22.038 20.3776 22.038 20.2253 21.8859L17.0023 18.665C16.8231 18.486 16.5234 18.5226 16.3927 18.7394L14.5972 21.7179C14.4267 22.0007 14.0036 21.9567 13.8951 21.6448Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/>' ],
+		'image-03': [ 24, '<path d="M20 3H4C2.89543 3 2 3.89543 2 5V19C2 20.1046 2.89543 21 4 21H20C21.1046 21 22 20.1046 22 19V5C22 3.89543 21.1046 3 20 3Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M22 17L16 11H15L10 16L7.5 13.5H6.5L2 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>' ],
+		'infinity-01': [ 24, '<path d="M12 12C12 12 9.26142 17 6.5 17C3.73858 17 2 14.7614 2 12C2 9.23858 3.73858 7 6.5 7C9.26142 7 12 12 12 12ZM12 12C12 12 14.7386 17 17.5 17C20.2614 17 22 14.7614 22 12C22 9.23858 20.2614 7 17.5 7C14.7386 7 12 12 12 12Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/>' ],
+		'code-circle': [ 24, '<path d="M8.5 8H7.5C7.22386 8 7 8.22386 7 8.5V10.3486C7 10.4473 6.97078 10.5438 6.91603 10.626L6 12L6.91603 13.374C6.97078 13.4562 7 13.5527 7 13.6514V15.5C7 15.7761 7.22386 16 7.5 16H8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M15.5 8H16.5C16.7761 8 17 8.22386 17 8.5V10.3486C17 10.4473 17.0292 10.5438 17.084 10.626L18 12L17.084 13.374C17.0292 13.4562 17 13.5527 17 13.6514V15.5C17 15.7761 16.7761 16 16.5 16H15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M10 12H10.009M13.991 12H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"></circle>' ],
+		'property-group': [ 24, '<path fill-rule="evenodd" clip-rule="evenodd" d="M4.67857 1.75C3.06117 1.75 1.75 3.06117 1.75 4.67857V6.63095C1.75 7.17009 2.18706 7.60714 2.72619 7.60714C3.26533 7.60714 3.70238 7.17009 3.70238 6.63095V4.67857C3.70238 4.13944 4.13944 3.70238 4.67857 3.70238H6.63095C7.17009 3.70238 7.60714 3.26533 7.60714 2.72619C7.60714 2.18706 7.17009 1.75 6.63095 1.75H4.67857ZM17.369 1.75C16.8299 1.75 16.3929 2.18706 16.3929 2.72619C16.3929 3.26533 16.8299 3.70238 17.369 3.70238H19.3214C19.8606 3.70238 20.2976 4.13944 20.2976 4.67857V6.63095C20.2976 7.17009 20.7347 7.60714 21.2738 7.60714C21.8129 7.60714 22.25 7.17009 22.25 6.63095V4.67857C22.25 3.06117 20.9388 1.75 19.3214 1.75H17.369ZM3.70238 17.369C3.70238 16.8299 3.26533 16.3929 2.72619 16.3929C2.18706 16.3929 1.75 16.8299 1.75 17.369V19.3214C1.75 20.9388 3.06117 22.25 4.67857 22.25H6.63095C7.17009 22.25 7.60714 21.8129 7.60714 21.2738C7.60714 20.7347 7.17009 20.2976 6.63095 20.2976H4.67857C4.13944 20.2976 3.70238 19.8606 3.70238 19.3214V17.369ZM22.25 17.369C22.25 16.8299 21.8129 16.3929 21.2738 16.3929C20.7347 16.3929 20.2976 16.8299 20.2976 17.369V19.3214C20.2976 19.8606 19.8606 20.2976 19.3214 20.2976H17.369C16.8299 20.2976 16.3929 20.7347 16.3929 21.2738C16.3929 21.8129 16.8299 22.25 17.369 22.25H19.3214C20.9388 22.25 22.25 20.9388 22.25 19.3214V17.369ZM10.0476 1.75C9.50848 1.75 9.07143 2.18706 9.07143 2.72619C9.07143 3.26533 9.50848 3.70238 10.0476 3.70238H13.9524C14.4915 3.70238 14.9286 3.26533 14.9286 2.72619C14.9286 2.18706 14.4915 1.75 13.9524 1.75H10.0476ZM3.70238 10.0476C3.70238 9.50848 3.26533 9.07143 2.72619 9.07143C2.18706 9.07143 1.75 9.50848 1.75 10.0476V13.9524C1.75 14.4915 2.18706 14.9286 2.72619 14.9286C3.26533 14.9286 3.70238 14.4915 3.70238 13.9524V10.0476ZM22.25 10.0476C22.25 9.50848 21.8129 9.07143 21.2738 9.07143C20.7347 9.07143 20.2976 9.50848 20.2976 10.0476V13.9524C20.2976 14.4915 20.7347 14.9286 21.2738 14.9286C21.8129 14.9286 22.25 14.4915 22.25 13.9524V10.0476ZM10.0476 20.2976C9.50848 20.2976 9.07143 20.7347 9.07143 21.2738C9.07143 21.8129 9.50848 22.25 10.0476 22.25H13.9524C14.4915 22.25 14.9286 21.8129 14.9286 21.2738C14.9286 20.7347 14.4915 20.2976 13.9524 20.2976H10.0476Z" fill="currentColor"/>' ],
+		'css-3': [ 24, '<path d="M20.5 2.5H3.5L5.5 19.5L11.5 21.5L18.5 19.5L20.5 2.5Z" stroke="currentColor" fill="none"/><path d="M7.5 6.5H16.5L8 11H16L15.5 16L12 17L8.5 16L8.3 14" stroke="currentColor" fill="none"/>' ],
+		'arrow-data-transfer-vertical': [ 24, '<path d="M15 19.0002L15 4.99988L19 7.99988" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M9 4.99951L9 18.9998L5 15.9998" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>' ],
+		'text-font': [ 24, '<path d="M14 19L9 5H7L2 19M4 14H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M16.5 11.5L16.6298 11.3053C17.1735 10.4898 18.0887 10 19.0688 10C20.6876 10 22 11.3124 22 12.9312V18.5M22 14H18.561C17.1466 14 16 15.1466 16 16.561C16 17.908 17.092 19 18.439 19H18.7408C19.2376 19 19.725 18.865 20.151 18.6094L20.3033 18.518C21.3559 17.8864 22 16.7489 22 15.5213V14Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>' ],
+	};
+	const PROP_ICONS = { boolean: 'toggle-on', string: 'text-icon', 'string:select': 'cursor-rectangle-selection-01', 'string:wpMediaId': 'image-03', 'string:image': 'image-03', 'string:array': 'infinity-01', object: 'code-circle', 'object:group': 'property-group', 'array:repeater': 'property-group', 'array:class': 'css-3', 'string:condition': 'arrow-data-transfer-vertical' };
+	const propIcon = ( prop ) => {
+		const { type } = prop.incoming || prop.current;
+		const name = typeof type === 'string' ? type : type?.specialized ? `${ type.primitive }:${ type.specialized }` : type?.primitive;
+		const [ size, svg ] = PROP_ICON_SVGS[ PROP_ICONS[ name ] ?? 'text-font' ];
+		return h( 'span', { class: 'etk-components__prop-icon', 'aria-hidden': 'true', html: `<svg viewBox="0 0 ${ size } ${ size }" width="14" height="14" focusable="false">${ svg }</svg>` } );
+	};
+
+	// Every compared prop, the ones inside groups and conditions too, depth first.
+	const walkProps = function* ( props ) {
+		for ( const prop of props ) {
+			yield prop;
+			yield* walkProps( prop.inner );
+		}
+	};
+	const propAt = ( path ) => [ ...walkProps( reviewing.props ) ].find( ( prop ) => prop.path === path );
+
+	// A prop that changed shows, and so does one with changes inside, to hold them.
+	const shownProp = ( prop ) => showAll.props || prop.status !== 'same';
+
+	const toggleProp = ( prop ) => {
+		closedProps.has( prop.path ) ? closedProps.delete( prop.path ) : closedProps.add( prop.path );
+		render();
+	};
+
+	// A prop's row, with the props inside it below. Only a top-level prop has a
+	// tickbox: the one tick takes or leaves everything inside it.
 	const propRow = ( prop ) => {
-		const showing = isSelected( 'prop', prop.key );
-		const name = h( 'span', { class: 'etk-components__layer-name' }, h( 'span', { class: 'etk-components__layer-label', textContent: propName( prop ) } ) );
-		if ( prop.status === 'same' ) return h( 'li', { class: 'etk-components__layer etk-components__layer--same' }, h( 'div', { class: 'etk-components__row' }, name ) );
+		const kids = prop.inner.filter( shownProp );
+		const open = ! closedProps.has( prop.path );
+		const inside = prop.path !== prop.root;
+		const showing = prop.status !== 'same' && isSelected( 'prop', prop.path );
+		const trailing = prop.status === 'same' ? [] : [ propChip( prop ) ];
+		if ( prop.inside && ! open ) trailing.push( chip( 'inside', `${ prop.inside } inside` ) );
+		const name = h( 'span', { class: 'etk-components__layer-name' }, propIcon( prop ), h( 'span', { class: 'etk-components__layer-label', textContent: propName( prop ) } ) );
+		const chipList = trailing.length ? h( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, trailing ) : null;
 		return h(
 			'li',
 			{ class: `etk-components__layer etk-components__layer--${ prop.status }` },
 			h(
 				'div',
 				{ class: `etk-components__row${ showing ? ' is-showing' : '' }` },
-				tick( propLabel( prop ), decisions.props.get( prop.key ), ( yes ) => decided( () => decisions.props.set( prop.key, yes ) ), `prop:${ prop.key }:tick` ),
+				kids.length
+					? h( 'button', { type: 'button', class: 'etk-components__caret', 'aria-expanded': String( open ), 'aria-label': `Props inside ${ propName( prop ) }`, html: CARET, 'data-focus': `prop:${ prop.path }:caret`, onclick: () => toggleProp( prop ) } )
+					: h( 'span', { class: 'etk-components__leaf', 'aria-hidden': 'true' } ),
+				prop.status !== 'same' && ! inside ? tick( propLabel( prop ), decisions.props.get( prop.key ), ( yes ) => decided( () => decisions.props.set( prop.key, yes ) ), `prop:${ prop.key }:tick` ) : null,
+				prop.status === 'same'
+					? [ name, chipList ]
+					: h(
+							'button',
+							{ type: 'button', class: 'etk-components__row-toggle', 'aria-current': showing ? 'true' : null, 'aria-controls': CODE_PANE, 'data-focus': `prop:${ prop.path }:toggle`, onclick: () => select( { kind: 'prop', id: prop.path } ) },
+							name,
+							h( 'span', { class: 'screen-reader-text', textContent: `, ${ prop.status }` } ),
+							chipList
+					  )
+			),
+			kids.length && open ? h( 'ul', { class: 'etk-components__layers etk-components__layers--inside', role: 'list' }, kids.map( propRow ) ) : null
+		);
+	};
+
+	// The props inside a group or condition that differ, each with its fields and the props inside it.
+	const innerProps = ( list ) => {
+		const shown = list.filter( ( prop ) => prop.status !== 'same' );
+		if ( ! shown.length ) return null;
+		return h(
+			'ul',
+			{ class: 'etk-components__inner-props' },
+			shown.map( ( prop ) =>
 				h(
-					'button',
-					{ type: 'button', class: 'etk-components__row-toggle', 'aria-current': showing ? 'true' : null, 'aria-controls': CODE_PANE, 'data-focus': `prop:${ prop.key }:toggle`, onclick: () => select( { kind: 'prop', id: prop.key } ) },
-					name,
-					h( 'span', { class: 'screen-reader-text', textContent: `, ${ prop.status }` } ),
-					h( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, propChip( prop ) )
+					'li',
+					{ class: 'etk-components__inner-prop' },
+					h(
+						'div',
+						{ class: 'etk-components__inner-head' },
+						h( 'span', { class: 'etk-components__inner-name', textContent: propName( prop ) } ),
+						h( 'code', { class: 'etk-components__pane-tag', textContent: prop.key } ),
+						propChip( prop )
+					),
+					prop.fields.length ? fields( prop.fields ) : null,
+					innerProps( prop.inner )
 				)
 			)
 		);
@@ -1583,23 +1666,19 @@
 
 	const propDetails = ( prop ) => {
 		const source = prop.incoming || prop.current;
-		const yes = decisions.props.get( prop.key );
-		const list =
-			prop.status === 'changed'
-				? prop.fields
-				: [ ...propFields( source, makeSides( reviewing.incoming )[ prop.incoming ? 'incoming' : 'current' ] ).values() ].filter( ( field ) => field.value ).map( ( field ) => ( { label: field.label, from: prop.status === 'removed' ? field.value : '', to: prop.status === 'added' ? field.value : '' } ) );
-		const text = {
-			added: 'Added in this version. Untick it to leave it out.',
-			removed: 'Removed in this version. Untick it to keep it.',
-			changed: `Its ${ listOf( prop.fields.map( ( field ) => field.label.toLowerCase() ) ) } changed. Untick it to keep this site’s version.`,
-		}[ prop.status ];
-		const unticked = { added: 'unticked, not added', removed: 'unticked, stays on this site', changed: 'unticked, keeps this site’s prop' }[ prop.status ];
+		const top = propAt( prop.root );
+		const inside = prop !== top;
+		const yes = decisions.props.get( prop.root );
+		const changes = [ ...prop.fields.map( ( field ) => field.label.toLowerCase() ), ...( prop.inner.some( ( inner ) => inner.status !== 'same' ) ? [ 'props inside' ] : [] ) ];
+		const what = { added: 'Added in this version.', removed: 'Removed in this version.', changed: `Its ${ listOf( changes ) } changed.` }[ prop.status ];
+		const how = inside ? `It’s inside ${ propName( top ) }, whose tickbox takes or leaves everything in it.` : { added: 'Untick it to leave it out.', removed: 'Untick it to keep it.', changed: 'Untick it to keep this site’s version.' }[ prop.status ];
+		const unticked = inside ? `${ propName( top ) } unticked, keeps this site’s version` : { added: 'unticked, not added', removed: 'unticked, stays on this site', changed: 'unticked, keeps this site’s prop' }[ prop.status ];
 		return [
-			paneHead( [ h( 'span', { textContent: propName( prop ) } ), source.name ? h( 'code', { class: 'etk-components__pane-tag', textContent: prop.key } ) : null ], text ),
+			paneHead( [ h( 'span', { textContent: propName( prop ) } ), source.name ? h( 'code', { class: 'etk-components__pane-tag', textContent: prop.key } ) : null ], `${ what } ${ how }` ),
 			h(
 				'div',
 				{ class: 'etk-components__card' },
-				part( { kind: prop.status, label: `${ PROP_STATUS[ prop.status ] } prop`, control: tick( propLabel( prop ), yes, ( value ) => decided( () => decisions.props.set( prop.key, value ) ), `prop:${ prop.key }` ), unticked: yes ? '' : unticked }, fields( list ) )
+				part( { kind: prop.status, label: `${ PROP_STATUS[ prop.status ] } prop`, control: inside ? null : tick( propLabel( prop ), yes, ( value ) => decided( () => decisions.props.set( prop.key, value ) ), `prop:${ prop.key }` ), unticked: yes ? '' : unticked }, prop.fields.length ? fields( prop.fields ) : null, innerProps( prop.inner ) )
 			),
 		];
 	};
@@ -1607,11 +1686,11 @@
 	const propsView = () => {
 		const { props } = reviewing;
 		if ( ! props.length ) return null;
-		const shown = showAll.props ? props : props.filter( ( prop ) => prop.status !== 'same' );
+		const shown = props.filter( shownProp );
 		return group(
 			'etk-components-props-title',
 			'Props',
-			props.some( ( prop ) => prop.status === 'same' ) ? showToggle( 'props', 'prop' ) : null,
+			[ ...walkProps( props ) ].some( ( prop ) => prop.status === 'same' ) ? showToggle( 'props', 'prop' ) : null,
 			shown.length ? rows( shown.map( propRow ) ) : h( 'p', { class: 'etk-components__help', textContent: 'No prop changes.' } )
 		);
 	};
@@ -1806,6 +1885,7 @@
 			.filter( ( field ) => field.to && field.from !== field.to );
 		reviewing = { incoming, current, now, tree: compare( now, incoming ), props: compareProps( now.properties || [], incoming.properties, makeSides( incoming ) ), meta };
 		closedLayers = new Set();
+		closedProps = new Set();
 		showAll = { layers: false, props: false };
 		unfolded = new Set();
 		diffs = new Map();
