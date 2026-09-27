@@ -674,7 +674,7 @@
 						},
 					} ),
 					label,
-					value === 'unused' && unused ? h( 'span', { class: 'etk-components__count', textContent: String( unused ) } ) : null
+					value === 'unused' && unused ? h( 'span', { class: 'etk-components__count etk-components__count--unused', textContent: String( unused ) } ) : null
 				)
 			)
 		);
