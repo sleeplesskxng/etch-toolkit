@@ -257,6 +257,76 @@
 	}
 }
 
+/*
+ * .etk-seg, with .etk-track: one choice from a few, as a fieldset of radios,
+ * each input inside its label. --fill stretches the segments to the width,
+ * --boxed puts the track in a bordered box.
+ */
+.etk-seg {
+	--etk-track-radius: var(--e-border-radius, 6px);
+	--etk-track-inset: 3px;
+	--etk-track-highlight: var(--e-base-semi-light, #3e3e41);
+
+	display: inline-flex;
+	flex: none;
+	gap: 2px;
+	min-inline-size: 0;
+	margin: 0;
+	padding: 3px;
+	border: 0;
+	background: var(--e-base-dark, #1d1d20);
+
+	input {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	label {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		padding: 4px 10px;
+		border: 0;
+		background: none;
+		color: color-mix(in srgb, var(--e-foreground-color, #e1e1e5) 55%, transparent);
+		font: inherit;
+		font-weight: 500;
+		line-height: 16px;
+		white-space: nowrap;
+		cursor: pointer;
+		transition: color var(--e-transition, 0.15s ease-in-out);
+
+		&:hover,
+		&:has(input:checked) {
+			color: var(--e-foreground-color, #e1e1e5);
+		}
+
+		&:has(input:focus-visible) {
+			box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
+		}
+	}
+}
+
+.etk-seg--fill {
+	display: flex;
+
+	label {
+		flex: 1 1 0;
+	}
+}
+
+.etk-seg--boxed {
+	--etk-track-inset: 4px;
+
+	border: 1px solid var(--e-border-color, #36363a);
+	background: var(--e-base, #27272b);
+}
+
 /* ---- Sliders ---- */
 
 /*

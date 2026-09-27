@@ -587,18 +587,13 @@
 /* ------------------------------------------------------------------ */
 
 /*
- * The picked one's highlight slides between them (.etk-track, in the core
- * styles). --etk-track-inset is each track's border plus padding.
+ * Page tabs: a bordered track. The picked one's highlight slides between them
+ * (.etk-track, in the core styles). Filters and options are the core's .etk-seg.
  */
-.etk-fonts__tabs,
-.etk-fonts__seg {
-	--etk-track-radius: var(--etk-radius);
-	--etk-track-highlight: var(--etk-selected);
-}
-
-/* Page tabs: a bordered track. */
 .etk-fonts__tabs {
+	--etk-track-radius: var(--etk-radius);
 	--etk-track-inset: 4px;
+	--etk-track-highlight: var(--etk-selected);
 
 	display: inline-flex;
 	flex: none;
@@ -608,46 +603,7 @@
 	background: var(--etk-surface);
 }
 
-/* Filters and options: a filled track. */
-.etk-fonts__seg {
-	--etk-track-inset: 3px;
-
-	display: inline-flex;
-	flex: none;
-	gap: 2px;
-	min-inline-size: 0;
-	margin: 0;
-	padding: 3px;
-	border: 0;
-	background: var(--etk-field);
-
-	input {
-		position: absolute;
-		inline-size: 1px;
-		block-size: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
-	}
-}
-
-.etk-fonts__seg--fill {
-	display: flex;
-
-	label {
-		flex: 1 1 0;
-	}
-}
-
-.etk-fonts__seg--boxed {
-	--etk-track-inset: 4px;
-
-	border: 1px solid var(--etk-line);
-	background: var(--etk-surface);
-}
-
-.etk-fonts__tab,
-.etk-fonts__seg label {
+.etk-fonts__tab {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -665,32 +621,19 @@
 		background-color var(--e-transition, 0.15s ease-in-out),
 		color var(--e-transition, 0.15s ease-in-out);
 
-	&:hover {
+	&:hover,
+	&[aria-selected="true"] {
 		color: var(--etk-text);
 	}
 }
 
-.etk-fonts__seg label {
-	padding: 4px 10px;
-	color: var(--etk-text-55);
-
-	&:has(.etk-fonts__seg-icon) {
-		padding: 5px 6px;
-	}
-
-	&:has(input:focus-visible) {
-		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
-	}
+.etk-seg label:has(.etk-fonts__seg-icon) {
+	padding: 5px 6px;
 }
 
 /* A little taller in the inspector. */
-.etk-fonts__inspector .etk-fonts__seg label {
+.etk-fonts__inspector .etk-seg label {
 	padding-block: 5px;
-}
-
-.etk-fonts__tab[aria-selected="true"],
-.etk-fonts__seg label:has(input:checked) {
-	color: var(--etk-text);
 }
 
 .etk-fonts__seg-icon {
@@ -704,7 +647,7 @@
 }
 
 .etk-fonts__tab[aria-selected="true"] .etk-fonts__count,
-.etk-fonts__seg label:has(input:checked) .etk-fonts__count {
+.etk-seg label:has(input:checked) .etk-fonts__count {
 	color: var(--etk-text-50);
 }
 
@@ -1234,7 +1177,7 @@
 	align-items: center;
 
 	.etk-fonts__input,
-	.etk-fonts__seg {
+	.etk-seg {
 		background-color: var(--etk-surface);
 	}
 }
@@ -1552,14 +1495,14 @@
 	gap: 8px 16px;
 	padding-block-end: 12px;
 
-	.etk-fonts__seg {
+	.etk-seg {
 		--etk-track-inset: 2px;
 
 		padding: 2px;
 	}
 
 	/* The Unused count. */
-	.etk-fonts__seg label:last-of-type .etk-fonts__count {
+	.etk-seg label:last-of-type .etk-fonts__count {
 		color: var(--etk-warning);
 		font-weight: 400;
 	}

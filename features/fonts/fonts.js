@@ -606,7 +606,7 @@
 	const segmented = ( { name, legend, options, value, onchange, fill = false, boxed = false } ) =>
 		el(
 			'fieldset',
-			{ class: `etk-fonts__seg etk-track${ fill ? ' etk-fonts__seg--fill' : '' }${ boxed ? ' etk-fonts__seg--boxed' : '' }` },
+			{ class: `etk-seg etk-track${ fill ? ' etk-seg--fill' : '' }${ boxed ? ' etk-seg--boxed' : '' }` },
 			el( 'legend', { class: 'screen-reader-text', textContent: legend } ),
 			options.map( ( option ) =>
 				el(

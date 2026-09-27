@@ -481,7 +481,7 @@
 			if ( text && text !== current ) write( text, preview );
 		};
 
-		const modes = el( 'fieldset', { className: 'etk-mix__modes etk-track' }, [
+		const modes = el( 'fieldset', { className: 'etk-mix__modes etk-seg etk-seg--fill etk-track' }, [
 			el( 'legend', { className: 'etk-mix__hidden', textContent: 'Mix with' } ),
 			...[
 				[ 'transparent', 'Transparent' ],
