@@ -24,7 +24,7 @@
 	if ( ! toolkit.api ) return;
 
 	const CONTROL_ID = 'etch-toolkit-component-manager';
-	const { el, plural, errorText } = toolkit;
+	const { el, plural, errorText, settingsBarButton, managerKeys, openManager } = toolkit;
 	const icon = ( name, size ) => toolkit.icon( name, { size, className: 'etk-components__icon' } );
 
 	const enabled = () => window.etchToolkitSettings?.settings?.componentManager === true && typeof window.etch?.components?.updateAsync === 'function';
@@ -445,7 +445,6 @@
 	let panel = null;
 	let main = null;
 	let status = null;
-	let controlButton = null;
 	let view = 'list';
 	let pasted = '';
 	let search = '';
@@ -455,13 +454,8 @@
 	let usedOn = null; // Component ID => the posts using it, from the server. Null while it loads.
 	let reviewing = null;
 
-	const announce = ( message, { error = false } = {} ) => {
-		if ( ! status ) return;
-		status.textContent = '';
-		status.classList.toggle( 'is-error', error );
-		// Cleared first so a repeated message is read again.
-		window.setTimeout( () => ( status.textContent = message ), 50 );
-	};
+	// Tell screen readers what happened. Errors also show above the view.
+	const announce = ( message, options ) => toolkit.announce( status, message, options );
 	const warn = ( message ) => announce( message, { error: true } );
 
 	const button = ( label, onclick, { variant = 'secondary', ...attrs } = {} ) => el( 'button', { type: 'button', class: `etk-components__btn etk-components__btn--${ variant }`, onclick, ...attrs }, label );
@@ -1878,20 +1872,7 @@
 				class: 'etk-manager etk-manager--panel etk-manager--single etk-components',
 				hidden: true,
 				'aria-labelledby': 'etk-components-title',
-				// Keep typing in the panel away from Etch's keyboard shortcuts. Esc closes.
-				onkeydown: ( e ) => {
-					e.stopPropagation();
-					if ( e.key === 'Escape' && ! e.target.closest( 'dialog' ) ) {
-						e.preventDefault();
-						close();
-					}
-					// Except Cmd/Ctrl+S, which saves instead of opening the browser's Save Page.
-					if ( ( e.metaKey || e.ctrlKey ) && ( e.code === 'KeyS' || e.key.toLowerCase() === 's' ) ) {
-						e.preventDefault();
-						window.etch?.saveAsync?.();
-					}
-				},
-				onkeyup: ( e ) => e.stopPropagation(),
+				...managerKeys( () => close() ),
 			},
 			// Across the top, like Etch's Style Manager.
 			el(
@@ -1907,15 +1888,8 @@
 
 	const open = () => {
 		if ( ! panel ) build();
-		// One manager at a time, like Etch's own, so Back goes straight to the canvas.
-		try {
-			if ( window.etch.navigation.getCurrentPlace() !== 'builder' ) window.etch.navigation.goTo( 'builder' );
-		} catch {}
-		// Pinning Automatic.css's dashboard writes left and max-width onto every fixed element. Its place comes from the CSS.
-		panel.removeAttribute( 'style' );
-		panel.hidden = false;
-		controlButton?.setAttribute( 'aria-expanded', 'true' );
-		controlButton?.setAttribute( 'selected', 'true' );
+		openManager( panel );
+		control.expanded( true );
 		if ( view === 'list' ) loadUsedOn();
 		go( view );
 	};
@@ -1924,67 +1898,33 @@
 	const close = ( { focus = true } = {} ) => {
 		if ( ! panel || panel.hidden ) return;
 		panel.hidden = true;
-		controlButton?.setAttribute( 'aria-expanded', 'false' );
-		controlButton?.removeAttribute( 'selected' );
-		if ( focus ) controlButton?.focus();
+		control.expanded( false );
+		if ( focus ) control.focus();
 	};
 
 	/* ------------------------------------------------------------------ */
 	/* Boot                                                                */
 	/* ------------------------------------------------------------------ */
 
-	let listening = false;
-	let added = false;
-	const addControl = () => {
-		const bar = window.etchControls?.builder?.settingsBar?.top;
-		const section = document.querySelector( '.settings-bar__section.top' );
-		if ( ! bar || ! section?.querySelector( 'button' ) ) return false;
-
-		const before = new Set( section.querySelectorAll( 'button' ) );
-		added = true;
-		// Etch's own component icon, as on its component blocks.
-		bar.addAfter( { id: CONTROL_ID, icon: 'etch:component-stroke', tooltip: 'Component manager', callback: () => ( panel && ! panel.hidden ? close() : open() ) } );
-
-		// Etch renders the button on its next update. Label it for toggling state.
-		const observer = new MutationObserver( () => {
-			controlButton = [ ...section.querySelectorAll( 'button' ) ].find( ( b ) => ! before.has( b ) );
-			if ( ! controlButton ) return;
-			observer.disconnect();
-			controlButton.setAttribute( 'aria-label', 'Component manager' );
-			controlButton.setAttribute( 'aria-expanded', 'false' );
-			controlButton.setAttribute( 'aria-controls', 'etk-components' );
-		} );
-		observer.observe( section, { childList: true, subtree: true } );
-
-		// Opening one of Etch's own managers, or another of the toolkit's, closes this one.
-		if ( ! listening ) {
-			listening = true;
-			document.querySelector( '.settings-bar' )?.addEventListener( 'click', ( e ) => {
-				const clicked = e.target.closest( 'button, a' );
-				if ( clicked && clicked !== controlButton ) close( { focus: false } );
-			} );
-		}
-		return true;
-	};
-
-	const removeControl = () => {
-		close( { focus: false } );
-		window.etchControls?.builder?.settingsBar?.top?.remove( CONTROL_ID );
-		controlButton = null;
-		added = false;
-	};
-
-	const boot = () => {
-		let tries = 0;
-		const timer = window.setInterval( () => {
-			if ( ! enabled() || addControl() || ++tries > 120 ) window.clearInterval( timer );
-		}, 250 );
-	};
+	// Etch's own component icon, as on its component blocks.
+	const control = settingsBarButton( {
+		section: 'top',
+		id: CONTROL_ID,
+		icon: 'etch:component-stroke',
+		tooltip: 'Component manager',
+		label: 'Component manager',
+		controls: 'etk-components',
+		onclick: () => ( panel && ! panel.hidden ? close() : open() ),
+		onother: () => close( { focus: false } ),
+		enabled,
+	} );
 
 	// Turned on or off in the toolkit's settings.
-	window.addEventListener( 'etch-toolkit-settings', () => ( enabled() ? ! added && boot() : removeControl() ) );
-
-	document.readyState === 'complete' ? boot() : window.addEventListener( 'load', boot );
+	window.addEventListener( 'etch-toolkit-settings', () => {
+		if ( enabled() ) return control.add();
+		close( { focus: false } );
+		control.remove();
+	} );
 
 	// For tests and other features.
 	toolkit.components = { parse, fromGutenberg };

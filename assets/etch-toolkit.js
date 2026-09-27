@@ -643,10 +643,12 @@
 	 * svg, { paths, viewBox }, is drawn over Etch's icon, and again whenever
 	 * Etch redraws it. onother() runs when another button in the bar is
 	 * clicked. ready() runs once the button's added, or Etch's bar never came.
-	 * Returns { expanded( open ), focus(), remove() }.
+	 * While enabled() is false it isn't added. Returns { expanded( open ),
+	 * focus(), add(), remove() }: add() adds it again after remove().
 	 */
-	const settingsBarButton = ( { section, id, icon, tooltip, label, controls, className, svg, onclick, onother = () => {}, ready = () => {} } ) => {
+	const settingsBarButton = ( { section, id, icon, tooltip, label, controls, className, svg, onclick, onother = () => {}, ready = () => {}, enabled = () => true } ) => {
 		let button = null;
+		let added = false;
 		let drawn = '';
 		// Compared as the browser writes it back, or every swap would look like Etch redrawing and trigger another.
 		const draw = () => {
@@ -664,6 +666,7 @@
 
 			const before = new Set( box.querySelectorAll( 'button' ) );
 			bar[ section === 'top' ? 'addAfter' : 'addBefore' ]( { id, icon, tooltip, callback: onclick } );
+			added = true;
 
 			// Etch renders the button on its next update. Label it for toggling state.
 			const observer = new MutationObserver( () => {
@@ -692,7 +695,7 @@
 		const boot = () => {
 			let tries = 0;
 			const timer = window.setInterval( () => {
-				if ( add() || ++tries > 120 ) {
+				if ( ! enabled() || add() || ++tries > 120 ) {
 					window.clearInterval( timer );
 					ready();
 				}
@@ -706,9 +709,11 @@
 				open ? button?.setAttribute( 'selected', 'true' ) : button?.removeAttribute( 'selected' );
 			},
 			focus: () => button?.focus(),
+			add: () => added || boot(),
 			remove() {
 				window.etchControls?.builder?.settingsBar?.[ section ]?.remove( id );
 				button = null;
+				added = false;
 			},
 		};
 	};
