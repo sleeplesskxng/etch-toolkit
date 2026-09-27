@@ -1067,7 +1067,7 @@
 		const layer = node.incoming || node.current;
 		const open = ! closedLayers.has( node.id );
 		const hasChanges = node.status !== 'same';
-		const showing = isSelected( 'layer', node.id );
+		const showing = hasChanges && isSelected( 'layer', node.id );
 		const chips = layerChips( node );
 		// A closed layer says how much changed inside it.
 		if ( node.inside && ! open ) chips.push( chip( 'inside', `${ node.inside } inside` ) );
@@ -1089,14 +1089,16 @@
 				node.children.length
 					? h( 'button', { type: 'button', class: 'etk-components__caret', 'aria-expanded': String( open ), 'aria-label': `Layers inside ${ layerTitle( layer ) }`, html: CARET, 'data-focus': `${ node.id }:caret`, onclick: () => toggleLayer( node ) } )
 					: h( 'span', { class: 'etk-components__leaf', 'aria-hidden': 'true' } ),
-				// Selecting a layer shows its code, like selecting one in the Structure panel.
-				h(
-					'button',
-					{ type: 'button', class: 'etk-components__layer-toggle', 'aria-current': showing ? 'true' : null, 'aria-controls': CODE_PANE, 'data-focus': `${ node.id }:toggle`, onclick: () => select( { kind: 'layer', id: node.id } ) },
-					name,
-					hasChanges ? h( 'span', { class: 'screen-reader-text', textContent: `, ${ describeChanges( node ) }` } ) : null,
-					chipList
-				)
+				// A layer with changes shows them in the code pane, like selecting a layer in the Structure panel.
+				hasChanges
+					? h(
+							'button',
+							{ type: 'button', class: 'etk-components__layer-toggle', 'aria-current': showing ? 'true' : null, 'aria-controls': CODE_PANE, 'data-focus': `${ node.id }:toggle`, onclick: () => select( { kind: 'layer', id: node.id } ) },
+							name,
+							h( 'span', { class: 'screen-reader-text', textContent: `, ${ describeChanges( node ) }` } ),
+							chipList
+					  )
+					: [ name, chipList ]
 			),
 			node.children.length && open ? h( 'ul', { class: 'etk-components__layers etk-components__layers--inside', role: 'list' }, node.children.map( layerRow ) ) : null
 		);
@@ -1129,9 +1131,6 @@
 			{ class: 'etk-components__diff' },
 			lines.map( ( { op, text } ) => h( op === '-' ? 'del' : op === '+' ? 'ins' : 'div', { class: `etk-components__diff-line etk-components__diff-line--${ op === '-' ? 'del' : op === '+' ? 'ins' : 'same' }` }, text || '\u00a0' ) )
 		);
-
-	// The same text on both sides: every line, none marked.
-	const codeView = ( text ) => diffView( diffLines( text, text ) );
 
 	// One field: a one-line value as before and after, more lines as a line diff.
 	const fieldView = ( { label, from, to } ) => {
@@ -1210,9 +1209,9 @@
 	const OUTSIDE_MARKUP = new Set( [ 'name', 'hidden', 'options' ] );
 
 	/**
-	 * Everything on a layer, for the code pane: its markup, every class it
-	 * uses with its CSS, and its script, each whole with what changed marked.
-	 * Approve and Reject show where something changed.
+	 * What changed on a layer, for the code pane: its markup, the classes whose
+	 * CSS changes and its script, each whole with what changed marked. Only
+	 * what changed shows. An added or removed layer shows all of it.
 	 */
 	const details = ( node ) => {
 		const layer = node.incoming || node.current;
@@ -1246,43 +1245,40 @@
 			);
 		}
 
-		// HTML: the layer's markup, and its name if that changed.
-		const before = node.current ? markup( node.current ) : '';
-		const after = node.incoming ? markup( node.incoming ) : '';
-		parts.push(
-			section(
-				'HTML',
-				node.status === 'changed' && node.html.length ? choice( `HTML changes on ${ title }`, choices.html, ( yes ) => ( decide( node, 'html', yes ), render() ), `${ node.id }:html` ) : null,
-				node.html.filter( ( field ) => OUTSIDE_MARKUP.has( field.key ) ).map( fieldView ),
-				diffView( diffLines( before, after ) )
-			)
-		);
+		const whole = added || removed;
 
-		// CSS: every class the layer uses, whole. Changed ones can be approved or rejected.
-		const styles = new Map();
-		for ( const style of [ ...( node.current?.styles || [] ), ...( node.incoming?.styles || [] ) ] ) if ( ! styles.has( style.selector ) ) styles.set( style.selector, style );
-		for ( const [ selector, style ] of styles ) {
-			const change = node.css.find( ( c ) => c.selector === selector );
+		// HTML: the layer's markup, and its name if that changed.
+		if ( whole || node.html.length ) {
 			parts.push(
-				change
-					? section(
-							`CSS ${ selector }`,
-							choice( `CSS changes to ${ selector }`, decisions.css.get( selector ), ( yes ) => ( decisions.css.set( selector, yes ), render() ), `${ node.id }:css:${ selector }` ),
-							h( 'p', { class: `etk-components__reach${ change.from !== null && usage && ( usage[ selector ] ?? 0 ) > usesHere( selector ) ? ' is-wide' : '' }`, textContent: reach( change ) } ),
-							diffView( diffLines( change.from ?? '', change.to ) )
-					  )
-					: section( `CSS ${ selector }`, null, codeView( style.css ) )
+				section(
+					'HTML',
+					node.status === 'changed' ? choice( `HTML changes on ${ title }`, choices.html, ( yes ) => ( decide( node, 'html', yes ), render() ), `${ node.id }:html` ) : null,
+					node.html.filter( ( field ) => OUTSIDE_MARKUP.has( field.key ) ).map( fieldView ),
+					diffView( diffLines( node.current ? markup( node.current ) : '', node.incoming ? markup( node.incoming ) : '' ) )
+				)
+			);
+		}
+
+		// CSS: each class whose CSS would change, whole.
+		for ( const change of node.css ) {
+			parts.push(
+				section(
+					`CSS ${ change.selector }`,
+					choice( `CSS changes to ${ change.selector }`, decisions.css.get( change.selector ), ( yes ) => ( decisions.css.set( change.selector, yes ), render() ), `${ node.id }:css:${ change.selector }` ),
+					h( 'p', { class: `etk-components__reach${ change.from !== null && usage && ( usage[ change.selector ] ?? 0 ) > usesHere( change.selector ) ? ' is-wide' : '' }`, textContent: reach( change ) } ),
+					diffView( diffLines( change.from ?? '', change.to ) )
+				)
 			);
 		}
 
 		// JS: the whole script.
 		const scriptBefore = node.current?.script ?? '';
 		const scriptAfter = node.incoming?.script ?? '';
-		if ( scriptBefore || scriptAfter ) {
+		if ( node.js || ( whole && ( scriptBefore || scriptAfter ) ) ) {
 			parts.push(
 				section(
 					'JS',
-					node.status === 'changed' && node.js ? choice( `JS changes on ${ title }`, choices.js, ( yes ) => ( decide( node, 'js', yes ), render() ), `${ node.id }:js` ) : null,
+					node.status === 'changed' ? choice( `JS changes on ${ title }`, choices.js, ( yes ) => ( decide( node, 'js', yes ), render() ), `${ node.id }:js` ) : null,
 					diffView( diffLines( scriptBefore, scriptAfter ) )
 				)
 			);
@@ -1313,10 +1309,20 @@
 		return reviewing.meta.length ? { kind: 'meta' } : null;
 	};
 
+	// Each code box starts at its first change, a few lines down so there's some before it.
+	const scrollToChanges = () => {
+		const pane = document.getElementById( CODE_PANE );
+		pane?.scrollTo( 0, 0 );
+		pane?.querySelectorAll( '.etk-components__diff' ).forEach( ( box ) => {
+			const first = box.querySelector( 'ins, del' );
+			box.scrollTop = first ? Math.max( 0, first.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 3 * first.offsetHeight ) : 0;
+		} );
+	};
+
 	const select = ( next ) => {
 		selected = next;
 		render();
-		document.getElementById( CODE_PANE )?.scrollTo( 0, 0 );
+		scrollToChanges();
 		const layer = next.kind === 'layer' && [ ...walk( reviewing.tree ) ].find( ( n ) => n.id === next.id );
 		announce( `Showing ${ layer ? layerTitle( layer.incoming || layer.current ) : next.kind === 'prop' ? `the ${ next.id } prop` : 'the name and description' }.` );
 	};
@@ -1542,6 +1548,7 @@
 		selected = firstChange();
 		loadUsage();
 		go( 'review' );
+		scrollToChanges();
 	};
 
 	/* ------------------------------------------------------------------ */

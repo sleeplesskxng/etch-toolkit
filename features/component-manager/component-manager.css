@@ -470,21 +470,30 @@
 	min-block-size: 0;
 }
 
+/*
+ * The code pane. Each kind of change gets an equal share of its height and
+ * scrolls inside its own box. With too many to fit, the pane scrolls too.
+ */
 .etk-components__code {
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
 	min-block-size: 0;
-	overflow: auto;
+	overflow-y: auto;
 	padding: 16px;
 	border: 1px solid var(--etk-components-line);
 	border-radius: var(--etk-components-radius-lg);
 	background: var(--etk-components-field);
 
+	> .etk-components__change {
+		flex: 1 1 0;
+		min-block-size: 200px;
+	}
+
 	.etk-components__diff {
+		flex: 1 1 auto;
+		min-block-size: 0;
 		max-block-size: none;
-		overflow: visible;
-		overflow-x: auto;
 	}
 }
 
@@ -520,6 +529,10 @@
 	.etk-components__code,
 	.etk-components__side {
 		overflow: visible;
+	}
+
+	.etk-components__code .etk-components__diff {
+		max-block-size: 360px;
 	}
 }
 
@@ -1007,7 +1020,8 @@
 /* Line diffs, for scripts, CSS and long values. */
 .etk-components__diff {
 	max-block-size: 360px;
-	overflow: auto;
+	overflow-x: hidden;
+	overflow-y: auto;
 	border: 1px solid var(--etk-components-line);
 	border-radius: var(--etk-components-radius);
 	background: var(--etk-components-field);
@@ -1016,11 +1030,13 @@
 	line-height: 17px;
 }
 
+/* Long lines wrap, lined up under their text, past the +/- mark. */
 .etk-components__diff-line {
 	display: block;
 	padding-inline: 22px 10px;
 	text-decoration: none;
-	white-space: pre;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 
 	&::before {
 		display: inline-block;
