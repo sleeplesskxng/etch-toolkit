@@ -1111,9 +1111,15 @@
 		return [ bulk.scrim, bulk.bar ];
 	};
 
-	const newFamily = ( files ) => {
-		const name = window.prompt( 'Family name', files[ 0 ].name.replace( /[-_].*$|\.[^.]+$/g, '' ) );
-		if ( name?.trim() ) moveFiles( files, name.trim() );
+	const newFamily = async ( files ) => {
+		const input = el( 'input', { type: 'text', class: 'etk-confirm__input', 'aria-label': 'Family name', value: files[ 0 ].name.replace( /[-_].*$|\.[^.]+$/g, '' ), spellcheck: 'false', autocomplete: 'off' } );
+		const dialog = confirmDialog( { title: 'New family', message: [ input ], confirmLabel: 'Add', busyLabel: 'Adding…', variant: 'primary', form: true, initialFocus: input } );
+		input.select();
+		input.addEventListener( 'input', () => dialog.setConfirmEnabled( !! input.value.trim() ) );
+		input.addEventListener( 'keydown', ( e ) => e.key === 'Enter' && input.value.trim() && dialog.confirm() );
+		if ( ! ( await dialog.result ) ) return;
+		dialog.close();
+		moveFiles( files, input.value.trim() );
 	};
 
 	const fileMenu = ( file ) => {

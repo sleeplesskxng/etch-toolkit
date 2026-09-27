@@ -12,7 +12,7 @@
  * undo brings the style back, saving puts the class back where it came off.
  */
 ( () => {
-	const { restUrl, api, save, afterSave, el, plural, editPageClasses, confirmDialog, onMenu, menuItem, findMenuItem } = window.etchToolkit || {};
+	const { restUrl, api, save, afterSave, el, plural, editPageClasses, confirmDialog, errorDialog, onMenu, menuItem, findMenuItem } = window.etchToolkit || {};
 	if ( ! restUrl || ! confirmDialog ) return;
 
 	const BADGE = '.etch-css-selectors .etch-badges > *';
@@ -143,7 +143,7 @@
 			dialog.close();
 		} catch ( err ) {
 			if ( dialog ) dialog.fail( err.message );
-			else window.alert( `Delete Everywhere failed: ${ err.message }` );
+			else errorDialog( 'Delete Everywhere failed', err.message );
 		} finally {
 			running = false;
 		}

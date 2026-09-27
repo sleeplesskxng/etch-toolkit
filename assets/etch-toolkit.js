@@ -358,6 +358,9 @@
 		};
 	};
 
+	// An error on the confirm dialog, with a single Close button.
+	const errorDialog = ( title, message ) => confirmDialog( { title, message: [], confirmLabel: '', variant: 'primary', failTitle: title } ).fail( message );
+
 	/**
 	 * Runs update(), which replaces what's in root, and starts each new
 	 * .etk-track's highlight where the old one's was, so a pick that rebuilds
@@ -630,6 +633,6 @@
 		if ( place && place !== 'builder' ) tick();
 	} catch {}
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, slider, rebuild, barButton, bulkBar, onMenu, menuItem, findMenuItem, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onMenu, menuItem, findMenuItem, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
 	window.etchToolkit = toolkit;
 } )();

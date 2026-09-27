@@ -25,7 +25,7 @@
  */
 ( () => {
 	const toolkit = window.etchToolkit || {};
-	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, barButton, bulkBar, reload, classesIn, isClassSelector } = toolkit;
+	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, errorDialog, barButton, bulkBar, reload, classesIn, isClassSelector } = toolkit;
 	if ( ! confirmDialog ) return;
 
 	const MODAL = '.style-overview-modal__inner'; // Where every Style Manager tab renders.
@@ -182,8 +182,7 @@
 					await api( 'styles/rename/content', 'POST', { map, skip: [ ...opened ] } );
 					rename.undone = undone;
 				} catch ( err ) {
-					const notice = confirmDialog( { title: '', message: [], confirmLabel: '', variant: 'primary', failTitle: `${ undone ? 'Undo' : 'Redo' } didn’t reach other pages` } );
-					notice.fail( `${ err.message } Save again to retry.` );
+					errorDialog( `${ undone ? 'Undo' : 'Redo' } didn’t reach other pages`, `${ err.message } Save again to retry.` );
 				}
 			}
 		} ) )
