@@ -429,7 +429,9 @@
 	color: var(--etk-rn-muted);
 	cursor: pointer;
 
+	/* Heavier than the other icons, to read at 12px. */
 	svg {
+		stroke-width: 2;
 		transition: rotate 0.15s ease;
 	}
 

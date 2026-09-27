@@ -9,14 +9,15 @@
  * Settings apply as you change them, in both places, like Etch's own.
  *
  * Features add sections with etchToolkit.settings.section( { id, title,
- * icon, render, open } ). icon is the paths of a 24px stroke icon for the
- * nav, like Hugeicons'. render( ui ) returns the section's nodes, built with ui's
+ * icon, render, open } ). icon names one of the core's icons (etchToolkit.ICONS)
+ * for the nav. render( ui ) returns the section's nodes, built with ui's
  * helpers. open(), if given, runs each time the section shows, to load what
  * it needs. ui.refresh() renders the section again.
  */
 ( () => {
 	const toolkit = window.etchToolkit || {};
 	const { api, el, errorText } = toolkit;
+	const icon = ( name ) => toolkit.icon( name, { className: 'etk-settings__icon' } );
 	const config = window.etchToolkitSettings || {};
 	if ( ! api ) return;
 
@@ -27,13 +28,6 @@
 	const LOGO =
 		'<path d="M39.82 5.42L12.62 21.15C10.56 22.34 10.6 25.27 12.67 26.51L41.2 43.17C42.96 44.17 45.13 44.15 46.83 43.12L75.31 26.55C77.37 25.28 77.33 22.29 75.22 21.13L48.02 5.38C45.41 3.96 42.35 4 39.82 5.42Z" fill="currentColor"/>' +
 		'<path d="M4.92 36.14L4.92 58.05C4.92 60.46 6.19 62.71 8.27 63.9L40.95 82.75C42.93 83.9 45.31 83.89 47.26 82.74L79.83 63.85C81.99 62.61 83.24 60.35 83.24 57.95L83.24 36.07C83.24 31.58 77.9 29.75 74.74 32.59L46.52 60.84C45.08 62.22 42.83 62.19 41.46 60.77L13.38 32.49C10.08 29.8 4.92 31.65 4.92 36.14Z" fill="currentColor"/>';
-	// Etch's hugeicons:arrow-left-02, the back button on its own managers.
-	const BACK = '<path d="M8.99996 16.9998L4 11.9997L9 6.99976"/><path d="M4 12H20"/>';
-	// Hugeicons free settings-02, as on the Settings Bar button, for the General section.
-	const GENERAL = '<path d="M15.5 12a3.5 3.5 0 1 1-7 0a3.5 3.5 0 0 1 7 0Z"/><path d="M21.011 14.097c.522-.141.783-.212.886-.346c.103-.135.103-.351.103-.784v-1.934c0-.433 0-.65-.103-.784s-.364-.205-.886-.345c-1.95-.526-3.171-2.565-2.668-4.503c.139-.533.208-.8.142-.956s-.256-.264-.635-.479l-1.725-.98c-.372-.21-.558-.316-.725-.294s-.356.21-.733.587c-1.459 1.455-3.873 1.455-5.333 0c-.377-.376-.565-.564-.732-.587c-.167-.022-.353.083-.725.295l-1.725.979c-.38.215-.57.323-.635.48c-.066.155.003.422.141.955c.503 1.938-.718 3.977-2.669 4.503c-.522.14-.783.21-.886.345S2 10.6 2 11.033v1.934c0 .433 0 .65.103.784s.364.205.886.346c1.95.526 3.171 2.565 2.668 4.502c-.139.533-.208.8-.142.956s.256.264.635.48l1.725.978c.372.212.558.317.725.295s.356-.21.733-.587c1.46-1.457 3.876-1.457 5.336 0c.377.376.565.564.732.587c.167.022.353-.083.726-.295l1.724-.979c.38-.215.57-.323.635-.48s-.003-.422-.141-.955c-.504-1.937.716-3.976 2.666-4.502Z"/>';
-	const UPLOAD = '<path d="M12 4.5L12 14.5M12 4.5C11.2998 4.5 9.99153 6.4943 9.5 7M12 4.5C12.7002 4.5 14.0085 6.4943 14.5 7"/><path d="M20 16.5C20 18.982 19.482 19.5 17 19.5H7C4.518 19.5 4 18.982 4 16.5"/>';
-	const stroke = ( paths, size = 16 ) =>
-		`<svg class="etk-settings__icon" viewBox="0 0 24 24" width="${ size }" height="${ size }" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ paths }</svg>`;
 
 	let ids = 0;
 	const uid = () => `etk-settings-${ ++ids }`;
@@ -121,7 +115,7 @@
 					if ( e.dataTransfer.files[ 0 ] ) onfile( e.dataTransfer.files[ 0 ] );
 				},
 			},
-			el( 'span', { class: 'etk-settings__dropzone-icon', html: stroke( UPLOAD ) } ),
+			el( 'span', { class: 'etk-settings__dropzone-icon', html: icon( 'upload' ) } ),
 			el( 'p', { class: 'etk-settings__dropzone-text', textContent: text } ),
 			el( 'label', { class: 'etk-settings__btn etk-settings__btn--secondary etk-settings__file-btn' }, input, 'Choose file' )
 		);
@@ -203,7 +197,7 @@
 
 	const renderNav = () => {
 		if ( ! nav ) return;
-		nav.replaceChildren( ...sections.map( ( s ) => el( 'button', { type: 'button', class: 'etk-settings__nav-item', 'data-id': s.id, html: s.icon ? stroke( s.icon ) : null, 'aria-current': s === current ? 'page' : null, onclick: () => show( s ) }, s.title ) ) );
+		nav.replaceChildren( ...sections.map( ( s ) => el( 'button', { type: 'button', class: 'etk-settings__nav-item', 'data-id': s.id, html: s.icon ? icon( s.icon ) : null, 'aria-current': s === current ? 'page' : null, onclick: () => show( s ) }, s.title ) ) );
 	};
 
 	const ui = { button, group, row, value, toggle, check, dropzone, download, announce, warn, refresh, builder };
@@ -236,7 +230,7 @@
 	section( {
 		id: 'general',
 		title: 'General',
-		icon: GENERAL,
+		icon: 'settings',
 		order: 0,
 		render: () => [
 			group(
@@ -302,7 +296,7 @@
 				el(
 					'header',
 					{ class: 'etk-settings__header' },
-					builder ? el( 'button', { type: 'button', class: 'etk-settings__btn etk-settings__btn--secondary etk-settings__icon-btn', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: stroke( BACK ), onclick: () => close() } ) : null,
+					builder ? el( 'button', { type: 'button', class: 'etk-settings__btn etk-settings__btn--secondary etk-settings__icon-btn', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: icon( 'arrow-left' ), onclick: () => close() } ) : null,
 					el( 'span', { class: 'etk-settings__logo', html: `<svg viewBox="0 0 88 88" width="18" height="18" aria-hidden="true" focusable="false">${ LOGO }</svg>` } ),
 					el( 'h1', { id: 'etk-settings-title', class: 'etk-settings__title', textContent: 'Etch Toolkit' } )
 				),

@@ -11,7 +11,7 @@
  * recipes-settings.js, which saves an import at once.
  */
 ( () => {
-	const { api, el, confirmDialog, afterSave, unsaved } = window.etchToolkit || {};
+	const { api, el, icon, confirmDialog, afterSave, unsaved } = window.etchToolkit || {};
 	if ( ! api ) return;
 
 	// The real Object.entries, kept before the hook below replaces it. Reading recipes
@@ -232,10 +232,7 @@
 	);
 	// Built like the Selectors tab's search: Etch's magnifier (hugeicons "search-01") and a bare input.
 	const searchBox = el( 'div', { className: 'etk-recipes__search' }, [ search ] );
-	searchBox.insertAdjacentHTML(
-		'afterbegin',
-		'<svg class="etk-recipes__search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M17.5 17.5L22 22"/><path d="M20 11C20 6.02944 15.9706 2 11 2C6.02944 2 2 6.02944 2 11C2 15.9706 6.02944 20 11 20C15.9706 20 20 15.9706 20 11Z"/></svg>'
-	);
+	searchBox.insertAdjacentHTML( 'afterbegin', icon( 'search', { size: 14, className: 'etk-recipes__search-icon' } ) );
 	const list = el( 'div', { className: 'etk-recipes__list' } );
 	const addButton = button( 'Add recipe', 'etch-builder-button--variant-default etk-recipes__add', () => select( { kind: 'new' } ) );
 	const detail = el( 'div', { className: 'etk-recipes__detail' } );

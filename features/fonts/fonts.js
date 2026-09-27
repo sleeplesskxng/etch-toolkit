@@ -22,7 +22,8 @@
  * with DecompressionStream before that.
  */
 ( () => {
-	const { api, afterSave, unsaved, el, plural, errorText, fileSize: size, confirmDialog, slider, rebuild, DELETE_ICON } = window.etchToolkit || {};
+	const toolkit = window.etchToolkit || {};
+	const { api, afterSave, unsaved, el, plural, errorText, fileSize: size, confirmDialog, slider, rebuild, ICONS } = toolkit;
 	const config = window.etchToolkitFonts || {};
 	if ( ! confirmDialog ) return;
 
@@ -72,43 +73,12 @@
 	// Views that light up another view's nav item.
 	const PARENTS = { family: 'library', 'google-font': 'google' };
 
-	// Hugeicons strokes, 24px grid, like Etch's own.
-	const ICONS = {
-		close: '<path d="M5 5L19 19"/><path d="M19 5L5 19"/>',
-		back: '<path d="M15 6L9 12L15 18"/>',
-		// Etch's hugeicons:arrow-left-02, the back button on its own managers.
-		exit: '<path d="M8.99996 16.9998L4 11.9997L9 6.99976"/><path d="M4 12H20"/>',
-		copy: '<path d="M9 15C9 12.1716 9 10.7574 9.87868 9.87868C10.7574 9 12.1716 9 15 9H16C18.8284 9 20.2426 9 21.1213 9.87868C22 10.7574 22 12.1716 22 15V16C22 18.8284 22 20.2426 21.1213 21.1213C20.2426 22 18.8284 22 16 22H15C12.1716 22 10.7574 22 9.87868 21.1213C9 20.2426 9 18.8284 9 16V15Z"/><path d="M16.9999 9C16.9975 6.04291 16.9528 4.51121 16.092 3.46243C15.9258 3.25989 15.7401 3.07418 15.5376 2.90796C14.4312 2 12.7875 2 9.5 2C6.21252 2 4.56878 2 3.46243 2.90796C3.25989 3.07417 3.07418 3.25989 2.90796 3.46243C2 4.56878 2 6.21252 2 9.5C2 12.7875 2 14.4312 2.90796 15.5376C3.07417 15.7401 3.25989 15.9258 3.46243 16.092C4.51121 16.9528 6.04291 16.9975 9 16.9999"/>',
-		// Hugeicons free arrow-up-right-01, as Etch uses for "Open in Builder".
-		external: '<path d="M9 6.65s6.938-.542 7.915.435S17.35 15 17.35 15m-.85-7.5l-10 10"/>',
-		// Etch's hugeicons:tick-02.
-		tick: '<path d="M4.25 13.5L8.75 18L19.75 6"/>',
-		upload: '<path d="M12 4.5L12 14.5M12 4.5C11.2998 4.5 9.99153 6.4943 9.5 7M12 4.5C12.7002 4.5 14.0085 6.4943 14.5 7"/><path d="M20 16.5C20 18.982 19.482 19.5 17 19.5H7C4.518 19.5 4 18.982 4 16.5"/>',
-		// From the Paper designs.
-		plus: '<path d="M12 5v14M5 12h14"/>',
-		'chevron-down': '<path d="M6 9l6 6 6-6"/>',
-		'chevron-right': '<path d="M9 6l6 6-6 6"/>',
-		more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
-		search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
-		eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>',
-		check: '<path d="M5 13l4 4 10-10"/>',
-		alert: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.5"/>',
-		trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
-		grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
-		list: '<path d="M4 7h16M4 12h16M4 17h16"/>',
-		// Hugeicons free library and google, for the nav.
-		library: '<path d="M2 7c0-1.4 0-2.1.272-2.635a2.5 2.5 0 0 1 1.093-1.093C3.9 3 4.6 3 6 3s2.1 0 2.635.272a2.5 2.5 0 0 1 1.093 1.093C10 4.9 10 5.6 10 7v10c0 1.4 0 2.1-.272 2.635a2.5 2.5 0 0 1-1.093 1.092C8.1 21 7.4 21 6 21s-2.1 0-2.635-.273a2.5 2.5 0 0 1-1.093-1.092C2 19.1 2 18.4 2 17z"/><path d="M6.125 17H6m.25 0a.25.25 0 1 1-.5 0a.25.25 0 0 1 .5 0m11.656-.307h-.125m.25 0a.25.25 0 1 1-.5 0a.25.25 0 0 1 .5 0M2 7h8"/><path d="M11.449 8.268c-.355-1.33-.533-1.995-.41-2.572a2.46 2.46 0 0 1 .756-1.316c.437-.395 1.1-.573 2.424-.93c1.324-.356 1.987-.534 2.561-.411a2.44 2.44 0 0 1 1.31.76c.394.438.572 1.103.927 2.433l2.534 9.5c.355 1.33.533 1.995.41 2.572a2.46 2.46 0 0 1-.756 1.316c-.437.395-1.1.573-2.424.93c-1.324.356-1.986.534-2.561.411a2.45 2.45 0 0 1-1.31-.76c-.394-.438-.572-1.103-.927-2.433zM12 8l6.5-2"/>',
-		google: '<circle cx="12" cy="12" r="10"/><path d="M12 12h5a5 5 0 1 1-1.464-3.536"/>',
-	};
-
 	// Hugeicons free "text-font" (MIT). Etch bundles its own, different drawing under the same
 	// name, so the Settings Bar button gets these paths swapped in after Etch renders it.
-	const CONTROL_ICON =
-		'<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m14 19l-2.893-8.252C9.763 6.916 9.092 5 8 5s-1.763 1.916-3.107 5.748L2 19m2.5-7h7m10.47 1.94v4.5m0-4.5c.046-.824.048-1.45-.05-1.963c-.234-1.206-1.494-1.933-2.714-2.081c-1.168-.142-2.104.159-3.052 1.54m5.815 2.503h-2.843c-.437 0-.878.021-1.299.138c-2.573.716-2.384 4.323.196 4.768c.287.05.58.07.87.058c.677-.03 1.302-.358 1.84-.773c.627-.486 1.236-1.165 1.236-2.19z"/>';
+	const CONTROL_ICON = `<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">${ ICONS[ 'text-font' ] }</g>`;
 
 	// An icon's markup. Its size comes from where it sits (16px, 14px in buttons), or from size.
-	const icon = ( name, size ) =>
-		`<svg class="etk-fonts__icon" viewBox="0 0 24 24"${ size ? ` style="--etk-icon-size: ${ size }px"` : '' } aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ ICONS[ name ] }</svg>`;
+	const icon = ( name, size ) => toolkit.icon( name, { size, className: 'etk-fonts__icon' } );
 
 	const weightLabel = ( weight ) => ( weight.includes( ' ' ) ? `Variable ${ weight.replace( ' ', '–' ) }` : `${ weight } ${ WEIGHT_NAMES[ weight ] || '' }` ).trim();
 	const variantLabel = ( variant ) => `${ weightLabel( variant.weight ) }${ variant.style === 'italic' ? ' Italic' : '' }`;
@@ -488,7 +458,7 @@
 	const btnClass = ( variant = 'secondary', extra = '' ) =>
 		`etch-builder-button etch-builder-button--icon-placement-before etch-builder-button--variant-${ ETCH_VARIANTS[ variant ] || 'outline' } etk-fonts__btn etk-fonts__btn--${ variant }${ extra ? ` ${ extra }` : '' }`;
 
-	const btnIcon = ( name ) => el( 'span', { class: 'etk-fonts__btn-icon', html: name === 'delete' ? DELETE_ICON : icon( name ) } );
+	const btnIcon = ( name ) => el( 'span', { class: 'etk-fonts__btn-icon', html: icon( name ) } );
 
 	// attrs.class adds to the button's classes.
 	const button = ( label, onclick, { variant = 'secondary', iconName, iconAfter, attrs = {} } = {} ) => {
@@ -502,7 +472,7 @@
 	 */
 	const iconButton = ( label, iconName, onclick, { variant = 'icon', title = label, attrs = {} } = {} ) => {
 		const { class: extra, ...rest } = attrs;
-		return el( 'button', { type: 'button', class: btnClass( variant, `etk-fonts__icon-btn${ extra ? ` ${ extra }` : '' }` ), 'aria-label': label, title, onclick, html: iconName === 'delete' ? DELETE_ICON : icon( iconName ), ...rest } );
+		return el( 'button', { type: 'button', class: btnClass( variant, `etk-fonts__icon-btn${ extra ? ` ${ extra }` : '' }` ), 'aria-label': label, title, onclick, html: icon( iconName ), ...rest } );
 	};
 
 	// A label over its control, or beside it in a 72px column with row: true.
@@ -743,7 +713,7 @@
 								item.onselect();
 							},
 						},
-						el( 'span', { class: 'right-click-menu__item-label etk-fonts__menu-label' }, item.icon ? el( 'span', { class: 'etk-fonts__menu-icon', html: item.icon === 'delete' ? DELETE_ICON : icon( item.icon, 14 ) } ) : null, item.label )
+						el( 'span', { class: 'right-click-menu__item-label etk-fonts__menu-label' }, item.icon ? el( 'span', { class: 'etk-fonts__menu-icon', html: icon( item.icon, 14 ) } ) : null, item.label )
 					);
 					choices.push( node );
 					return node;
@@ -847,7 +817,7 @@
 			el(
 				'div',
 				{ class: 'etk-fonts__page-lead' },
-				o.back ? iconButton( o.back.label, 'back', o.back.onclick, { variant: 'secondary' } ) : null,
+				o.back ? iconButton( o.back.label, 'chevron-left', o.back.onclick, { variant: 'secondary' } ) : null,
 				o.back?.crumb
 					? el( 'nav', { class: 'etk-fonts__crumbs', 'aria-label': 'Breadcrumb' }, el( 'button', { type: 'button', class: 'etk-fonts__crumb', textContent: o.back.crumb, onclick: o.back.onclick } ), el( 'span', { class: 'etk-fonts__crumb-sep', 'aria-hidden': 'true', textContent: '/' } ) )
 					: null,
@@ -1024,7 +994,7 @@
 			'tr',
 			{},
 			el( 'td', { class: 'etk-fonts__files-pick' } ),
-			iconCell( entry.error ? 'alert' : entry.done ? 'check' : busy ? 'spinner' : null ),
+			iconCell( entry.error ? 'alert' : entry.done ? 'tick' : busy ? 'spinner' : null ),
 			el( 'td', {}, el( 'span', { class: 'etk-fonts__files-name', textContent: entry.name } ) ),
 			el( 'td' ),
 			el(
@@ -1123,7 +1093,7 @@
 		el(
 			'button',
 			{ type: 'button', class: `etch-builder-button etch-builder-button--icon-placement-before etch-builder-button--variant-${ variant } ${ className }`, style: `--button-font-size: var(--e-font-size-${ size })`, onclick },
-			el( 'div', { class: 'etk-bulk-bar__icon', html: iconName === 'delete' ? DELETE_ICON : icon( iconName, iconSize ) } ),
+			el( 'div', { class: 'etk-bulk-bar__icon', html: icon( iconName, iconSize ) } ),
 			label ? [ ' ', label ] : null
 		);
 
@@ -1284,7 +1254,7 @@
 			'tr',
 			{ class: [ unused ? 'is-unused' : '', picked.has( file.name ) ? 'is-picked' : '' ].join( ' ' ).trim() || null },
 			el( 'td', { class: 'etk-fonts__files-pick' }, own ? pickBox( file ) : null ),
-			iconCell( done ? 'check' : null ),
+			iconCell( done ? 'tick' : null ),
 			el( 'td', {}, el( 'span', { class: 'etk-fonts__files-name', textContent: file.name } ) ),
 			own ? weightCell( file ) : el( 'td', { class: 'etk-fonts__files-none', textContent: '—' } ),
 			el( 'td', {}, done ? el( 'span', { class: 'etk-fonts__muted', textContent: done.text } ) : file.unsafe ? el( 'span', { class: 'etk-fonts__files-status etk-fonts__files-status--warning', textContent: 'Needs rename', title: 'Added outside Etch Toolkit with characters it can\'t use, like brackets.' } ) : el( 'span', { class: `etk-fonts__files-status etk-fonts__files-status--${ unused ? 'warning' : 'success' }`, textContent: unused ? 'Unused' : 'In use' } ) ),
@@ -1799,7 +1769,7 @@
 					loadingSection,
 					rolesSection,
 					filesSection,
-					el( 'div', { class: 'etk-fonts__inspector-footer' }, iconButton( `Delete ${ family.name }`, 'trash', deleteFamily, { variant: 'danger', title: 'Delete family' } ) )
+					el( 'div', { class: 'etk-fonts__inspector-footer' }, iconButton( `Delete ${ family.name }`, 'delete', deleteFamily, { variant: 'danger', title: 'Delete family' } ) )
 				)
 			),
 		];
@@ -2137,7 +2107,7 @@
 	const addButton = ( font ) => {
 		const have = installed( font.family );
 		return have
-			? button( 'Added', () => edit( state.families.indexOf( have ) ), { variant: 'ghost', iconName: 'check', attrs: { class: 'etk-fonts__gadd is-added', 'aria-label': `${ font.family } is added. Edit it` } } )
+			? button( 'Added', () => edit( state.families.indexOf( have ) ), { variant: 'ghost', iconName: 'tick', attrs: { class: 'etk-fonts__gadd is-added', 'aria-label': `${ font.family } is added. Edit it` } } )
 			: button( 'Add', () => installDialog( font.family, font ), { attrs: { class: 'etk-fonts__gadd', 'aria-label': `Add ${ font.family }` } } );
 	};
 
@@ -2645,7 +2615,7 @@
 			el(
 				'div',
 				{ class: 'etk-fonts__sidebar' },
-				el( 'header', { class: 'etk-fonts__header' }, iconButton( 'Back to the builder', 'exit', () => close(), { variant: 'secondary' } ), el( 'h1', { id: 'etk-fonts-title', class: 'etk-fonts__title', textContent: 'Fonts' } ) ),
+				el( 'header', { class: 'etk-fonts__header' }, iconButton( 'Back to the builder', 'arrow-left', () => close(), { variant: 'secondary' } ), el( 'h1', { id: 'etk-fonts-title', class: 'etk-fonts__title', textContent: 'Fonts' } ) ),
 				el(
 					'nav',
 					{ class: 'etk-fonts__nav etk-track', 'aria-label': 'Fonts' },

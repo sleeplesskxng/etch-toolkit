@@ -24,7 +24,8 @@
  * checkboxes too, and Select All and ranges follow what it lists.
  */
 ( () => {
-	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, reload, classesIn, isClassSelector } = window.etchToolkit || {};
+	const toolkit = window.etchToolkit || {};
+	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, reload, classesIn, isClassSelector } = toolkit;
 	if ( ! confirmDialog ) return;
 
 	const MODAL = '.style-overview-modal__inner'; // Where every Style Manager tab renders.
@@ -38,15 +39,6 @@
 	const ROW_BUTTON = `${ ROW } > .main-button, ${ UNUSED }__button`;
 	const CHECK = 'etk-select';
 	const SCREEN = '#full-screen'; // Etch's full-screen view, where the bar floats.
-
-	// Etch's hugeicons, as bundled in the builder.
-	const ICONS = {
-		clear: '<path d="M5 5L19 19"/><path d="M19 5L5 19"/>',
-		rename:
-			'<path d="M14 7L5.39171 15.6083C5.1354 15.8646 4.95356 16.1858 4.86564 16.5374L4 20L7.46257 19.1344C7.81424 19.0464 8.1354 18.8646 8.39171 18.6083L17 10M14 7L16.2929 4.70711C16.6834 4.31658 17.3166 4.31658 17.7071 4.70711L19.2929 6.29289C19.6834 6.68342 19.6834 7.31658 19.2929 7.70711L17 10M14 7L17 10"/><path d="M11.5 20H17.5"/>',
-		delete:
-			'<path d="M19.5 5.5L18.6139 20.121C18.5499 21.1766 17.6751 22 16.6175 22H7.38246C6.32488 22 5.4501 21.1766 5.38612 20.121L4.5 5.5"/><path d="M3 5.5H8M21 5.5H16M16 5.5L14.7597 2.60608C14.6022 2.2384 14.2406 2 13.8406 2H10.1594C9.75937 2 9.39783 2.2384 9.24025 2.60608L8 5.5M16 5.5H8"/><path d="M9.5 16.5L9.5 10.5"/><path d="M14.5 16.5L14.5 10.5"/>',
-	};
 
 	const selected = new Set(); // style IDs
 
@@ -245,8 +237,6 @@
 	const CLASS_NAME = /^[a-zA-Z][\w-]*$/;
 	// Why a new name isn't a class name, in a few words.
 	const invalid = ( value ) => ( ! value ? 'Enter a name' : /^[a-zA-Z]/.test( value ) ? 'Letters, numbers, - and _ only' : 'Start with a letter' );
-	const CHEVRON =
-		'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
 
 	// What the rename touches, e.g. "Updates 5 styles, 38 elements on 12 pages."
 	const renameSummary = ( plan ) => {
@@ -295,7 +285,7 @@
 			const input = el( 'input', { id, type: 'text', className: 'etk-rn__input', value: name, spellcheck: 'false', autocomplete: 'off' } );
 			input.setAttribute( 'aria-label', `New name for .${ name }` );
 			const mirror = el( 'span', { className: 'etk-rn__mirror', 'aria-hidden': 'true' } );
-			const toggle = el( 'button', { type: 'button', className: 'etk-rn__toggle', html: CHEVRON, hidden: true } );
+			const toggle = el( 'button', { type: 'button', className: 'etk-rn__toggle', html: toolkit.icon( 'chevron-right', { size: 12 } ), hidden: true } );
 			const pill = el( 'span', { className: 'etk-rn__pill', hidden: true } );
 			const message = el( 'span', { className: 'etk-rn__message', id: `${ id }-message`, hidden: true } );
 			const reset = el( 'button', { type: 'button', className: 'etk-rn__reset', textContent: 'Reset', hidden: true } );
@@ -994,8 +984,7 @@
 		row.classList.toggle( 'etk-row--checked', box.checked );
 	};
 
-	const icon = ( name, size ) =>
-		`<svg class="etch-icon" viewBox="0 0 24 24" width="${ size }" height="${ size }" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ ICONS[ name ] }</svg>`;
+	const icon = ( name, size ) => toolkit.icon( name, { size, className: 'etch-icon' } );
 
 	// Markup of Etch's own button component, so its global .etch-builder-button styles apply.
 	const etchButton = ( { variant, size = 'm', iconName, iconSize = 14, label, className = '', onClick } ) => {
@@ -1012,7 +1001,7 @@
 
 	// Built once per full-screen view and shown or hidden, so CSS can animate both ways.
 	const buildBar = ( screen ) => {
-		const clearButton = etchButton( { variant: 'icon', size: 's', iconName: 'clear', iconSize: 12, className: 'etk-bulk-bar__clear', onClick: clear } );
+		const clearButton = etchButton( { variant: 'icon', size: 's', iconName: 'close', iconSize: 12, className: 'etk-bulk-bar__clear', onClick: clear } );
 		clearButton.setAttribute( 'aria-label', 'Clear selection' );
 		clearButton.title = 'Clear selection';
 
