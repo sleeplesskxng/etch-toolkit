@@ -28,6 +28,8 @@
 	const BACK = '<path d="M8.99996 16.9998L4 11.9997L9 6.99976"/><path d="M4 12H20"/>';
 	// Etch's hugeicons:search-01, as on the Selectors tab and Recipes.
 	const SEARCH = '<path d="M17.5 17.5L22 22"/><path d="M20 11C20 6.02944 15.9706 2 11 2C6.02944 2 2 6.02944 2 11C2 15.9706 6.02944 20 11 20C15.9706 20 20 15.9706 20 11Z"/>';
+	// Hugeicons free arrow-up-right-01, as Etch uses for "Open in Builder".
+	const OPEN = '<path d="M9 6.65s6.938-.542 7.915.435S17.35 15 17.35 15m-.85-7.5l-10 10"/>';
 	// Hugeicons pencil-edit-01, for each row's Edit.
 	const EDIT = '<path d="M15.2141 5.98239L16.6158 4.58063C17.39 3.80646 18.6452 3.80646 19.4194 4.58063C20.1935 5.3548 20.1935 6.60998 19.4194 7.38415L18.0176 8.78591M15.2141 5.98239L6.98023 14.2163C5.93493 15.2616 5.41226 15.7842 5.05637 16.4211C4.70047 17.058 4.3424 18.5619 4 20C5.43809 19.6576 6.94199 19.2995 7.57889 18.9436C8.21579 18.5877 8.73844 18.0651 9.78375 17.0198L18.0176 8.78591M15.2141 5.98239L18.0176 8.78591"/><path d="M11 20H17"/>';
 	const UPLOAD = '<path d="M12 4.5L12 14.5M12 4.5C11.2998 4.5 9.99153 6.4943 9.5 7M12 4.5C12.7002 4.5 14.0085 6.4943 14.5 7"/><path d="M20 16.5C20 18.982 19.482 19.5 17 19.5H7C4.518 19.5 4 18.982 4 16.5"/>';
@@ -472,6 +474,8 @@
 	let view = 'list';
 	let pasted = '';
 	let search = '';
+	let filter = 'all'; // 'all', 'used' or 'unused'.
+	let expanded = new Set(); // Components whose every use shows.
 	let target = null; // The component being updated.
 	let usedOn = null; // Component ID => the posts using it, from the server. Null while it loads.
 	let reviewing = null;
@@ -542,10 +546,62 @@
 	// Where a component is used: pages and templates, then components it's inside.
 	const usedTitles = ( component ) => ( usedOn?.[ component.id ] || [] ).map( ( post ) => ( post.postType === 'wp_block' ? `${ post.title } (component)` : post.title ) );
 
-	// Where a component is used, in a few words.
-	const usageText = ( component ) => {
-		const titles = usedTitles( component );
-		return titles.length <= 2 ? listOf( titles ) : `${ titles[ 0 ] } and ${ titles.length - 1 } more`;
+	/**
+	 * Open where a component is used in Etch: a page or template, or another
+	 * component it's inside, in Etch's component editor.
+	 */
+	const openUse = async ( post ) => {
+		try {
+			if ( post.postType === 'wp_block' ) {
+				const parent = window.etch.components.list().find( ( c ) => c.id === post.id );
+				if ( parent ) editInEtch( parent );
+				return;
+			}
+			post.postType === 'wp_template' ? await window.etch.navigation.openTemplateAsync( post.id ) : await window.etch.navigation.openPostAsync( post.id );
+			close( { focus: false } );
+		} catch ( error ) {
+			warn( `Couldn’t open ${ post.title }: ${ errorText( error ) }` );
+		}
+	};
+
+	// Uses shown before "N more".
+	const USES = 2;
+
+	// Where a component is used, each opening in Etch.
+	const usesCell = ( component ) => {
+		const posts = usedOn[ component.id ] || [];
+		const open = expanded.has( component.id );
+		const shown = open ? posts : posts.slice( 0, USES );
+		return h(
+			'div',
+			{ class: 'etk-components__uses' },
+			shown.map( ( post ) =>
+				h(
+					'button',
+					{ type: 'button', class: 'etk-components__use', title: 'Open in Etch', 'data-focus': `use:${ component.id }:${ post.id }`, onclick: () => openUse( post ) },
+					post.postType === 'wp_block' ? `${ post.title } (component)` : post.title,
+					h( 'span', { class: 'screen-reader-text', textContent: ', open in Etch' } ),
+					h( 'span', { class: 'etk-components__use-icon', html: stroke( OPEN, 12 ) } )
+				)
+			),
+			posts.length > USES
+				? h(
+						'button',
+						{
+							type: 'button',
+							class: 'etk-components__use-more',
+							'aria-expanded': String( open ),
+							'aria-label': open ? `Show fewer pages for ${ component.name }` : `Show ${ posts.length - USES } more pages for ${ component.name }`,
+							'data-focus': `more:${ component.id }`,
+							onclick: () => {
+								open ? expanded.delete( component.id ) : expanded.add( component.id );
+								render();
+							},
+						},
+						open ? 'Fewer' : `${ posts.length - USES } more`
+				  )
+				: null
+		);
 	};
 
 	/**
@@ -589,8 +645,43 @@
 		loadUsedOn();
 	};
 
+	const isUsed = ( component ) => ( usedOn?.[ component.id ] || [] ).length > 0;
+
+	// All, In use or Unused, like the Fonts manager's file filter. Unused counts once usage loads.
+	const filters = ( fill ) => {
+		const unused = usedOn ? window.etch.components.list().filter( ( c ) => ! isUsed( c ) ).length : 0;
+		return h(
+			'fieldset',
+			{ class: 'etk-components__seg etk-track' },
+			h( 'legend', { class: 'screen-reader-text', textContent: 'Show' } ),
+			[
+				[ 'all', 'All' ],
+				[ 'used', 'In use' ],
+				[ 'unused', 'Unused' ],
+			].map( ( [ value, label ] ) =>
+				h(
+					'label',
+					{},
+					h( 'input', {
+						type: 'radio',
+						name: 'etk-components-filter',
+						value,
+						checked: filter === value,
+						'data-focus': `filter:${ value }`,
+						onchange: () => {
+							filter = value;
+							fill();
+						},
+					} ),
+					label,
+					value === 'unused' && unused ? h( 'span', { class: 'etk-components__count', textContent: String( unused ) } ) : null
+				)
+			)
+		);
+	};
+
 	const componentRow = ( component ) => {
-		const used = usedOn ? usedTitles( component ).length > 0 : null;
+		const used = usedOn ? isUsed( component ) : null;
 		const action = ( key, label, title, icon, onclick, extra = '' ) =>
 			button( '', onclick, { class: `etk-components__btn etk-components__btn--secondary etk-components__row-action${ extra }`, 'aria-label': label, title, html: icon, 'data-focus': `${ key }:${ component.id }` } );
 		return h(
@@ -599,7 +690,7 @@
 			h( 'th', { scope: 'row' }, h( 'span', { class: 'etk-components__cell-name', textContent: component.name } ) ),
 			h( 'td', {}, h( 'code', { class: 'etk-components__key', textContent: component.key } ) ),
 			h( 'td', {}, used === null ? null : h( 'span', { class: `etk-components__status-badge etk-components__status-badge--${ used ? 'success' : 'warning' }`, textContent: used ? 'In use' : 'Unused' } ) ),
-			h( 'td', { class: used ? null : 'etk-components__none', textContent: used === null ? 'Checking…' : used ? usageText( component ) : '—' } ),
+			used ? h( 'td', { class: 'etk-components__uses-cell' }, usesCell( component ) ) : h( 'td', { class: 'etk-components__none', textContent: used === null ? 'Checking…' : '—' } ),
 			h(
 				'td',
 				{},
@@ -622,13 +713,12 @@
 			const fill = () => {
 				const all = window.etch.components.list().sort( ( a, b ) => a.name.localeCompare( b.name ) );
 				const term = search.trim().toLowerCase();
-				const shown = term ? all.filter( ( c ) => `${ c.name } ${ c.key }`.toLowerCase().includes( term ) ) : all;
-				count.textContent = term ? `${ shown.length } of ${ plural( all.length, 'component', 'components' ) }` : plural( all.length, 'component', 'components' );
-				body.replaceChildren(
-					...( shown.length
-						? shown.map( componentRow )
-						: [ h( 'tr', {}, h( 'td', { colspan: '5', class: 'etk-components__empty-row', textContent: all.length ? 'No components match.' : 'This site has no components yet.' } ) ) ] )
-				);
+				// Until usage loads, every component shows.
+				const inFilter = ( c ) => filter === 'all' || ! usedOn || ( filter === 'used' ) === isUsed( c );
+				const shown = all.filter( ( c ) => inFilter( c ) && ( ! term || `${ c.name } ${ c.key }`.toLowerCase().includes( term ) ) );
+				count.textContent = shown.length === all.length ? plural( all.length, 'component', 'components' ) : `${ shown.length } of ${ plural( all.length, 'component', 'components' ) }`;
+				const empty = ! all.length ? 'This site has no components yet.' : term ? 'No components match.' : filter === 'used' ? 'No component is in use.' : 'Every component is in use.';
+				body.replaceChildren( ...( shown.length ? shown.map( componentRow ) : [ h( 'tr', {}, h( 'td', { colspan: '5', class: 'etk-components__empty-row', textContent: empty } ) ) ] ) );
 			};
 			fill();
 			const th = ( text ) => h( 'th', { scope: 'col', textContent: text } );
@@ -656,6 +746,7 @@
 							},
 						} )
 					),
+					filters( fill ),
 					count
 				),
 				h(

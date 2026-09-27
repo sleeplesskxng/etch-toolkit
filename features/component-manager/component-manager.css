@@ -336,12 +336,72 @@
 	inline-size: 100%;
 }
 
-/* The search on the left and the count on the right. */
+/* The search and the filter on the left, the count on the right. */
 .etk-components__toolbar {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
-	justify-content: space-between;
-	gap: 16px;
+	gap: 8px 16px;
+
+	> .etk-components__muted {
+		margin-inline-start: auto;
+	}
+}
+
+/*
+ * All, In use or Unused: the Fonts manager's file filter, a filled track
+ * whose highlight slides to the picked one (.etk-track, in the core styles).
+ */
+.etk-components__seg {
+	--etk-track-radius: var(--etk-components-radius);
+	--etk-track-inset: 2px;
+	--etk-track-highlight: var(--etk-components-raised);
+
+	display: inline-flex;
+	flex: none;
+	gap: 2px;
+	margin: 0;
+	padding: 2px;
+	border: 0;
+	background: var(--etk-components-field);
+
+	input {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	label {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 4px 10px;
+		color: var(--etk-components-text-60);
+		line-height: 16px;
+		white-space: nowrap;
+		cursor: pointer;
+		transition: color var(--e-transition, 0.15s ease-in-out);
+
+		&:hover,
+		&:has(input:checked) {
+			color: var(--etk-components-text);
+		}
+
+		&:has(input:focus-visible) {
+			box-shadow: var(--etk-components-focus);
+		}
+	}
+}
+
+/* How many are unused, in the warning color like the Unused badge. */
+.etk-components__count {
+	color: var(--e-warning, #f2c960);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 400;
+	line-height: 14px;
 }
 
 /* Recipes' search, measured from Etch's Selectors tab: a 29px bare field after the magnifier. */
@@ -485,6 +545,67 @@
 .etk-components__status-badge--warning {
 	background: var(--e-warning-dark, #4c4233);
 	color: var(--e-warning, #f2c960);
+}
+
+/* Where it's used: each page opens in Etch. The cell grows when every one shows. */
+.etk-components__table td.etk-components__uses-cell {
+	padding-block: 8px;
+	white-space: normal;
+}
+
+.etk-components__uses {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 12px;
+}
+
+.etk-components .etk-components__use {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	max-inline-size: 100%;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--etk-components-text);
+	font: inherit;
+	font-weight: 400;
+	line-height: 16px;
+	text-align: start;
+	cursor: pointer;
+
+	&:hover {
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+}
+
+.etk-components__use-icon {
+	display: inline-flex;
+	flex: none;
+	color: var(--etk-components-text-60);
+
+	.etk-components__use:hover & {
+		color: var(--etk-components-text);
+	}
+}
+
+.etk-components .etk-components__use-more {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--etk-components-text-60);
+	font: inherit;
+	font-weight: 400;
+	line-height: 16px;
+	cursor: pointer;
+
+	&:hover {
+		color: var(--etk-components-text);
+	}
 }
 
 .etk-components__none {
