@@ -726,6 +726,7 @@
 				h(
 					'div',
 					{ class: 'etk-components__toolbar' },
+					filters( fill ),
 					// Built like Recipes' search: Etch's magnifier and a bare field.
 					h(
 						'div',
@@ -746,7 +747,6 @@
 							},
 						} )
 					),
-					filters( fill ),
 					count
 				),
 				h(

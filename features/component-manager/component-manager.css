@@ -336,7 +336,7 @@
 	inline-size: 100%;
 }
 
-/* The search and the filter on the left, the count on the right. */
+/* The filter and the search on the left, the count on the right. */
 .etk-components__toolbar {
 	display: flex;
 	flex-wrap: wrap;
