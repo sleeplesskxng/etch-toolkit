@@ -460,15 +460,17 @@
 
 		// Classes and selectors the rename reaches beyond the list, in sections at its end.
 		let extras = [];
-		// A BEM class you didn't select sits in its block like the classes you did, with a
-		// field but no checkbox: the switch decides. Kept across previews, so what you
-		// type and where you are survive each one.
+		// A BEM class you didn't select sits in its block like the classes you did. The
+		// switch brings them all in, and each one's checkbox can leave it out. Kept across
+		// previews, so what you type and tick and where you are survive each one.
 		const bemRows = new Map();
 		let bemActive = []; // The ones showing now.
 		let openBem = false; // Open their blocks once they first show.
 		const bemRow = ( name, parent ) => {
 			if ( bemRows.has( name ) ) return bemRows.get( name );
 			const id = `etk-rn-${ ++count }`;
+			const check = el( 'input', { type: 'checkbox', className: 'etk-checkbox', checked: true } );
+			check.setAttribute( 'aria-label', `Rename .${ name }` );
 			const input = el( 'input', { id, type: 'text', className: 'etk-rn__input', spellcheck: false, autocomplete: 'off' } );
 			input.setAttribute( 'aria-label', `New name for .${ name }` );
 			const mirror = el( 'span', { className: 'etk-rn__mirror', ariaHidden: 'true' } );
@@ -477,14 +479,18 @@
 			const reset = el( 'button', { type: 'button', className: 'etk-rn__reset', textContent: 'Reset', hidden: true } );
 			reset.setAttribute( 'aria-label', `Reset the new name for .${ name }` );
 			const li = el( 'li', { className: 'etk-rn__row etk-rn__row--child etk-rn__row--bem' }, [
-				el( 'span' ),
+				el( 'span', { className: 'etk-rn__check' }, [ check ] ),
 				el( 'span' ),
 				el( 'span', { className: 'etk-rn__old', textContent: name.slice( parent.name.length ), title: `.${ name }` } ),
-				el( 'span', { className: 'etk-rn__new' }, [ el( 'span', { className: 'etk-rn__field' }, [ input, mirror ] ) ] ),
+				el( 'span', { className: 'etk-rn__new' }, [
+					el( 'span', { className: 'etk-rn__field' }, [ input, mirror ] ),
+					el( 'span', { className: 'etk-rn__kept', textContent: 'Keeps its name' } ),
+				] ),
 				el( 'span' ),
 				el( 'span', { className: 'etk-rn__status' }, [ pill, message, reset ] ),
 			] );
-			const row = { name, parent, bem: true, selectors: [], input, mirror, pill, message, reset, li, auto: '', note: '', edited: false, error: '' };
+			const row = { name, parent, bem: true, selectors: [], check, input, mirror, pill, message, reset, li, auto: '', note: '', edited: false, error: '' };
+			check.addEventListener( 'change', refresh );
 			input.addEventListener( 'input', () => {
 				row.edited = input.value !== row.auto;
 				refresh();
@@ -660,7 +666,7 @@
 			const merged = on && plan?.merged?.includes( row.input.value.trim() );
 			const kids = row.open ? [] : [ ...row.children.filter( ( c ) => c.check.checked ), ...( row.others ?? [] ) ];
 			const bad = kids.filter( ( c ) => c.error ).length;
-			const edits = kids.filter( ( c ) => c.edited ).length;
+			const edits = kids.filter( ( c ) => c.check.checked && c.edited ).length;
 
 			row.message.hidden = ! ( on && row.error );
 			if ( row.message.textContent !== row.error ) row.message.textContent = row.message.title = row.error;
@@ -676,14 +682,16 @@
 			row.reset.hidden = ! ( on && row.edited && ! row.error );
 		};
 
+		// A BEM class left out still shows its error, like a nested rule that won't let it keep its name.
 		const renderBemStatus = ( row ) => {
+			const on = row.check.checked;
 			row.message.hidden = ! row.error;
 			if ( row.message.textContent !== row.error ) row.message.textContent = row.message.title = row.error;
 			row.input.setAttribute( 'aria-invalid', String( !! row.error ) );
 			if ( row.error ) row.input.setAttribute( 'aria-describedby', row.message.id );
 			else row.input.removeAttribute( 'aria-describedby' );
-			setPill( row, row.error || row.edited ? '' : row.note );
-			row.reset.hidden = ! ( row.edited && ! row.error );
+			setPill( row, row.error || row.edited || ! on ? '' : row.note );
+			row.reset.hidden = ! ( on && row.edited && ! row.error );
 		};
 
 		const render = () => {
@@ -713,7 +721,8 @@
 				cls.toggle( 'etk-rn__row--top', !! c && cards[ i - 1 ] !== c );
 				cls.toggle( 'etk-rn__row--bottom', !! c && cards[ i + 1 ] !== c );
 				if ( row.bem ) {
-					row.input.disabled = busy;
+					cls.toggle( 'etk-rn__row--off', ! row.check.checked );
+					row.input.disabled = busy || ! row.check.checked;
 					paint( row );
 					renderBemStatus( row );
 					return;
@@ -729,8 +738,10 @@
 			} );
 
 			const on = rows.filter( ( r ) => r.check.checked ).length;
-			allBox.checked = on === rows.length;
-			allBox.indeterminate = on > 0 && on < rows.length;
+			const all = [ ...rows, ...bemActive ];
+			const ticked = all.filter( ( r ) => r.check.checked ).length;
+			allBox.checked = ticked === all.length;
+			allBox.indeterminate = ticked > 0 && ticked < all.length;
 
 			const total = plan ? Object.keys( plan.classMap ).length : on;
 			title.textContent = `Rename ${ classes( total ) }`;
@@ -746,7 +757,8 @@
 		let seq = 0;
 		let timer = 0;
 		let map = {};
-		const keep = () => rows.filter( ( r ) => ! r.check.checked ).map( ( r ) => r.name );
+		// Unticked names, BEM classes too, so their own children keep their names with them.
+		const keep = () => [ ...rows, ...( bemBox.checked ? bemRows.values() : [] ) ].filter( ( r ) => ! r.check.checked ).map( ( r ) => r.name );
 		const setNote = ( text ) => {
 			note.hidden = ! text;
 			note.textContent = text;
@@ -779,10 +791,15 @@
 				if ( ok && value !== row.name ) map[ row.name ] = value;
 			}
 			const n = Object.keys( map ).length;
-			// A BEM class's own name, sent only when it's edited. An invalid one waits here.
+			// A BEM class's own name, sent only when it's edited or left out. An invalid one waits here.
 			for ( const row of bemRows.values() ) {
 				row.error = '';
-				if ( ! bemBox.checked || ! row.edited ) continue;
+				if ( ! bemBox.checked ) continue;
+				if ( ! row.check.checked ) {
+					map[ row.name ] = row.name;
+					continue;
+				}
+				if ( ! row.edited ) continue;
 				const value = row.input.value.trim();
 				const ok = value === row.name || CLASS_NAME.test( value );
 				row.error = ok ? '' : invalid( value );
@@ -902,7 +919,7 @@
 			} );
 		}
 		allBox.addEventListener( 'change', () => {
-			for ( const row of rows ) row.check.checked = allBox.checked;
+			for ( const row of [ ...rows, ...bemActive ] ) row.check.checked = allBox.checked;
 			fill();
 			refresh();
 		} );
