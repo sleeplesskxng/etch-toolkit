@@ -32,6 +32,11 @@
 		box-shadow: var(--etch-focus-box-shadow);
 	}
 
+	/* Text fields show no ring, like Etch's. Browsers count any click in one as keyboard focus. */
+	:is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']), textarea):focus-visible {
+		box-shadow: none;
+	}
+
 	code {
 		font-family: var(--e-font-code);
 	}
@@ -62,11 +67,6 @@
 	padding: 6px 8px;
 	border-radius: 6px;
 	box-sizing: border-box;
-
-	/* Etch shows no focus on its search. This keeps one for the keyboard. */
-	&:has(:focus-visible) {
-		box-shadow: var(--etch-focus-box-shadow);
-	}
 }
 
 .etk-recipes__search-icon {
@@ -216,10 +216,6 @@
 	display: flex;
 	align-items: center;
 	gap: 2px;
-
-	&:has(:focus-visible) {
-		box-shadow: var(--etch-focus-box-shadow);
-	}
 }
 
 .etk-recipes .etk-recipes__name-input {

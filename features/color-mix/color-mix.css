@@ -86,9 +86,9 @@
 		font-family: var(--e-font-code);
 		font-size: var(--etch-font-size-m);
 
+		/* No ring, like Etch's fields. */
 		&:focus-visible {
-			outline: 2px solid var(--etch-primary);
-			outline-offset: 0;
+			outline: none;
 		}
 
 		&[aria-invalid='true'] {

@@ -64,6 +64,11 @@
 		box-shadow: var(--etk-settings-focus);
 	}
 
+	/* Text fields show no ring, like Etch's. Browsers count any click in one as keyboard focus. */
+	:is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']), textarea):focus-visible {
+		box-shadow: none;
+	}
+
 	/* Titles get focus on navigation, for screen readers, without a ring. */
 	[tabindex="-1"]:focus {
 		box-shadow: none;
@@ -399,7 +404,7 @@
 .etk-settings__file-btn {
 	position: relative;
 
-	&:focus-within {
+	&:has(:focus-visible) {
 		box-shadow: var(--etk-settings-focus);
 	}
 }

@@ -89,6 +89,11 @@
 		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
 	}
 
+	/* Text fields show no ring, like Etch's. Browsers count any click in one as keyboard focus. */
+	:is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']), textarea):focus-visible {
+		box-shadow: none;
+	}
+
 	/* Etch's buttons keep their own focus outline. */
 	.etch-builder-button:focus-visible {
 		box-shadow: none;
@@ -781,7 +786,7 @@
 .etk-fonts__file-btn {
 	position: relative;
 
-	&:focus-within {
+	&:has(:focus-visible) {
 		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
 	}
 }
@@ -1043,7 +1048,7 @@
 	border-radius: var(--etk-fonts-radius);
 	background: var(--etk-fonts-surface);
 
-	&:focus-within {
+	&:has(select:focus-visible) {
 		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
 	}
 }
@@ -1183,10 +1188,6 @@
 	font-family: var(--e-font-code);
 	font-size: var(--e-font-size-s, 11px);
 	line-height: 14px;
-
-	&:focus-within {
-		box-shadow: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
-	}
 
 	.etk-fonts__var-name {
 		flex: 1;

@@ -78,6 +78,11 @@
 		outline: 2px solid var(--etch-primary);
 		outline-offset: 1px;
 	}
+
+	/* Text fields show no ring, like Etch's. Browsers count any click in one as keyboard focus. */
+	:is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']), textarea):focus-visible {
+		outline: none;
+	}
 }
 
 .etk-rn__head {
@@ -197,7 +202,6 @@
 	font-family: var(--e-font-code);
 
 	&:focus {
-		border-color: var(--etch-primary);
 		outline: none;
 	}
 
@@ -481,7 +485,7 @@
 	}
 
 	&:focus {
-		border-color: var(--etch-primary);
+		border-color: rgb(255 255 255 / 0.1);
 		background-color: rgb(0 0 0 / 0.2);
 		color: var(--e-foreground-color);
 		outline: none;
