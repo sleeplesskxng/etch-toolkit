@@ -18,8 +18,6 @@ defined( 'ABSPATH' ) || exit;
 
 require __DIR__ . '/fonts-google.php';
 
-const ETCH_TOOLKIT_FONTS_OPTION     = 'etch_toolkit_fonts';
-const ETCH_TOOLKIT_FONTS_SETTINGS   = 'etch_toolkit_fonts_settings';
 const ETCH_TOOLKIT_FONTS_STYLESHEET = 'Etch Toolkit Fonts';
 const ETCH_TOOLKIT_FONTS_MAX_FILE   = 10485760; // 10 MB.
 const ETCH_TOOLKIT_FONTS_MAX_IMPORT = 52428800; // 50 MB of decoded font data.
@@ -67,37 +65,16 @@ const ETCH_TOOLKIT_FONTS_WEIGHT_WORDS = array(
 require __DIR__ . '/fonts-acss.php';
 
 // The Fonts section of the toolkit's settings, in the builder and in WordPress.
-add_action(
-	'etch_toolkit_settings_enqueue',
-	function () {
-		$path = ETCH_TOOLKIT_DIR . 'features/fonts/fonts-settings.js';
-		wp_enqueue_script( 'etch-toolkit-fonts-settings', ETCH_TOOLKIT_URL . 'features/fonts/fonts-settings.js', array( 'etch-toolkit-settings' ), (string) filemtime( $path ), true );
-		wp_add_inline_script( 'etch-toolkit-fonts-settings', 'window.etchToolkitFontsSettings = ' . wp_json_encode( array( 'stylesheetName' => ETCH_TOOLKIT_FONTS_STYLESHEET ) ) . ';', 'before' );
-	}
-);
+etch_toolkit_settings_section( 'fonts', fn() => array( 'stylesheetName' => ETCH_TOOLKIT_FONTS_STYLESHEET ) );
 
-add_action(
-	'wp_enqueue_scripts',
-	function () {
-		if ( ! etch_toolkit_is_builder() ) {
-			return;
-		}
-		etch_toolkit_enqueue_feature( 'fonts' );
-
-		$wasm = ETCH_TOOLKIT_DIR . 'lib/woff2/woff2.wasm';
-		wp_add_inline_script(
-			'etch-toolkit-fonts',
-			'window.etchToolkitFonts = ' . wp_json_encode(
-				array(
-					'stylesheetName' => ETCH_TOOLKIT_FONTS_STYLESHEET,
-					'workerUrl'      => ETCH_TOOLKIT_URL . 'lib/woff2/woff2-worker.js?' . filemtime( $wasm ),
-					// Where uploads go, as shown on the Files tab.
-					'fontsPath'      => untrailingslashit( str_replace( wp_normalize_path( ABSPATH ), '', wp_normalize_path( etch_toolkit_fonts_dir()['path'] ) ) ),
-				)
-			) . ';',
-			'before'
-		);
-	}
+etch_toolkit_builder_feature(
+	'fonts',
+	fn() => array(
+		'stylesheetName' => ETCH_TOOLKIT_FONTS_STYLESHEET,
+		'workerUrl'      => ETCH_TOOLKIT_URL . 'lib/woff2/woff2-worker.js?' . filemtime( ETCH_TOOLKIT_DIR . 'lib/woff2/woff2.wasm' ),
+		// Where uploads go, as shown on the Files tab.
+		'fontsPath'      => untrailingslashit( str_replace( wp_normalize_path( ABSPATH ), '', wp_normalize_path( etch_toolkit_fonts_dir()['path'] ) ) ),
+	)
 );
 
 // Preload hints, front end only. Etch prints the stylesheet itself.
@@ -144,101 +121,80 @@ add_filter(
 	}
 );
 
-add_action(
-	'rest_api_init',
-	function () {
-		// Route => method, callback and, for some, arguments.
-		$routes = array(
-			'/fonts'                => array( 'GET', fn() => etch_toolkit_fonts_state() ),
-			'/fonts/families'       => array(
-				'POST',
-				'etch_toolkit_fonts_rest_save',
-				array(
-					'families' => array(
-						'type'     => 'array',
-						'required' => true,
-						'items'    => array( 'type' => 'object' ),
-					),
+etch_toolkit_routes(
+	array(
+		'/fonts'                => array( 'GET', fn() => etch_toolkit_fonts_state() ),
+		'/fonts/families'       => array(
+			'POST',
+			'etch_toolkit_fonts_rest_save',
+			array(
+				'families' => array(
+					'type'     => 'array',
+					'required' => true,
+					'items'    => array( 'type' => 'object' ),
 				),
 			),
-			'/fonts/settings'       => array(
-				'POST',
-				function ( WP_REST_Request $r ) {
-					etch_toolkit_fonts_save_settings( (array) $r->get_json_params() );
-					return etch_toolkit_fonts_state();
-				},
-			),
-			'/fonts/upload'         => array( 'POST', 'etch_toolkit_fonts_rest_upload' ),
-			'/fonts/files/delete'   => array(
-				'POST',
-				function ( WP_REST_Request $r ) {
-					$result = etch_toolkit_fonts_delete_files( array_map( 'strval', (array) $r['names'] ) );
-					return is_wp_error( $result ) ? $result : etch_toolkit_fonts_state();
-				},
-			),
-			'/fonts/files/rename'   => array(
-				'POST',
-				function ( WP_REST_Request $r ) {
-					$result = etch_toolkit_fonts_rename_unsafe( (string) $r['name'] );
-					return is_wp_error( $result ) ? $result : etch_toolkit_fonts_state();
-				},
-			),
-			'/fonts/export'         => array( 'GET', fn( WP_REST_Request $r ) => etch_toolkit_fonts_export( (array) $r['families'] ) ),
-			'/fonts/import'         => array(
-				'POST',
-				function ( WP_REST_Request $r ) {
-					$result = etch_toolkit_fonts_import( (array) $r->get_json_params() );
-					if ( is_wp_error( $result ) ) {
-						return $result;
-					}
-					// Away from the builder, nothing else writes the stylesheet.
-					if ( $r['stylesheet'] ) {
-						etch_toolkit_fonts_write_stylesheet();
-					}
-					return etch_toolkit_fonts_state();
-				},
-			),
-			'/fonts/google'         => array(
-				'GET',
-				function ( WP_REST_Request $r ) {
-					return etch_toolkit_fonts_google_search(
-						(string) $r['search'],
-						array(
-							'category' => (string) $r['category'],
-							'subset'   => (string) $r['subset'],
-							'sort'     => (string) $r['sort'],
-							'variable' => (bool) $r['variable'],
-							'offset'   => (int) $r['offset'],
-						)
-					);
-				},
-			),
-			'/fonts/google/install' => array(
-				'POST',
-				function ( WP_REST_Request $r ) {
-					$result = etch_toolkit_fonts_google_install( (string) $r['family'], (array) $r['subsets'], (bool) $r['variable'], (array) $r['cuts'] );
-					return is_wp_error( $result ) ? $result : etch_toolkit_fonts_state();
-				},
-			),
-		);
-
-		foreach ( $routes as $route => $spec ) {
-			[ $method, $callback, $args ] = array_pad( $spec, 3, array() );
-			register_rest_route(
-				ETCH_TOOLKIT_REST_NAMESPACE,
-				$route,
-				array(
-					'methods'             => $method,
-					'callback'            => function ( WP_REST_Request $r ) use ( $callback ) {
-						$result = etch_toolkit_rest_try( fn() => $callback( $r ) );
-						return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
-					},
-					'args'                => $args,
-					'permission_callback' => 'etch_toolkit_can_manage',
-				)
-			);
-		}
-	}
+		),
+		'/fonts/settings'       => array(
+			'POST',
+			function ( WP_REST_Request $r ) {
+				etch_toolkit_fonts_save_settings( (array) $r->get_json_params() );
+				return etch_toolkit_fonts_state();
+			},
+		),
+		'/fonts/upload'         => array( 'POST', 'etch_toolkit_fonts_rest_upload' ),
+		'/fonts/files/delete'   => array(
+			'POST',
+			function ( WP_REST_Request $r ) {
+				$result = etch_toolkit_fonts_delete_files( array_map( 'strval', (array) $r['names'] ) );
+				return is_wp_error( $result ) ? $result : etch_toolkit_fonts_state();
+			},
+		),
+		'/fonts/files/rename'   => array(
+			'POST',
+			function ( WP_REST_Request $r ) {
+				$result = etch_toolkit_fonts_rename_unsafe( (string) $r['name'] );
+				return is_wp_error( $result ) ? $result : etch_toolkit_fonts_state();
+			},
+		),
+		'/fonts/export'         => array( 'GET', fn( WP_REST_Request $r ) => etch_toolkit_fonts_export( (array) $r['families'] ) ),
+		'/fonts/import'         => array(
+			'POST',
+			function ( WP_REST_Request $r ) {
+				$result = etch_toolkit_fonts_import( (array) $r->get_json_params() );
+				if ( is_wp_error( $result ) ) {
+					return $result;
+				}
+				// Away from the builder, nothing else writes the stylesheet.
+				if ( $r['stylesheet'] ) {
+					etch_toolkit_fonts_write_stylesheet();
+				}
+				return etch_toolkit_fonts_state();
+			},
+		),
+		'/fonts/google'         => array(
+			'GET',
+			function ( WP_REST_Request $r ) {
+				return etch_toolkit_fonts_google_search(
+					(string) $r['search'],
+					array(
+						'category' => (string) $r['category'],
+						'subset'   => (string) $r['subset'],
+						'sort'     => (string) $r['sort'],
+						'variable' => (bool) $r['variable'],
+						'offset'   => (int) $r['offset'],
+					)
+				);
+			},
+		),
+		'/fonts/google/install' => array(
+			'POST',
+			function ( WP_REST_Request $r ) {
+				$result = etch_toolkit_fonts_google_install( (string) $r['family'], (array) $r['subsets'], (bool) $r['variable'], (array) $r['cuts'] );
+				return is_wp_error( $result ) ? $result : etch_toolkit_fonts_state();
+			},
+		),
+	)
 );
 
 /*

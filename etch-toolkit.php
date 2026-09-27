@@ -17,6 +17,7 @@ define( 'ETCH_TOOLKIT_VERSION', '0.4.2' );
 define( 'ETCH_TOOLKIT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ETCH_TOOLKIT_URL', plugin_dir_url( __FILE__ ) );
 
+require ETCH_TOOLKIT_DIR . 'includes/options.php';
 require ETCH_TOOLKIT_DIR . 'includes/helpers.php';
 require ETCH_TOOLKIT_DIR . 'features/settings/settings.php';
 require ETCH_TOOLKIT_DIR . 'features/style-usage/style-usage.php';

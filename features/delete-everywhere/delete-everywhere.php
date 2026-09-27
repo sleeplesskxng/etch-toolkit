@@ -11,63 +11,30 @@
 
 defined( 'ABSPATH' ) || exit;
 
-add_action(
-	'rest_api_init',
-	function () {
-		$route = '/styles/(?P<id>[A-Za-z0-9_-]+)';
-
-		register_rest_route(
-			ETCH_TOOLKIT_REST_NAMESPACE,
-			"{$route}/usage",
+etch_toolkit_routes(
+	array(
+		'/styles/(?P<id>' . ETCH_TOOLKIT_STYLE_ID . ')/usage'   => array( 'GET', fn( WP_REST_Request $request ) => etch_toolkit_delete_everywhere_usage( $request['id'] ) ),
+		'/styles/(?P<id>' . ETCH_TOOLKIT_STYLE_ID . ')/strip'   => array(
+			'POST',
+			fn( WP_REST_Request $request ) => etch_toolkit_delete_everywhere_strip( $request['id'], $request['class'] ),
 			array(
-				'methods'             => 'GET',
-				'callback'            => fn( WP_REST_Request $request ) => etch_toolkit_rest_try( fn() => etch_toolkit_delete_everywhere_usage( $request['id'] ) ),
-				'permission_callback' => 'etch_toolkit_can_manage',
-			)
-		);
-
-		register_rest_route(
-			ETCH_TOOLKIT_REST_NAMESPACE,
-			"{$route}/strip",
-			array(
-				'methods'             => 'POST',
-				'args'                => array(
-					'class' => array(
-						'type'     => 'string',
-						'required' => true,
-					),
+				'class' => array(
+					'type'     => 'string',
+					'required' => true,
 				),
-				'callback'            => fn( WP_REST_Request $request ) => etch_toolkit_rest_try( fn() => etch_toolkit_delete_everywhere_strip( $request['id'], $request['class'] ) ),
-				'permission_callback' => 'etch_toolkit_can_manage',
-			)
-		);
-
-		register_rest_route(
-			ETCH_TOOLKIT_REST_NAMESPACE,
-			"{$route}/unstrip",
-			array(
-				'methods'             => 'POST',
-				'callback'            => fn( WP_REST_Request $request ) => etch_toolkit_rest_try( fn() => etch_toolkit_delete_everywhere_unstrip( $request['id'] ) ),
-				'permission_callback' => 'etch_toolkit_can_manage',
-			)
-		);
-	}
+			),
+		),
+		'/styles/(?P<id>' . ETCH_TOOLKIT_STYLE_ID . ')/unstrip' => array( 'POST', fn( WP_REST_Request $request ) => etch_toolkit_delete_everywhere_unstrip( $request['id'] ) ),
+	)
 );
 
-add_action(
-	'wp_enqueue_scripts',
-	function () {
-		if ( etch_toolkit_is_builder() ) {
-			etch_toolkit_enqueue_feature( 'delete-everywhere' );
-		}
-	}
-);
+etch_toolkit_builder_feature( 'delete-everywhere' );
 
 /**
  * Every use of a class style, for the builder's confirm dialog.
  *
  * @param string $style_id Etch style ID.
- * @return WP_REST_Response|WP_Error
+ * @return array|WP_Error
  */
 function etch_toolkit_delete_everywhere_usage( string $style_id ) {
 	$styles = (array) get_option( 'etch_styles', array() );
@@ -83,19 +50,17 @@ function etch_toolkit_delete_everywhere_usage( string $style_id ) {
 	}
 
 	$scan = etch_toolkit_delete_everywhere_scan( $styles, $style_id, $class );
-	return rest_ensure_response(
-		array(
-			'selector' => $style['selector'],
-			'class'    => $class,
-			'elements' => array_sum( $scan['changed'] ),
-			'posts'    => etch_toolkit_post_summaries( $scan['changed'] ),
-			// Elements keep the class, since another style has it.
-			'shared'   => $scan['shared'],
-			// Components whose class properties default to the style.
-			'defaults' => count( $scan['defaults'] ),
-			// Elements with a dynamic class name that could make the class, left as they are.
-			'dynamic'  => $scan['dynamic'],
-		)
+	return array(
+		'selector' => $style['selector'],
+		'class'    => $class,
+		'elements' => array_sum( $scan['changed'] ),
+		'posts'    => etch_toolkit_post_summaries( $scan['changed'] ),
+		// Elements keep the class, since another style has it.
+		'shared'   => $scan['shared'],
+		// Components whose class properties default to the style.
+		'defaults' => count( $scan['defaults'] ),
+		// Elements with a dynamic class name that could make the class, left as they are.
+		'dynamic'  => $scan['dynamic'],
 	);
 }
 
@@ -108,12 +73,12 @@ function etch_toolkit_delete_everywhere_usage( string $style_id ) {
  *
  * @param string $style_id Etch style ID.
  * @param string $class    Its class name, unescaped.
- * @return WP_REST_Response|WP_Error
+ * @return array|WP_Error
  */
 function etch_toolkit_delete_everywhere_strip( string $style_id, string $class ) {
 	$styles = (array) get_option( 'etch_styles', array() );
 	if ( isset( $styles[ $style_id ] ) ) {
-		return rest_ensure_response( array( 'elements' => 0 ) );
+		return array( 'elements' => 0 );
 	}
 	// As it appears in class attributes: no spaces, quotes or braces.
 	if ( ! preg_match( '/^[^\s"\'{}<>]+$/u', $class ) ) {
@@ -145,7 +110,7 @@ function etch_toolkit_delete_everywhere_strip( string $style_id, string $class )
 	}
 	set_transient( $key, $journal, WEEK_IN_SECONDS );
 
-	return rest_ensure_response( array( 'elements' => array_sum( $scan['changed'] ) ) );
+	return array( 'elements' => array_sum( $scan['changed'] ) );
 }
 
 /**
@@ -154,13 +119,13 @@ function etch_toolkit_delete_everywhere_strip( string $style_id, string $class )
  * defaults changed since are left as they are.
  *
  * @param string $style_id Etch style ID.
- * @return WP_REST_Response|WP_Error
+ * @return array|WP_Error
  */
 function etch_toolkit_delete_everywhere_unstrip( string $style_id ) {
 	$key     = etch_toolkit_delete_everywhere_key( $style_id );
 	$journal = get_transient( $key );
 	if ( ! $journal || ! isset( ( (array) get_option( 'etch_styles', array() ) )[ $style_id ] ) ) {
-		return rest_ensure_response( array( 'posts' => 0 ) );
+		return array( 'posts' => 0 );
 	}
 
 	$contents  = array();
@@ -183,11 +148,11 @@ function etch_toolkit_delete_everywhere_unstrip( string $style_id ) {
 	}
 	delete_transient( $key );
 
-	return rest_ensure_response( array( 'posts' => count( $contents ) ) );
+	return array( 'posts' => count( $contents ) );
 }
 
 function etch_toolkit_delete_everywhere_key( string $style_id ): string {
-	return 'etch_toolkit_deleted_' . $style_id;
+	return ETCH_TOOLKIT_DELETED_PREFIX . $style_id;
 }
 
 /**

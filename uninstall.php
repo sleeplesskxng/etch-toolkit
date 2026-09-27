@@ -9,24 +9,26 @@
 
 defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 
+require __DIR__ . '/includes/options.php';
+
 /**
  * Remove this site's toolkit data, if its settings say to.
  */
 function etch_toolkit_uninstall_site(): void {
 	global $wpdb;
 
-	$settings = (array) get_option( 'etch_toolkit_settings', array() );
+	$settings = (array) get_option( ETCH_TOOLKIT_SETTINGS_OPTION, array() );
 	if ( empty( $settings['deleteData'] ) ) {
 		return;
 	}
 
-	foreach ( array( 'etch_toolkit_recipes', 'etch_toolkit_fonts', 'etch_toolkit_fonts_settings', 'etch_toolkit_fonts_acss_synced', 'etch_toolkit_settings' ) as $option ) {
+	foreach ( array( ETCH_TOOLKIT_RECIPES_OPTION, ETCH_TOOLKIT_FONTS_OPTION, ETCH_TOOLKIT_FONTS_SETTINGS, ETCH_TOOLKIT_FONTS_ACSS_SYNCED, ETCH_TOOLKIT_SETTINGS_OPTION ) as $option ) {
 		delete_option( $option );
 	}
-	delete_transient( 'etch_toolkit_google_fonts_index' );
+	delete_transient( ETCH_TOOLKIT_GOOGLE_INDEX );
 
 	// Delete Everywhere's undo records, one per deleted style.
-	$like = $wpdb->esc_like( '_transient_etch_toolkit_deleted_' ) . '%';
+	$like = $wpdb->esc_like( '_transient_' . ETCH_TOOLKIT_DELETED_PREFIX ) . '%';
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	foreach ( $wpdb->get_col( $wpdb->prepare( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s", $like ) ) as $name ) {
 		delete_transient( substr( $name, strlen( '_transient_' ) ) );

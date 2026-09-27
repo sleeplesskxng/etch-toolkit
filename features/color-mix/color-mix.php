@@ -6,11 +6,4 @@
 
 defined( 'ABSPATH' ) || exit;
 
-add_action(
-	'wp_enqueue_scripts',
-	function () {
-		if ( etch_toolkit_is_builder() ) {
-			etch_toolkit_enqueue_feature( 'color-mix' );
-		}
-	}
-);
+etch_toolkit_builder_feature( 'color-mix' );

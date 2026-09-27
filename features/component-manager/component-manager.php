@@ -13,29 +13,13 @@
 
 defined( 'ABSPATH' ) || exit;
 
-add_action(
-	'rest_api_init',
-	function () {
-		register_rest_route(
-			ETCH_TOOLKIT_REST_NAMESPACE,
-			'/components/usage',
-			array(
-				'methods'             => 'GET',
-				'callback'            => fn() => etch_toolkit_rest_try( fn() => rest_ensure_response( array( 'usage' => (object) etch_toolkit_component_usage() ) ) ),
-				'permission_callback' => 'etch_toolkit_can_manage',
-			)
-		);
-	}
+etch_toolkit_routes(
+	array(
+		'/components/usage' => array( 'GET', fn() => array( 'usage' => (object) etch_toolkit_component_usage() ) ),
+	)
 );
 
-add_action(
-	'wp_enqueue_scripts',
-	function () {
-		if ( etch_toolkit_is_builder() ) {
-			etch_toolkit_enqueue_feature( 'component-manager' );
-		}
-	}
-);
+etch_toolkit_builder_feature( 'component-manager' );
 
 /**
  * Where each component is used: component ID => the posts with an instance of

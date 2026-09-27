@@ -11,7 +11,6 @@
 defined( 'ABSPATH' ) || exit;
 
 // The value last written to each ACSS field, keyed by role.
-const ETCH_TOOLKIT_FONTS_ACSS_SYNCED = 'etch_toolkit_fonts_acss_synced';
 
 add_action( 'add_option_' . ETCH_TOOLKIT_FONTS_OPTION, 'etch_toolkit_fonts_acss_sync' );
 add_action( 'update_option_' . ETCH_TOOLKIT_FONTS_OPTION, 'etch_toolkit_fonts_acss_sync' );

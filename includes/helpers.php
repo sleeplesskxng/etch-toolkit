@@ -7,6 +7,9 @@ defined( 'ABSPATH' ) || exit;
 
 const ETCH_TOOLKIT_REST_NAMESPACE = 'etch-toolkit/v1';
 
+// An Etch style's ID, as in a route or a list of them.
+const ETCH_TOOLKIT_STYLE_ID = '[A-Za-z0-9_-]+';
+
 /**
  * True when the current request is the Etch builder.
  */
@@ -48,17 +51,15 @@ function etch_toolkit_register_core(): void {
 
 	wp_register_style( 'etch-toolkit', "{$url}.css", array(), (string) filemtime( "{$path}.css" ) );
 	wp_register_script( 'etch-toolkit', "{$url}.js", array(), (string) filemtime( "{$path}.js" ), true );
-	wp_add_inline_script(
+	etch_toolkit_inline_data(
 		'etch-toolkit',
-		'window.etchToolkit = ' . wp_json_encode(
-			array(
-				'restRoot' => esc_url_raw( rest_url() ),
-				'restUrl'  => esc_url_raw( rest_url( ETCH_TOOLKIT_REST_NAMESPACE . '/' ) ),
-				'ajaxUrl'  => esc_url_raw( admin_url( 'admin-ajax.php' ) ),
-				'nonce'    => wp_create_nonce( 'wp_rest' ),
-			)
-		) . ';',
-		'before'
+		'etchToolkit',
+		array(
+			'restRoot' => esc_url_raw( rest_url() ),
+			'restUrl'  => esc_url_raw( rest_url( ETCH_TOOLKIT_REST_NAMESPACE . '/' ) ),
+			'ajaxUrl'  => esc_url_raw( admin_url( 'admin-ajax.php' ) ),
+			'nonce'    => wp_create_nonce( 'wp_rest' ),
+		)
 	);
 }
 
@@ -80,6 +81,96 @@ function etch_toolkit_enqueue_feature( string $feature ): void {
 		wp_enqueue_style( 'etch-toolkit' );
 	}
 	wp_enqueue_script( $handle, "{$url}.js", array( 'etch-toolkit' ), (string) filemtime( "{$path}.js" ), true );
+}
+
+/**
+ * The name a feature's data goes under in the browser: 'fonts' is
+ * etchToolkitFonts, 'component-manager' etchToolkitComponentManager.
+ */
+function etch_toolkit_global_name( string $feature ): string {
+	return 'etchToolkit' . str_replace( ' ', '', ucwords( str_replace( '-', ' ', $feature ) ) );
+}
+
+/**
+ * Print data for a script, as window.{$name}, before it runs.
+ */
+function etch_toolkit_inline_data( string $handle, string $name, array $data ): void {
+	wp_add_inline_script( $handle, "window.{$name} = " . wp_json_encode( $data ) . ';', 'before' );
+}
+
+/**
+ * Load a feature in the builder. $data, if given, returns what its script
+ * reads as window.etchToolkit{Feature}.
+ *
+ * @param string        $feature Folder name under features/.
+ * @param callable|null $data    fn(): array.
+ */
+function etch_toolkit_builder_feature( string $feature, ?callable $data = null ): void {
+	add_action(
+		'wp_enqueue_scripts',
+		function () use ( $feature, $data ) {
+			if ( ! etch_toolkit_is_builder() ) {
+				return;
+			}
+			etch_toolkit_enqueue_feature( $feature );
+			if ( $data ) {
+				etch_toolkit_inline_data( "etch-toolkit-{$feature}", etch_toolkit_global_name( $feature ), $data() );
+			}
+		}
+	);
+}
+
+/**
+ * Add a feature's section to the toolkit's settings, in the builder and in
+ * WordPress: features/{feature}/{feature}-settings.js, which calls
+ * etchToolkit.settings.section(). $data, if given, returns what it reads as
+ * window.etchToolkit{Feature}Settings.
+ *
+ * @param string        $feature Folder name under features/.
+ * @param callable|null $data    fn(): array.
+ */
+function etch_toolkit_settings_section( string $feature, ?callable $data = null ): void {
+	add_action(
+		'etch_toolkit_settings_enqueue',
+		function () use ( $feature, $data ) {
+			$handle = "etch-toolkit-{$feature}-settings";
+			$file   = "features/{$feature}/{$feature}-settings.js";
+			wp_enqueue_script( $handle, ETCH_TOOLKIT_URL . $file, array( 'etch-toolkit-settings' ), (string) filemtime( ETCH_TOOLKIT_DIR . $file ), true );
+			if ( $data ) {
+				etch_toolkit_inline_data( $handle, etch_toolkit_global_name( $feature ) . 'Settings', $data() );
+			}
+		}
+	);
+}
+
+/**
+ * Register REST routes under the toolkit's namespace, for users who can
+ * manage options. Each callback runs through etch_toolkit_rest_try(), so
+ * anything it throws comes back as an error. WordPress makes a response of
+ * whatever it returns.
+ *
+ * @param array<string, array> $routes Route => [ method, callback( WP_REST_Request ), args ],
+ *                                     or a list of those for several methods on one route.
+ */
+function etch_toolkit_routes( array $routes ): void {
+	add_action(
+		'rest_api_init',
+		function () use ( $routes ) {
+			foreach ( $routes as $route => $specs ) {
+				$endpoints = array();
+				foreach ( is_array( $specs[0] ) ? $specs : array( $specs ) as $spec ) {
+					[ $method, $callback, $args ] = array_pad( $spec, 3, array() );
+					$endpoints[]                  = array(
+						'methods'             => $method,
+						'callback'            => fn( WP_REST_Request $request ) => etch_toolkit_rest_try( fn() => $callback( $request ) ),
+						'args'                => $args,
+						'permission_callback' => 'etch_toolkit_can_manage',
+					);
+				}
+				register_rest_route( ETCH_TOOLKIT_REST_NAMESPACE, $route, $endpoints );
+			}
+		}
+	);
 }
 
 /**

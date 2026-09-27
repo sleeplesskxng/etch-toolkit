@@ -13,84 +13,52 @@
 
 defined( 'ABSPATH' ) || exit;
 
-add_action(
-	'wp_enqueue_scripts',
-	function () {
-		if ( etch_toolkit_is_builder() ) {
-			etch_toolkit_enqueue_feature( 'bulk-select' );
-		}
-	}
+etch_toolkit_builder_feature( 'bulk-select' );
+
+
+// The arguments a rename takes.
+const ETCH_TOOLKIT_RENAME_ARGS = array(
+	'ids'  => array(
+		'type'     => 'array',
+		'required' => true,
+		'items'    => array(
+			'type'    => 'string',
+			'pattern' => '^' . ETCH_TOOLKIT_STYLE_ID . '$',
+		),
+	),
+	'map'  => array(
+		'type'                 => 'object',
+		'required'             => true,
+		'additionalProperties' => array( 'type' => 'string' ),
+	),
+	'bem'  => array(
+		'type'    => 'boolean',
+		'default' => false,
+	),
+	'keep' => array(
+		'type'    => 'array',
+		'default' => array(),
+		'items'   => array( 'type' => 'string' ),
+	),
 );
 
-
-add_action(
-	'rest_api_init',
-	function () {
-		$args = array(
-			'ids'  => array(
-				'type'     => 'array',
-				'required' => true,
-				'items'    => array(
-					'type'    => 'string',
-					'pattern' => '^[A-Za-z0-9_-]+$',
+etch_toolkit_routes(
+	array(
+		'/styles/rename/preview' => array( 'POST', fn( WP_REST_Request $r ) => etch_toolkit_rename_public( etch_toolkit_rename_plan( $r['ids'], $r['map'], $r['bem'], $r['keep'] ) ), ETCH_TOOLKIT_RENAME_ARGS ),
+		'/styles/rename'         => array( 'POST', fn( WP_REST_Request $r ) => etch_toolkit_rename_apply( $r['ids'], $r['map'], $r['bem'], $r['keep'] ), ETCH_TOOLKIT_RENAME_ARGS ),
+		'/styles/rename/content' => array(
+			'POST',
+			fn( WP_REST_Request $r ) => etch_toolkit_rename_content_everywhere( $r['map'], $r['skip'] ),
+			array(
+				'map'  => ETCH_TOOLKIT_RENAME_ARGS['map'],
+				'skip' => array(
+					'type'    => 'array',
+					'default' => array(),
+					'items'   => array( 'type' => 'integer' ),
 				),
 			),
-			'map'  => array(
-				'type'                 => 'object',
-				'required'             => true,
-				'additionalProperties' => array( 'type' => 'string' ),
-			),
-			'bem'  => array(
-				'type'    => 'boolean',
-				'default' => false,
-			),
-			'keep' => array(
-				'type'    => 'array',
-				'default' => array(),
-				'items'   => array( 'type' => 'string' ),
-			),
-		);
-
-		register_rest_route(
-			ETCH_TOOLKIT_REST_NAMESPACE,
-			'/styles/rename/preview',
-			array(
-				'methods'             => 'POST',
-				'args'                => $args,
-				'callback'            => fn( WP_REST_Request $r ) => etch_toolkit_rest_try( fn() => rest_ensure_response( etch_toolkit_rename_public( etch_toolkit_rename_plan( $r['ids'], $r['map'], $r['bem'], $r['keep'] ) ) ) ),
-				'permission_callback' => 'etch_toolkit_can_manage',
-			)
-		);
-
-		register_rest_route(
-			ETCH_TOOLKIT_REST_NAMESPACE,
-			'/styles/rename',
-			array(
-				'methods'             => 'POST',
-				'args'                => $args,
-				'callback'            => fn( WP_REST_Request $r ) => etch_toolkit_rest_try( fn() => etch_toolkit_rename_apply( $r['ids'], $r['map'], $r['bem'], $r['keep'] ) ),
-				'permission_callback' => 'etch_toolkit_can_manage',
-			)
-		);
-
-		register_rest_route(
-			ETCH_TOOLKIT_REST_NAMESPACE,
-			'/styles/rename/content',
-			array(
-				'methods'             => 'POST',
-				'args'                => array(
-					'map'  => $args['map'],
-					'skip' => array(
-						'type'    => 'array',
-						'default' => array(),
-						'items'   => array( 'type' => 'integer' ),
-					),
-				),
-				'callback'            => fn( WP_REST_Request $r ) => etch_toolkit_rest_try( fn() => etch_toolkit_rename_content_everywhere( $r['map'], $r['skip'] ) ),
-				'permission_callback' => 'etch_toolkit_can_manage',
-			)
-		);
-	}
+		),
+	)
 );
 
 /**
@@ -445,7 +413,7 @@ function etch_toolkit_rename_plan( array $ids, array $requested, bool $bem = fal
 }
 
 /**
- * @return WP_REST_Response|WP_Error
+ * @return array|WP_Error
  */
 function etch_toolkit_rename_apply( array $ids, array $map, bool $bem = false, array $keep = array() ) {
 	$plan = etch_toolkit_rename_plan( $ids, $map, $bem, $keep );
@@ -472,7 +440,7 @@ function etch_toolkit_rename_apply( array $ids, array $map, bool $bem = false, a
 		return new WP_Error( 'etch_toolkit_rename_failed', "Couldn't save the styles. Nothing changed.", array( 'status' => 500 ) );
 	}
 
-	return rest_ensure_response( etch_toolkit_rename_public( $plan ) );
+	return etch_toolkit_rename_public( $plan );
 }
 
 /**
@@ -483,7 +451,7 @@ function etch_toolkit_rename_apply( array $ids, array $map, bool $bem = false, a
  *
  * @param array<string, string> $map  Old class name => new class name.
  * @param int[]                 $skip Post IDs to leave alone.
- * @return WP_REST_Response|WP_Error
+ * @return array|WP_Error
  */
 function etch_toolkit_rename_content_everywhere( array $map, array $skip ) {
 	// Names as they appear in class attributes: no spaces, quotes or braces.
@@ -514,7 +482,7 @@ function etch_toolkit_rename_content_everywhere( array $map, array $skip ) {
 	}
 
 	$saved = etch_toolkit_update_contents( $after, $before );
-	return is_wp_error( $saved ) ? $saved : rest_ensure_response( array( 'posts' => array_keys( $after ) ) );
+	return is_wp_error( $saved ) ? $saved : array( 'posts' => array_keys( $after ) );
 }
 
 /**

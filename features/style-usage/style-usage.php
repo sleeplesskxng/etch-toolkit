@@ -6,29 +6,13 @@
 
 defined( 'ABSPATH' ) || exit;
 
-add_action(
-	'rest_api_init',
-	function () {
-		register_rest_route(
-			ETCH_TOOLKIT_REST_NAMESPACE,
-			'/style-usage',
-			array(
-				'methods'             => 'GET',
-				'callback'            => fn() => etch_toolkit_rest_try( fn() => rest_ensure_response( array( 'counts' => (object) etch_toolkit_style_usage_counts() ) ) ),
-				'permission_callback' => 'etch_toolkit_can_manage',
-			)
-		);
-	}
+etch_toolkit_routes(
+	array(
+		'/style-usage' => array( 'GET', fn() => array( 'counts' => (object) etch_toolkit_style_usage_counts() ) ),
+	)
 );
 
-add_action(
-	'wp_enqueue_scripts',
-	function () {
-		if ( etch_toolkit_is_builder() ) {
-			etch_toolkit_enqueue_feature( 'style-usage' );
-		}
-	}
-);
+etch_toolkit_builder_feature( 'style-usage' );
 
 /**
  * Count the blocks that use each Etch style selector across all saved content.

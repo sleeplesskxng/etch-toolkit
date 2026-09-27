@@ -8,7 +8,6 @@
 
 defined( 'ABSPATH' ) || exit;
 
-const ETCH_TOOLKIT_GOOGLE_INDEX     = 'etch_toolkit_google_fonts_index';
 const ETCH_TOOLKIT_GOOGLE_METADATA  = 'https://fonts.google.com/metadata/fonts';
 const ETCH_TOOLKIT_GOOGLE_CSS       = 'https://fonts.googleapis.com/css2';
 const ETCH_TOOLKIT_GOOGLE_PAGE_SIZE = 24;

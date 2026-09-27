@@ -10,32 +10,21 @@
 
 defined( 'ABSPATH' ) || exit;
 
-const ETCH_TOOLKIT_SETTINGS_OPTION = 'etch_toolkit_settings';
-const ETCH_TOOLKIT_SETTINGS_PAGE   = 'etch-toolkit';
+const ETCH_TOOLKIT_SETTINGS_PAGE = 'etch-toolkit';
 
-add_action(
-	'rest_api_init',
-	function () {
-		register_rest_route(
-			ETCH_TOOLKIT_REST_NAMESPACE,
-			'/settings',
+etch_toolkit_routes(
+	array(
+		'/settings' => array(
+			array( 'GET', fn() => etch_toolkit_settings() ),
 			array(
-				array(
-					'methods'             => 'GET',
-					'callback'            => fn() => rest_ensure_response( etch_toolkit_settings() ),
-					'permission_callback' => 'etch_toolkit_can_manage',
-				),
-				array(
-					'methods'             => 'POST',
-					'callback'            => function ( WP_REST_Request $request ) {
-						etch_toolkit_save_settings( (array) $request->get_json_params() );
-						return rest_ensure_response( etch_toolkit_settings() );
-					},
-					'permission_callback' => 'etch_toolkit_can_manage',
-				),
-			)
-		);
-	}
+				'POST',
+				function ( WP_REST_Request $request ) {
+					etch_toolkit_save_settings( (array) $request->get_json_params() );
+					return etch_toolkit_settings();
+				},
+			),
+		),
+	)
 );
 
 /**
@@ -68,15 +57,13 @@ function etch_toolkit_save_settings( array $input ): void {
  */
 function etch_toolkit_enqueue_settings( string $context ): void {
 	etch_toolkit_enqueue_feature( 'settings' );
-	wp_add_inline_script(
+	etch_toolkit_inline_data(
 		'etch-toolkit-settings',
-		'window.etchToolkitSettings = ' . wp_json_encode(
-			array(
-				'context'  => $context,
-				'settings' => etch_toolkit_settings(),
-			)
-		) . ';',
-		'before'
+		'etchToolkitSettings',
+		array(
+			'context'  => $context,
+			'settings' => etch_toolkit_settings(),
+		)
 	);
 	do_action( 'etch_toolkit_settings_enqueue', $context );
 }
