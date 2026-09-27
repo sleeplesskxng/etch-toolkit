@@ -9,6 +9,9 @@
 	--etk-components-surface: var(--e-base, #27272b);
 	--etk-components-view: color-mix(in srgb, var(--e-base, #27272b), var(--e-base-light, #36363a) 47%);
 	--etk-components-raised: var(--e-base-light, #36363a);
+	/* A band a little lighter than a field, and its line, for headers inside one. */
+	--etk-components-band: color-mix(in srgb, var(--etk-components-field), var(--etk-components-text) 3%);
+	--etk-components-band-line: color-mix(in srgb, var(--etk-components-field), var(--etk-components-text) 7%);
 
 	/* Lines. */
 	--etk-components-line: var(--e-border-color, #36363a);
@@ -430,27 +433,43 @@
 	min-inline-size: 0;
 }
 
+/* A component's name with its key after it. */
+.etk-components__prop-name {
+	display: flex;
+	flex: 1;
+	align-items: baseline;
+	gap: 8px;
+	min-inline-size: 0;
+}
+
+.etk-components__prop-key {
+	color: var(--etk-components-text-50);
+	font-family: var(--e-font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
+	font-size: var(--e-font-size-s, 11px);
+}
+
 /* ------------------------------------------------------------------ */
 /* Review                                                              */
 /* ------------------------------------------------------------------ */
 
 /*
- * Review: the whole view. The selection's code on the left, layers and props
- * on the right like Etch's Structure panel, each scrolling on its own.
+ * Review: the whole view. The header across the top, then layers and props
+ * on the left like Etch's Structure panel and the picked one's code on the
+ * right, each scrolling on its own.
  */
 .etk-components__content:has(> .etk-components__main > .etk-components__page--review) {
 	overflow: hidden;
 
 	> .etk-components__main {
 		block-size: 100%;
-		padding-block-end: 16px;
+		padding: 0;
 	}
 }
 
 .etk-components__page--review {
 	display: grid;
 	grid-template-rows: auto minmax(0, 1fr);
-	gap: 12px;
+	gap: 0;
 	inline-size: 100%;
 	block-size: 100%;
 	padding-block-start: 0;
@@ -458,52 +477,36 @@
 	> .etk-components__review-head {
 		position: static;
 		flex-wrap: wrap;
+		gap: 14px;
 		margin: 0;
-		padding-block: 0;
+		padding: 22px 32px;
+		border-block-end: 1px solid var(--etk-components-line);
 	}
 }
 
 .etk-components__workspace {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) clamp(300px, 32%, 420px);
-	gap: 16px;
+	grid-template-columns: 320px minmax(0, 1fr);
 	min-block-size: 0;
-}
-
-/*
- * The code pane. Each kind of change gets an equal share of its height and
- * scrolls inside its own box. With too many to fit, the pane scrolls too.
- */
-.etk-components__code {
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-	min-block-size: 0;
-	overflow-y: auto;
-	padding: 16px;
-	border: 1px solid var(--etk-components-line);
-	border-radius: var(--etk-components-radius-lg);
-	background: var(--etk-components-field);
-
-	> .etk-components__change {
-		flex: 1 1 0;
-		min-block-size: 200px;
-	}
-
-	.etk-components__diff {
-		flex: 1 1 auto;
-		min-block-size: 0;
-		max-block-size: none;
-	}
 }
 
 .etk-components__side {
 	display: flex;
 	flex-direction: column;
+	gap: 20px;
+	min-block-size: 0;
+	overflow-y: auto;
+	padding: 20px 16px;
+	border-inline-end: 1px solid var(--etk-components-line);
+}
+
+.etk-components__code {
+	display: flex;
+	flex-direction: column;
 	gap: 16px;
 	min-block-size: 0;
-	overflow: auto;
-	padding-inline-end: 2px;
+	overflow-y: auto;
+	padding: 20px 32px 48px;
 }
 
 /* Too narrow for two panes: the layers first, then the code, and the page scrolls. */
@@ -516,65 +519,24 @@
 		}
 	}
 
-	.etk-components__page--review {
+	.etk-components__page--review,
+	.etk-components__workspace {
 		display: flex;
 		flex-direction: column;
 	}
 
-	.etk-components__workspace {
-		display: flex;
-		flex-direction: column-reverse;
+	.etk-components__side {
+		border-inline-end: 0;
+		border-block-end: 1px solid var(--etk-components-line);
 	}
 
 	.etk-components__code,
 	.etk-components__side {
 		overflow: visible;
 	}
-
-	.etk-components__code .etk-components__diff {
-		max-block-size: 360px;
-	}
 }
 
-.etk-components__pane-head {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	padding-block-end: 12px;
-	border-block-end: 1px solid var(--etk-components-line);
-}
-
-/* The head already draws a line under itself. */
-.etk-components__pane-head + .etk-components__change {
-	padding-block-start: 0;
-	border-block-start: 0;
-}
-
-.etk-components__pane-title {
-	display: flex;
-	flex: 1;
-	align-items: baseline;
-	gap: 6px;
-	min-inline-size: 0;
-	margin: 0;
-	font-size: 14px;
-	font-weight: 500;
-	line-height: 20px;
-}
-
-.etk-components__empty {
-	margin: auto;
-	color: var(--etk-components-text-50);
-	font-weight: 400;
-}
-
-.etk-components__fields {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-}
-
-/* Stays in view while you scroll the changes, with Update component in reach. */
+/* The back button and title, in view while the page scrolls. */
 .etk-components__review-head {
 	position: sticky;
 	top: -24px;
@@ -593,9 +555,10 @@
 	gap: 8px;
 }
 
+/* Wide enough to keep the title on a line or two. When narrow, the actions go below. */
 .etk-components__review-title {
 	display: flex;
-	flex: 1;
+	flex: 1 1 240px;
 	flex-direction: column;
 	gap: 2px;
 }
@@ -603,7 +566,23 @@
 .etk-components__review-actions {
 	display: flex;
 	align-items: center;
+	gap: 14px;
+}
+
+/* The lines what's ticked adds and removes. */
+.etk-components__lines {
+	display: flex;
 	gap: 8px;
+	font-family: var(--e-font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
+	font-weight: 400;
+}
+
+.etk-components__lines-added {
+	color: var(--e-success, #67d992);
+}
+
+.etk-components__lines-removed {
+	color: var(--e-danger, #f26060);
 }
 
 /* Layers, props and the component's details, each under a label. */
@@ -615,14 +594,22 @@
 
 .etk-components__group-head {
 	display: flex;
-	align-items: baseline;
+	align-items: center;
 	justify-content: space-between;
 	gap: 8px;
+	min-block-size: 24px;
+}
+
+.etk-components__btn--small {
+	block-size: 24px;
+	padding: 0 8px;
+	font-size: var(--e-font-size-s, 11px);
+	line-height: 14px;
 }
 
 /*
- * The layer tree, drawn like Etch's Structure panel (its values, from Etch's
- * builder), with the change cues on top.
+ * Layers and props, drawn like Etch's Structure panel (its values, from
+ * Etch's builder), with a tickbox on each change.
  */
 .etk-components__tree {
 	--etk-layer-accent: var(--e-base-light, #36363a);
@@ -670,9 +657,10 @@
 	--etk-layer-text: oklch(from var(--e-condition, #d1b771) calc(l * 1.05) c h);
 }
 
-.etk-components__layer-header {
+.etk-components__row {
 	display: flex;
 	align-items: center;
+	gap: 6px;
 	min-block-size: 26px;
 	padding: 6px;
 	border-radius: var(--e-border-radius, 6px);
@@ -770,14 +758,14 @@
 	text-overflow: ellipsis;
 }
 
-/* A layer with changes is a button that shows them, across the rest of the row. */
-.etk-components .etk-components__layer-toggle {
+/* A change is a button that shows it, across the rest of the row. */
+.etk-components .etk-components__row-toggle {
 	display: flex;
 	flex: 1;
 	align-items: center;
 	min-inline-size: 0;
 	margin: -6px -6px -6px 0;
-	padding: 6px;
+	padding: 6px 6px 6px 0;
 	border: 0;
 	border-radius: var(--e-border-radius, 6px);
 	background: none;
@@ -787,38 +775,41 @@
 	cursor: pointer;
 }
 
-.etk-components__layer-header:has(.etk-components__layer-toggle:hover) {
+.etk-components__row:has(.etk-components__row-toggle:hover) {
 	box-shadow: inset 0 0 0 1px oklch(from var(--etk-layer-accent) calc(l * 1.75) calc(c * 1.15) h);
 }
 
 /* Showing its changes in the code pane: selected, as in the Structure panel. */
-.etk-components__layer-header.is-showing {
+.etk-components__row.is-showing {
 	background: oklch(from var(--etk-layer-accent) calc(l * 1.25) calc(c * 1.5) h);
 }
 
-/* Added layers get a green edge, removed ones a red edge and a struck label. */
-.etk-components__layer--added > .etk-components__layer-header {
-	box-shadow: inset 2px 0 0 var(--e-success, #67d992);
+/* What didn't change is there for context, dimmed. */
+.etk-components__layer--same > .etk-components__row .etk-components__layer-name {
+	opacity: 0.5;
 }
 
-.etk-components__layer--removed > .etk-components__layer-header {
-	box-shadow: inset 2px 0 0 var(--e-danger, #f26060);
-
-	.etk-components__layer-name {
-		opacity: 0.6;
-	}
-
-	.etk-components__layer-label {
-		text-decoration: line-through;
-	}
+/* Removed: struck through. */
+.etk-components__layer--removed > .etk-components__row .etk-components__layer-name {
+	opacity: 0.6;
+	text-decoration: line-through;
 }
 
 .etk-components__chips {
 	display: flex;
 	flex: none;
+	align-items: center;
 	gap: 4px;
 	margin-inline-start: auto;
 	padding-inline-start: 8px;
+}
+
+/* A layer partly ticked: how many of its changes are. */
+.etk-components__count {
+	color: var(--etk-components-text-60);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 400;
+	line-height: 14px;
 }
 
 /* A change cue: a small label in its category's color. */
@@ -856,22 +847,6 @@
 	--etk-chip: var(--e-danger, #f26060);
 }
 
-.etk-components__chip.is-rejected {
-	background: none;
-	opacity: 0.6;
-	text-decoration: line-through;
-}
-
-.etk-components__chip.is-partial {
-	background: none;
-	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--etk-chip) 50%, transparent);
-}
-
-/* A rejected layer stays as it is on this site. */
-.etk-components__layer.is-rejected > .etk-components__layer-header {
-	box-shadow: inset 2px 0 0 var(--etk-components-line-heavy);
-}
-
 .etk-components__chip--inside {
 	--etk-chip: var(--etk-components-text-60);
 
@@ -880,92 +855,138 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* A layer's changes                                                   */
+/* The code pane                                                       */
 /* ------------------------------------------------------------------ */
 
-.etk-components__details-head,
-.etk-components__change-head {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-}
-
-.etk-components__change {
+.etk-components__pane-head {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
-	padding-block-start: 12px;
-	border-block-start: 1px solid var(--etk-components-line);
+	gap: 4px;
+	padding-block: 4px 6px;
+
+	.etk-components__muted {
+		line-height: 16px;
+	}
 }
 
-.etk-components__change-title {
+.etk-components__pane-title {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	min-inline-size: 0;
 	margin: 0;
-	overflow: hidden;
-	color: var(--etk-components-text-75);
+	font-size: 20px;
+	font-weight: 500;
+	line-height: 24px;
+}
+
+.etk-components__pane-tag {
+	color: var(--etk-components-text-50);
+	font-family: var(--e-font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
+	font-size: 13px;
+	font-weight: 400;
+	line-height: 16px;
+}
+
+.etk-components__empty {
+	margin: auto;
+	color: var(--etk-components-text-50);
+	font-weight: 400;
+}
+
+/* One card for the picked layer, a part for its HTML, each class and its JS. */
+.etk-components__card {
+	display: flex;
+	flex-direction: column;
+	overflow: clip;
+	border: 1px solid var(--etk-components-line);
+	border-radius: var(--etk-components-radius-lg);
+	background: var(--etk-components-field);
+}
+
+.etk-components__part + .etk-components__part {
+	border-block-start: 1px solid var(--etk-components-band-line);
+}
+
+.etk-components__part-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 8px;
+	min-block-size: 30px;
+	padding: 6px 14px;
+	border-block-end: 1px solid var(--etk-components-band-line);
+	background: var(--etk-components-band);
+	font-size: var(--e-font-size-s, 11px);
+	line-height: 14px;
+}
+
+.etk-components__part-title {
+	--etk-part: var(--etk-components-accent);
+
+	margin: 0;
+	color: var(--etk-part);
 	font-size: var(--e-font-size-s, 11px);
 	font-weight: 600;
 	line-height: 14px;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
-/* Approve and Reject: two joined buttons, the pressed one filled. */
-.etk-components__choice {
-	display: flex;
-	flex: none;
+.etk-components__part-title--css {
+	--etk-part: var(--e-loop, #8c9ae8);
 }
 
-.etk-components .etk-components__choice-btn {
-	block-size: 24px;
-	margin: 0;
-	padding: 0 10px;
-	border: 1px solid var(--etk-components-line-strong);
-	background: none;
-	color: var(--etk-components-text-60);
-	font: inherit;
+.etk-components__part-title--js {
+	--etk-part: #f0db4f;
+}
+
+.etk-components__part-title--added {
+	--etk-part: var(--e-success, #67d992);
+}
+
+.etk-components__part-title--removed {
+	--etk-part: var(--e-danger, #f26060);
+}
+
+.etk-components__part-selector {
+	color: var(--etk-components-text);
+	font-family: var(--e-font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
 	font-size: var(--e-font-size-s, 11px);
-	font-weight: 600;
-	cursor: pointer;
+}
 
-	&:first-child {
-		border-start-start-radius: var(--etk-components-radius);
-		border-end-start-radius: var(--etk-components-radius);
+.etk-components__part-note {
+	color: var(--etk-components-text-50);
+	font-weight: 400;
+}
+
+/* Unticked: this site's version stays, so the incoming code fades. */
+.etk-components__part.is-unticked {
+	.etk-components__part-title {
+		opacity: 0.6;
 	}
 
-	&:last-child {
-		margin-inline-start: -1px;
-		border-start-end-radius: var(--etk-components-radius);
-		border-end-end-radius: var(--etk-components-radius);
-	}
-
-	&:hover {
-		color: var(--etk-components-text);
-	}
-
-	&:disabled {
-		opacity: var(--etch-opacity-medium, 0.55);
-		cursor: not-allowed;
-	}
-
-	&:focus-visible {
-		position: relative;
+	> .etk-components__part-body {
+		opacity: 0.4;
 	}
 }
 
-.etk-components .etk-components__choice-btn--approve[aria-pressed="true"] {
-	border-color: color-mix(in srgb, var(--e-success, #67d992) 45%, transparent);
-	background: color-mix(in srgb, var(--e-success, #67d992) 16%, transparent);
-	color: var(--e-success, #67d992);
+/* How far a CSS change reaches. Amber when it changes elements outside this component. */
+.etk-components__reach {
+	color: var(--etk-components-text-60);
+	font-weight: 400;
+
+	&.is-wide {
+		color: var(--e-warning, #f2c960);
+	}
 }
 
-.etk-components .etk-components__choice-btn--reject[aria-pressed="true"] {
-	border-color: color-mix(in srgb, var(--e-danger, #f26060) 45%, transparent);
-	background: color-mix(in srgb, var(--e-danger, #f26060) 14%, transparent);
-	color: var(--e-danger, #f26060);
+.etk-components__fields {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px 14px;
 }
 
-/* HTML fields: name, then the value before and after. */
+/* Fields: name, then the value before and after. */
 .etk-components__field {
 	display: grid;
 	grid-template-columns: minmax(80px, max-content) minmax(0, 1fr);
@@ -974,6 +995,10 @@
 
 	> .etk-components__diff {
 		grid-column: 1 / -1;
+		max-block-size: 360px;
+		overflow-y: auto;
+		border: 1px solid var(--etk-components-line);
+		border-radius: var(--etk-components-radius);
 	}
 }
 
@@ -1017,33 +1042,46 @@
 	color: color-mix(in srgb, var(--e-success, #67d992), var(--etk-components-text) 45%);
 }
 
-/* Line diffs, for scripts, CSS and long values. */
+/*
+ * Line diffs: the line numbers before and after, the +/- mark, then the
+ * code. Long lines wrap, lined up under their text.
+ */
 .etk-components__diff {
-	max-block-size: 360px;
-	overflow-x: hidden;
-	overflow-y: auto;
-	border: 1px solid var(--etk-components-line);
-	border-radius: var(--etk-components-radius);
+	padding-block: 6px;
 	background: var(--etk-components-field);
 	font-family: var(--e-font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
 	font-size: var(--e-font-size-s, 11px);
-	line-height: 17px;
+	font-weight: 400;
+	line-height: 20px;
 }
 
-/* Long lines wrap, lined up under their text, past the +/- mark. */
 .etk-components__diff-line {
-	display: block;
-	padding-inline: 22px 10px;
+	--etk-diff-num: color-mix(in srgb, var(--etk-components-text) 28%, transparent);
+
+	display: grid;
+	grid-template-columns: 44px 44px 26px minmax(0, 1fr);
+	color: var(--etk-components-text);
 	text-decoration: none;
+}
+
+.etk-components__diff-num {
+	padding-inline-end: 8px;
+	color: var(--etk-diff-num);
+	font-variant-numeric: tabular-nums;
+	text-align: end;
+	user-select: none;
+}
+
+.etk-components__diff-mark {
+	padding-inline-start: 12px;
+	color: var(--etk-diff-num);
+	user-select: none;
+}
+
+.etk-components__diff-code {
+	padding-inline-end: 14px;
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
-
-	&::before {
-		display: inline-block;
-		inline-size: 16px;
-		margin-inline-start: -16px;
-		color: var(--etk-components-text-50);
-	}
 }
 
 .etk-components__diff-line--same {
@@ -1051,106 +1089,42 @@
 }
 
 .etk-components__diff-line--del {
-	background: color-mix(in srgb, var(--e-danger, #f26060) 12%, transparent);
+	--etk-diff-num: color-mix(in srgb, var(--e-danger, #f26060) 75%, transparent);
 
-	&::before {
-		content: "\2212";
-		color: var(--e-danger, #f26060);
-	}
+	background: color-mix(in srgb, var(--e-danger, #f26060) 12%, transparent);
 }
 
 .etk-components__diff-line--ins {
+	--etk-diff-num: color-mix(in srgb, var(--e-success, #67d992) 75%, transparent);
+
 	background: color-mix(in srgb, var(--e-success, #67d992) 12%, transparent);
-
-	&::before {
-		content: "+";
-		color: var(--e-success, #67d992);
-	}
 }
 
-/* How far a CSS change reaches. Amber when it changes elements outside this component. */
-.etk-components__reach {
-	color: var(--etk-components-text-60);
-	font-weight: 400;
-
-	&.is-wide {
-		color: var(--e-warning, #f2c960);
-	}
-}
-
-/* ------------------------------------------------------------------ */
-/* Props                                                               */
-/* ------------------------------------------------------------------ */
-
-.etk-components__props {
-	margin: 0;
-	padding: 0;
-	overflow: clip;
-	border: 1px solid var(--etk-components-line);
-	border-radius: var(--etk-components-radius-lg);
-	background: var(--etk-components-surface);
-	list-style: none;
-}
-
-.etk-components__prop {
-	margin: 0;
-
-	& + & {
-		border-block-start: 1px solid var(--etk-components-line);
-	}
-}
-
-.etk-components__prop-head {
+/* Unchanged lines folded away, a button that opens them in place. */
+.etk-components .etk-components__fold {
 	display: flex;
 	align-items: center;
-	gap: 8px;
 	inline-size: 100%;
-	min-block-size: 36px;
-	padding: 8px 12px;
-}
-
-.etk-components .etk-components__prop-toggle {
+	block-size: 26px;
 	margin: 0;
+	padding: 0;
 	border: 0;
-	background: none;
-	color: inherit;
-	font: inherit;
+	background: var(--etk-components-band);
+	color: color-mix(in srgb, var(--etk-components-text) 45%, transparent);
+	font-family: var(--e-font-interface, Inter, system-ui, sans-serif);
+	font-size: var(--e-font-size-s, 11px);
+	font-weight: 400;
 	text-align: start;
 	cursor: pointer;
 
-	&:hover,
-	&.is-showing {
-		background: var(--etk-components-raised);
+	&:hover {
+		color: var(--etk-components-text-75);
 	}
 }
 
-.etk-components__prop-name {
-	display: flex;
-	flex: 1;
-	align-items: baseline;
-	gap: 8px;
-	min-inline-size: 0;
-}
-
-.etk-components__prop-key {
-	color: var(--etk-components-text-50);
+.etk-components__fold-mark {
+	flex: none;
+	inline-size: 88px;
 	font-family: var(--e-font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
-	font-size: var(--e-font-size-s, 11px);
-}
-
-.etk-components__prop--added {
-	box-shadow: inset 2px 0 0 var(--e-success, #67d992);
-}
-
-.etk-components__prop--removed {
-	box-shadow: inset 2px 0 0 var(--e-danger, #f26060);
-
-	.etk-components__prop-name {
-		opacity: 0.6;
-		text-decoration: line-through;
-	}
-}
-
-.etk-components__prop.is-rejected {
-	box-shadow: inset 2px 0 0 var(--etk-components-line-heavy);
+	text-align: center;
 }

@@ -38,7 +38,7 @@
 	const enabled = () => window.etchToolkitSettings?.settings?.componentManager === true && typeof window.etch?.components?.updateAsync === 'function';
 
 	// h( 'button', { class: 'x', onclick }, child, … ), like the settings screen's.
-	const PROPS = new Set( [ 'value', 'checked', 'disabled', 'hidden', 'textContent', 'htmlFor' ] );
+	const PROPS = new Set( [ 'value', 'checked', 'indeterminate', 'disabled', 'hidden', 'textContent', 'htmlFor' ] );
 	const h = ( tag, attrs = {}, ...children ) => {
 		const node = document.createElement( tag );
 		for ( const [ key, value ] of Object.entries( attrs ) ) {
@@ -693,25 +693,34 @@
 						h( 'div', { class: 'etk-components__done-actions' }, button( 'Back to components', showList, { 'data-focus': 'another' } ) ),
 				  ],
 
+		// Layers and props on the left, the picked one's code on the right.
 		review: () => {
-			const { current, tree } = reviewing;
-			const counts = { changed: 0, added: 0, removed: 0 };
-			for ( const node of walk( tree ) ) if ( node.status in counts ) counts[ node.status ]++;
-			const summary = [ counts.changed && `${ plural( counts.changed, 'layer', 'layers' ) } changed`, counts.added && `${ counts.added } added`, counts.removed && `${ counts.removed } removed` ].filter( Boolean ).join( ', ' );
+			const { current } = reviewing;
 			const { approved, total } = tally();
+			const lines = lineTotals();
 			return [
 				h(
 					'div',
 					{ class: 'etk-components__review-head' },
 					button( '', () => go( 'import' ), { class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to the JSON', title: 'Back to the JSON', html: stroke( BACK ), 'data-focus': 'back' } ),
-					h( 'div', { class: 'etk-components__review-title' }, h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: current.name } ), h( 'p', { class: 'etk-components__muted', textContent: summary || 'No layer changes' } ) ),
+					h(
+						'div',
+						{ class: 'etk-components__review-title' },
+						h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: `Update ${ current.name }` } ),
+						h( 'p', { class: 'etk-components__muted', textContent: total ? 'Pick a layer to see its code.' : 'No changes. This matches the site’s version.' } )
+					),
 					total
 						? h(
 								'div',
 								{ class: 'etk-components__review-actions' },
-								h( 'span', { class: 'etk-components__muted', textContent: `${ approved } of ${ plural( total, 'change', 'changes' ) } approved` } ),
-								button( 'Approve all', () => decideAll( true ), { 'data-focus': 'approve-all' } ),
-								button( 'Reject all', () => decideAll( false ), { 'data-focus': 'reject-all' } ),
+								approved < total ? h( 'span', { class: 'etk-components__muted', textContent: `${ plural( total - approved, 'change', 'changes' ) } left out` } ) : null,
+								h(
+									'span',
+									{ class: 'etk-components__lines' },
+									h( 'span', { class: 'etk-components__lines-added', 'aria-hidden': 'true', textContent: `+${ lines.added }` } ),
+									h( 'span', { class: 'etk-components__lines-removed', 'aria-hidden': 'true', textContent: `−${ lines.removed }` } ),
+									h( 'span', { class: 'screen-reader-text', textContent: `${ plural( lines.added, 'line', 'lines' ) } added, ${ lines.removed } removed` } )
+								),
 								button( 'Update component', apply, { variant: 'primary', disabled: ! approved, 'data-focus': 'apply' } )
 						  )
 						: null
@@ -719,19 +728,8 @@
 				h(
 					'div',
 					{ class: 'etk-components__workspace' },
-					h( 'section', { id: CODE_PANE, class: 'etk-components__code', 'aria-label': 'Changes' }, codePane() ),
-					h(
-						'div',
-						{ class: 'etk-components__side' },
-						h(
-							'section',
-							{ class: 'etk-components__group', 'aria-labelledby': 'etk-components-layers-title' },
-							h( 'h3', { id: 'etk-components-layers-title', class: 'etk-components__label', textContent: 'Layers' } ),
-							h( 'div', { class: 'etk-components__tree' }, h( 'ul', { class: 'etk-components__layers', role: 'list' }, tree.map( layerRow ) ) )
-						),
-						propsView(),
-						metaView()
-					)
+					h( 'div', { class: 'etk-components__side', 'data-scroll': 'side' }, layersView(), propsView(), metaView() ),
+					h( 'section', { id: CODE_PANE, class: 'etk-components__code', 'aria-label': 'Changes', 'data-scroll': 'code' }, codePane() )
 				),
 			];
 		},
@@ -739,13 +737,12 @@
 
 	/* ---- Decisions ---- */
 
-
 	/*
-	 * Everything starts approved: approving takes the incoming version,
-	 * rejecting keeps this site's. A changed layer decides its HTML and JS; an
-	 * added or removed one decides whether it's added or removed, and the
-	 * layers inside it go with it. CSS is decided per class, since a class is
-	 * the same everywhere it's used.
+	 * Everything starts ticked: ticked takes the incoming version, unticked
+	 * keeps this site's. A changed layer decides its HTML and JS; an added or
+	 * removed one decides whether it's added or removed, and the layers
+	 * inside it go with it. CSS is decided per class, since a class is the
+	 * same everywhere it's used.
 	 */
 	let decisions = { layers: new Map(), css: new Map(), props: new Map(), meta: new Map() };
 
@@ -767,23 +764,29 @@
 		if ( key === 'css' ) node.css.forEach( ( change ) => decisions.css.set( change.selector, value ) );
 		else decisions.layers.get( node.id )[ key ] = value;
 	};
-	const decideLayer = ( node, value ) => {
-		if ( node.status === 'added' || node.status === 'removed' ) decide( node, 'layer', value );
-		for ( const key of changedCategories( node ) ) decide( node, key, value );
+	// After a tick or untick: draw it again, and say how many changes are left out.
+	const decided = ( change ) => {
+		change();
 		render();
-		announce( `${ value ? 'Approved' : 'Rejected' } the changes to ${ ( node.incoming || node.current ).label }.` );
+		const { approved, total } = tally();
+		announce( approved === total ? 'Every change is ticked.' : `${ plural( total - approved, 'change', 'changes' ) } left out.` );
 	};
-	const decideAll = ( value ) => {
-		for ( const node of walk( reviewing.tree ) ) {
-			decisions.layers.set( node.id, { html: value, js: value, layer: value } );
-			for ( const change of node.css ) decisions.css.set( change.selector, value );
-		}
-		for ( const map of [ decisions.props, decisions.meta ] ) for ( const key of map.keys() ) map.set( key, value );
-		render();
-		announce( value ? 'Approved every change.' : 'Rejected every change.' );
-	};
+	const decideLayer = ( node, value ) =>
+		decided( () => {
+			if ( node.status === 'added' || node.status === 'removed' ) decide( node, 'layer', value );
+			for ( const key of changedCategories( node ) ) decide( node, key, value );
+		} );
 
-	// Approved of all the changes: each changed layer's HTML and JS, each layer added
+	// What a layer's own tickbox covers: the layer, when it's added or removed, or each part that changed.
+	const layerParts = ( node ) => {
+		const choice = decisions.layers.get( node.id );
+		if ( node.status === 'added' || node.status === 'removed' ) return [ choice.layer ];
+		return [ ...( node.html.length ? [ choice.html ] : [] ), ...( node.js ? [ choice.js ] : [] ), ...node.css.map( ( change ) => decisions.css.get( change.selector ) ) ];
+	};
+	// Ticked, unticked, or 'some' for a tickbox over several.
+	const stateOf = ( values ) => ( values.every( Boolean ) ? true : values.some( Boolean ) ? 'some' : false );
+
+	// Ticked of all the changes: each changed layer's HTML and JS, each layer added
 	// or removed (not the ones inside it), and each class's CSS.
 	const tally = () => {
 		let approved = 0;
@@ -805,11 +808,33 @@
 		return { approved, total };
 	};
 
-	// Whether a category on a layer is approved: true, false, or 'some' for CSS across classes.
-	const approvedCategory = ( node, key ) => {
-		if ( key !== 'css' ) return decisions.layers.get( node.id )[ key ];
-		const values = node.css.map( ( change ) => decisions.css.get( change.selector ) );
-		return values.every( Boolean ) ? true : values.some( Boolean ) ? 'some' : false;
+	// A diff, worked out once per review.
+	let diffs = new Map();
+	const diffOf = ( from, to ) => {
+		const key = `${ from }\u0000${ to }`;
+		if ( ! diffs.has( key ) ) diffs.set( key, diffLines( from, to ) );
+		return diffs.get( key );
+	};
+
+	// Lines added and removed by what's ticked: markup, scripts and class CSS.
+	const lineTotals = () => {
+		let added = 0;
+		let removed = 0;
+		const count = ( from, to ) => diffOf( from, to ).forEach( ( { op } ) => ( op === '+' ? added++ : op === '-' ? removed++ : null ) );
+		const classes = new Map();
+		for ( const node of walk( reviewing.tree ) ) {
+			for ( const change of node.css ) classes.set( change.selector, change );
+			if ( node.status === 'changed' ) {
+				const choice = decisions.layers.get( node.id );
+				if ( node.html.length && choice.html ) count( markup( node.current ), markup( node.incoming ) );
+				if ( node.js && choice.js ) count( node.js.from, node.js.to );
+			} else if ( node.status !== 'same' && layerApproved( node ) ) {
+				count( node.current ? markup( node.current ) : '', node.incoming ? markup( node.incoming ) : '' );
+				count( node.current?.script ?? '', node.incoming?.script ?? '' );
+			}
+		}
+		for ( const [ selector, change ] of classes ) if ( decisions.css.get( selector ) ) count( change.from ?? '', change.to );
+		return { added, removed };
 	};
 
 	/* ---- Applying ---- */
@@ -821,10 +846,10 @@
 	const NEW_STYLE = 'etk-new-style:';
 
 	/**
-	 * What approving amounts to: the component's blocks, props, name and
+	 * What ticking amounts to: the component's blocks, props, name and
 	 * description, and the class changes that go with them. Incoming layers
 	 * point to this site's classes and components: a class this site has is
-	 * linked, one it doesn't is made (its CSS only if that's approved), and
+	 * linked, one it doesn't is made (its CSS only if that's ticked), and
 	 * a CSS change applies only to a class the result still uses.
 	 */
 	const plan = () => {
@@ -913,7 +938,7 @@
 	const snapshot = ( json ) => ( { name: json.name, key: json.key, description: json.description, properties: json.properties, blocks: json.blocks.map( bare ) } );
 
 	/**
-	 * Save the approved changes. The component is written at once, the way
+	 * Save the ticked changes. The component is written at once, the way
 	 * Etch's paste writes it. Class changes are made in the builder, like
 	 * Etch's own, and saved with Etch's Save.
 	 */
@@ -1030,47 +1055,78 @@
 	// Layers closed in the tree (everything starts open).
 	let closedLayers = new Set();
 
+	// Whether the Layers and Props groups show everything, or only what changed.
+	let showAll = { layers: false, props: false };
+
+	// Folded runs of unchanged lines that were opened.
+	let unfolded = new Set();
+
 	// What the code pane shows: { kind: 'layer', id }, { kind: 'prop', key } or { kind: 'meta' }.
 	let selected = null;
 	const CODE_PANE = 'etk-components-code';
 	const isSelected = ( kind, id ) => selected?.kind === kind && ( kind === 'meta' || selected.id === id );
 
-	// A change cue. A rejected one is struck through, one partly approved is dashed.
-	const chip = ( kind, text, approved = true ) => h( 'span', { class: `etk-components__chip etk-components__chip--${ kind }${ approved === false ? ' is-rejected' : approved === 'some' ? ' is-partial' : '' }`, textContent: text } );
+	const chip = ( kind, text ) => h( 'span', { class: `etk-components__chip etk-components__chip--${ kind }`, textContent: text } );
+
+	// "a", "a and b", "a, b and c".
+	const listOf = ( items ) => ( items.length > 1 ? `${ items.slice( 0, -1 ).join( ', ' ) } and ${ items.at( -1 ) }` : items.join( '' ) );
 
 	// Which categories changed on a layer. An added layer can still change a class's CSS.
 	const changedCategories = ( node ) => Object.keys( CATEGORIES ).filter( ( key ) => ( key === 'js' ? node.js : node[ key ].length ) );
 
 	const layerTitle = ( layer ) => ( layer.tag ? `${ layer.tag } ${ layer.label }` : layer.label );
 
+	/**
+	 * A tickbox. Ticked takes the incoming version, unticked keeps this
+	 * site's, and 'some' shows a dash for one over several changes.
+	 */
+	const tick = ( label, value, onchange, focusKey ) =>
+		h( 'input', { type: 'checkbox', class: 'etk-checkbox', checked: value === true, indeterminate: value === 'some', 'aria-label': label, 'data-focus': focusKey, onchange: ( e ) => onchange( e.target.checked ) } );
+
+	// Show all, or only what changed. Only offered when something didn't change.
+	const showToggle = ( key, what ) =>
+		button(
+			showAll[ key ] ? 'Show changed' : 'Show all',
+			() => {
+				showAll[ key ] = ! showAll[ key ];
+				render();
+				announce( showAll[ key ] ? `Showing every ${ what }.` : `Showing changed ${ what }s only.` );
+			},
+			{ class: 'etk-components__btn etk-components__btn--secondary etk-components__btn--small', 'data-focus': `show:${ key }` }
+		);
+
+	// A group on the left: its label, Show all, and its rows.
+	const group = ( id, title, toggle, body ) =>
+		h( 'section', { class: 'etk-components__group', 'aria-labelledby': id }, h( 'div', { class: 'etk-components__group-head' }, h( 'h3', { id, class: 'etk-components__label', textContent: title } ), toggle ), body );
+
+	const rows = ( items ) => h( 'div', { class: 'etk-components__tree' }, h( 'ul', { class: 'etk-components__layers', role: 'list' }, items ) );
+
+	// A layer that changed shows, and one with changes inside, to hold them.
+	const shownLayer = ( node ) => showAll.layers || node.status !== 'same' || node.inside > 0;
+
 	// What a layer's row says to a screen reader after its name.
-	const describeChanges = ( node ) => {
-		const parts = [];
-		if ( node.status === 'added' ) parts.push( layerApproved( node ) ? 'added' : 'added, rejected' );
-		if ( node.status === 'removed' ) parts.push( layerApproved( node ) ? 'removed' : 'removed, rejected' );
-		for ( const key of changedCategories( node ) ) {
-			const yes = approvedCategory( node, key );
-			parts.push( `${ CATEGORIES[ key ] } changed${ yes === false ? ', rejected' : yes === 'some' ? ', partly approved' : '' }` );
-		}
-		return parts.join( '; ' );
-	};
+	const describeChanges = ( node ) => ( node.status === 'changed' ? `${ listOf( changedCategories( node ).map( ( key ) => CATEGORIES[ key ] ) ) } changed` : node.status );
 
 	const layerChips = ( node ) => {
-		const chips = [];
-		if ( node.status === 'added' ) chips.push( chip( 'added', 'Added', layerApproved( node ) ) );
-		if ( node.status === 'removed' ) chips.push( chip( 'removed', 'Removed', layerApproved( node ) ) );
-		for ( const key of changedCategories( node ) ) chips.push( chip( key, CATEGORIES[ key ], node.status === 'changed' || key === 'css' ? approvedCategory( node, key ) : layerApproved( node ) ) );
-		return chips;
+		if ( node.status === 'added' ) return [ chip( 'added', 'Added' ) ];
+		if ( node.status === 'removed' ) return [ chip( 'removed', 'Removed' ) ];
+		return changedCategories( node ).map( ( key ) => chip( key, CATEGORIES[ key ] ) );
 	};
 
 	const layerRow = ( node ) => {
 		const layer = node.incoming || node.current;
+		const title = layerTitle( layer );
+		const kids = node.children.filter( shownLayer );
 		const open = ! closedLayers.has( node.id );
 		const hasChanges = node.status !== 'same';
 		const showing = hasChanges && isSelected( 'layer', node.id );
-		const chips = layerChips( node );
-		// A closed layer says how much changed inside it.
-		if ( node.inside && ! open ) chips.push( chip( 'inside', `${ node.inside } inside` ) );
+		// Layers added or removed with the one they're in have no tickbox of their own.
+		const parts = hasChanges && ! follows( node ) ? layerParts( node ) : [];
+		const state = parts.length ? stateOf( parts ) : null;
+
+		// Partly ticked, how much. Otherwise what changed. Closed, how much changed inside.
+		const trailing = state === 'some' ? [ h( 'span', { class: 'etk-components__count', textContent: `${ parts.filter( Boolean ).length } of ${ parts.length }` } ) ] : hasChanges ? layerChips( node ) : [];
+		if ( node.inside && ! open ) trailing.push( chip( 'inside', `${ node.inside } inside` ) );
 
 		const name = h(
 			'span',
@@ -1078,59 +1134,106 @@
 			layer.tag ? h( 'span', { class: 'etk-components__layer-tag', textContent: layer.tag } ) : null,
 			h( 'span', { class: 'etk-components__layer-label', textContent: layer.label } )
 		);
-		const chipList = chips.length ? h( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, chips ) : null;
+		const chipList = trailing.length ? h( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, trailing ) : null;
+		const label = { added: `Add ${ title }`, removed: `Remove ${ title }` }[ node.status ] || `Changes to ${ title }`;
 
 		return h(
 			'li',
-			{ class: `etk-components__layer etk-components__layer--${ node.status } etk-components__layer--${ KINDS[ layer.block.type ] || 'default' }${ hasChanges && ! layerApproved( node ) ? ' is-rejected' : '' }`, 'data-layer': node.id },
+			{ class: `etk-components__layer etk-components__layer--${ node.status } etk-components__layer--${ KINDS[ layer.block.type ] || 'default' }`, 'data-layer': node.id },
 			h(
 				'div',
-				{ class: `etk-components__layer-header${ showing ? ' is-showing' : '' }` },
-				node.children.length
-					? h( 'button', { type: 'button', class: 'etk-components__caret', 'aria-expanded': String( open ), 'aria-label': `Layers inside ${ layerTitle( layer ) }`, html: CARET, 'data-focus': `${ node.id }:caret`, onclick: () => toggleLayer( node ) } )
+				{ class: `etk-components__row${ showing ? ' is-showing' : '' }` },
+				kids.length
+					? h( 'button', { type: 'button', class: 'etk-components__caret', 'aria-expanded': String( open ), 'aria-label': `Layers inside ${ title }`, html: CARET, 'data-focus': `${ node.id }:caret`, onclick: () => toggleLayer( node ) } )
 					: h( 'span', { class: 'etk-components__leaf', 'aria-hidden': 'true' } ),
+				parts.length ? tick( label, state, ( yes ) => decideLayer( node, yes ), `${ node.id }:tick` ) : null,
 				// A layer with changes shows them in the code pane, like selecting a layer in the Structure panel.
 				hasChanges
 					? h(
 							'button',
-							{ type: 'button', class: 'etk-components__layer-toggle', 'aria-current': showing ? 'true' : null, 'aria-controls': CODE_PANE, 'data-focus': `${ node.id }:toggle`, onclick: () => select( { kind: 'layer', id: node.id } ) },
+							{ type: 'button', class: 'etk-components__row-toggle', 'aria-current': showing ? 'true' : null, 'aria-controls': CODE_PANE, 'data-focus': `${ node.id }:toggle`, onclick: () => select( { kind: 'layer', id: node.id } ) },
 							name,
 							h( 'span', { class: 'screen-reader-text', textContent: `, ${ describeChanges( node ) }` } ),
 							chipList
 					  )
 					: [ name, chipList ]
 			),
-			node.children.length && open ? h( 'ul', { class: 'etk-components__layers etk-components__layers--inside', role: 'list' }, node.children.map( layerRow ) ) : null
+			kids.length && open ? h( 'ul', { class: 'etk-components__layers etk-components__layers--inside', role: 'list' }, kids.map( layerRow ) ) : null
 		);
 	};
 
-	/* ---- A layer's changes ---- */
+	const layersView = () => {
+		const { tree } = reviewing;
+		const shown = tree.filter( shownLayer );
+		return group(
+			'etk-components-layers-title',
+			'Layers',
+			[ ...walk( tree ) ].some( ( node ) => node.status === 'same' ) ? showToggle( 'layers', 'layer' ) : null,
+			shown.length ? rows( shown.map( layerRow ) ) : h( 'p', { class: 'etk-components__help', textContent: 'No layer changes.' } )
+		);
+	};
 
-	// Approve and Reject, as a pair of pressed buttons.
-	const choice = ( label, value, onchange, focusKey, { disabled = false } = {} ) =>
+	/* ---- The code pane ---- */
+
+	// Unchanged lines kept around a change in scripts and CSS. Longer runs fold.
+	const CONTEXT = 3;
+
+	const diffLine = ( { op, text, before, after } ) =>
 		h(
-			'div',
-			{ class: 'etk-components__choice', role: 'group', 'aria-label': label },
-			[ [ true, 'Approve' ], [ false, 'Reject' ] ].map( ( [ yes, text ] ) =>
-				h( 'button', {
-					type: 'button',
-					class: `etk-components__choice-btn etk-components__choice-btn--${ yes ? 'approve' : 'reject' }`,
-					'aria-pressed': String( value === yes ),
-					disabled,
-					'data-focus': `${ focusKey }:${ text }`,
-					textContent: text,
-					onclick: () => onchange( yes ),
-				} )
-			)
+			op === '-' ? 'del' : op === '+' ? 'ins' : 'div',
+			{ class: `etk-components__diff-line etk-components__diff-line--${ op === '-' ? 'del' : op === '+' ? 'ins' : 'same' }` },
+			h( 'span', { class: 'etk-components__diff-num', 'aria-hidden': 'true', textContent: before ?? '' } ),
+			h( 'span', { class: 'etk-components__diff-num', 'aria-hidden': 'true', textContent: after ?? '' } ),
+			h( 'span', { class: 'etk-components__diff-mark', textContent: op === '-' ? '−' : op === '+' ? '+' : '' } ),
+			h( 'span', { class: 'etk-components__diff-code', textContent: text || ' ' } )
 		);
 
-	// Every line of a diff, the changed ones marked.
-	const diffView = ( lines ) =>
-		h(
-			'div',
-			{ class: 'etk-components__diff' },
-			lines.map( ( { op, text } ) => h( op === '-' ? 'del' : op === '+' ? 'ins' : 'div', { class: `etk-components__diff-line etk-components__diff-line--${ op === '-' ? 'del' : op === '+' ? 'ins' : 'same' }` }, text || '\u00a0' ) )
-		);
+	/**
+	 * A unified diff with the line numbers before and after. With a fold key,
+	 * runs of unchanged lines further than CONTEXT from a change fold into a
+	 * row that opens them.
+	 */
+	const diffView = ( lines, fold = null ) => {
+		let before = 0;
+		let after = 0;
+		const numbered = lines.map( ( line ) => ( { ...line, before: line.op === '+' ? null : ++before, after: line.op === '-' ? null : ++after } ) );
+		const out = [];
+		for ( let i = 0; i < numbered.length; ) {
+			if ( numbered[ i ].op !== ' ' || ! fold ) {
+				out.push( diffLine( numbered[ i++ ] ) );
+				continue;
+			}
+			let end = i;
+			while ( end < numbered.length && numbered[ end ].op === ' ' ) end++;
+			const head = i === 0 ? 0 : CONTEXT;
+			const tail = end === numbered.length ? 0 : CONTEXT;
+			const hidden = end - i - head - tail;
+			if ( hidden < 2 ) {
+				out.push( ...numbered.slice( i, end ).map( diffLine ) );
+			} else {
+				const id = `${ fold }:${ i }`;
+				const open = unfolded.has( id );
+				out.push(
+					...numbered.slice( i, i + head ).map( diffLine ),
+					h(
+						'button',
+						{ type: 'button', class: 'etk-components__fold', 'aria-expanded': String( open ), 'data-focus': `fold:${ id }`, onclick: () => toggleFold( id ) },
+						h( 'span', { class: 'etk-components__fold-mark', 'aria-hidden': 'true', textContent: '⋯' } ),
+						plural( hidden, 'unchanged line', 'unchanged lines' )
+					),
+					...( open ? numbered.slice( i + head, end - tail ).map( diffLine ) : [] ),
+					...numbered.slice( end - tail, end ).map( diffLine )
+				);
+			}
+			i = end;
+		}
+		return h( 'div', { class: 'etk-components__diff' }, out );
+	};
+
+	const toggleFold = ( id ) => {
+		unfolded.has( id ) ? unfolded.delete( id ) : unfolded.add( id );
+		render();
+	};
 
 	// One field: a one-line value as before and after, more lines as a line diff.
 	const fieldView = ( { label, from, to } ) => {
@@ -1146,20 +1249,40 @@
 						from ? h( 'del', { class: 'etk-components__value etk-components__value--del', textContent: from } ) : null,
 						to ? h( 'ins', { class: 'etk-components__value etk-components__value--ins', textContent: to } ) : null
 				  )
-				: diffView( diffLines( from, to ) )
+				: diffView( diffOf( from, to ) )
 		);
 	};
+	const fields = ( list ) => h( 'div', { class: 'etk-components__fields' }, list.map( fieldView ) );
 
 	// How far a class's CSS change reaches, from the Style usage counts.
 	const reach = ( change ) => {
-		if ( change.from === null ) return 'A new class on this site.';
+		if ( change.from === null ) return 'A new class on this site';
 		if ( ! usage ) return 'Checking where this class is used…';
 		const elsewhere = Math.max( 0, ( usage[ change.selector ] ?? 0 ) - usesHere( change.selector ) );
-		return elsewhere ? `Used by ${ plural( elsewhere, 'other element', 'other elements' ) } on the site. Approving changes them too.` : 'Only used in this component.';
+		return elsewhere ? `Used by ${ plural( elsewhere, 'other element', 'other elements' ) } on the site. Ticking changes them too.` : 'Only used in this component';
 	};
 
-	const section = ( title, control, ...body ) =>
-		h( 'section', { class: 'etk-components__change' }, h( 'div', { class: 'etk-components__change-head' }, h( 'h4', { class: 'etk-components__change-title', textContent: title } ), control ), ...body );
+	/**
+	 * One part of what's picked, in the code pane's card: a header with its
+	 * tickbox and label, then its code. Unticked, it says so and its code fades.
+	 */
+	const part = ( { kind, label, control = null, extra = [], unticked = '' }, ...body ) =>
+		h(
+			'section',
+			{ class: `etk-components__part${ unticked ? ' is-unticked' : '' }` },
+			h(
+				'div',
+				{ class: 'etk-components__part-head' },
+				control,
+				h( 'h4', { class: `etk-components__part-title etk-components__part-title--${ kind }`, textContent: label } ),
+				...extra,
+				unticked ? h( 'span', { class: 'etk-components__part-note', textContent: `· ${ unticked }` } ) : null
+			),
+			h( 'div', { class: 'etk-components__part-body' }, ...body )
+		);
+
+	// The code pane's title: what's picked, and a sentence about it.
+	const paneHead = ( title, text ) => h( 'div', { class: 'etk-components__pane-head' }, h( 'h3', { class: 'etk-components__pane-title' }, title ), h( 'p', { class: 'etk-components__muted', textContent: text } ) );
 
 	// Elements that never close.
 	const VOID = new Set( [ 'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr' ] );
@@ -1208,87 +1331,88 @@
 	// Changes to a layer that aren't in its markup: its name in the Structure panel, and such.
 	const OUTSIDE_MARKUP = new Set( [ 'name', 'hidden', 'options' ] );
 
+	// The sentence under a layer's title in the code pane.
+	const layerText = ( node ) => {
+		if ( follows( node ) ) {
+			const decider = deciderOf( node );
+			return `${ node.status === 'added' ? 'Added' : 'Removed' } with ${ layerTitle( decider.incoming || decider.current ) }.`;
+		}
+		if ( node.status === 'added' ) return 'Added in this version. Untick it in Layers to leave it out.';
+		if ( node.status === 'removed' ) return 'Removed in this version. Untick it in Layers to keep it.';
+		const several = layerParts( node ).length > 1;
+		return `${ node.parent ? '' : 'Root layer. ' }Its ${ listOf( changedCategories( node ).map( ( key ) => CATEGORIES[ key ] ) ) } changed. ${ several ? 'Untick one to keep this site’s version of it.' : 'Untick it to keep this site’s version.' }`;
+	};
+
 	/**
-	 * What changed on a layer, for the code pane: its markup, the classes whose
-	 * CSS changes and its script, each whole with what changed marked. Only
-	 * what changed shows. An added or removed layer shows all of it.
+	 * What changed on a layer, for the code pane: its markup whole, and the
+	 * scripts and classes whose CSS changes, folded around what changed. An
+	 * added or removed layer shows all of it.
 	 */
 	const details = ( node ) => {
 		const layer = node.incoming || node.current;
 		const title = layerTitle( layer );
 		const choices = decisions.layers.get( node.id );
-		const added = node.status === 'added';
-		const removed = node.status === 'removed';
+		const whole = node.status === 'added' || node.status === 'removed';
+		// An added layer left out isn't added, a removed one left out stays.
+		const leftOut = whole && ! layerApproved( node ) ? ( node.status === 'added' ? 'unticked, not added' : 'unticked, stays on this site' ) : '';
 		const parts = [];
-
-		if ( node.status === 'changed' ) {
-			const all = changedCategories( node ).map( ( key ) => approvedCategory( node, key ) );
-			// With more than one kind of change, one choice for them all.
-			if ( all.length > 1 )
-				parts.push(
-					h(
-						'div',
-						{ class: 'etk-components__details-head' },
-						h( 'span', { class: 'etk-components__muted', textContent: 'Every change on this layer' } ),
-						choice( `Every change on ${ title }`, all.every( ( v ) => v === true ) ? true : all.every( ( v ) => v === false ) ? false : null, ( yes ) => decideLayer( node, yes ), `${ node.id }:all` )
-					)
-				);
-		} else if ( added || removed ) {
-			const decider = deciderOf( node );
-			parts.push(
-				h(
-					'div',
-					{ class: 'etk-components__details-head' },
-					h( 'span', { class: 'etk-components__muted', textContent: follows( node ) ? `${ added ? 'Added' : 'Removed' } with ${ layerTitle( decider.incoming || decider.current ) }` : added ? 'Approving adds this layer.' : 'Approving removes this layer.' } ),
-					follows( node ) ? null : choice( `${ added ? 'Add' : 'Remove' } ${ title }`, choices.layer, ( yes ) => ( decide( node, 'layer', yes ), render() ), `${ node.id }:layer` )
-				)
-			);
-		}
-
-		const whole = added || removed;
 
 		// HTML: the layer's markup, and its name if that changed.
 		if ( whole || node.html.length ) {
 			parts.push(
-				section(
-					'HTML',
-					node.status === 'changed' ? choice( `HTML changes on ${ title }`, choices.html, ( yes ) => ( decide( node, 'html', yes ), render() ), `${ node.id }:html` ) : null,
-					node.html.filter( ( field ) => OUTSIDE_MARKUP.has( field.key ) ).map( fieldView ),
-					diffView( diffLines( node.current ? markup( node.current ) : '', node.incoming ? markup( node.incoming ) : '' ) )
+				part(
+					{
+						kind: 'html',
+						label: 'HTML',
+						control: whole ? null : tick( `HTML changes on ${ title }`, choices.html, ( yes ) => decided( () => decide( node, 'html', yes ) ), `${ node.id }:html` ),
+						unticked: whole ? leftOut : choices.html ? '' : 'unticked, keeps this site’s markup',
+					},
+					node.html.some( ( field ) => OUTSIDE_MARKUP.has( field.key ) ) ? fields( node.html.filter( ( field ) => OUTSIDE_MARKUP.has( field.key ) ) ) : null,
+					diffView( diffOf( node.current ? markup( node.current ) : '', node.incoming ? markup( node.incoming ) : '' ) )
 				)
 			);
 		}
 
-		// CSS: each class whose CSS would change, whole.
+		// CSS: each class whose CSS would change, decided on its own.
 		for ( const change of node.css ) {
+			const yes = decisions.css.get( change.selector );
+			const wide = change.from !== null && usage && ( usage[ change.selector ] ?? 0 ) > usesHere( change.selector );
 			parts.push(
-				section(
-					`CSS ${ change.selector }`,
-					choice( `CSS changes to ${ change.selector }`, decisions.css.get( change.selector ), ( yes ) => ( decisions.css.set( change.selector, yes ), render() ), `${ node.id }:css:${ change.selector }` ),
-					h( 'p', { class: `etk-components__reach${ change.from !== null && usage && ( usage[ change.selector ] ?? 0 ) > usesHere( change.selector ) ? ' is-wide' : '' }`, textContent: reach( change ) } ),
-					diffView( diffLines( change.from ?? '', change.to ) )
+				part(
+					{
+						kind: 'css',
+						label: 'CSS',
+						control: tick( `CSS changes to ${ change.selector }`, yes, ( value ) => decided( () => decisions.css.set( change.selector, value ) ), `${ node.id }:css:${ change.selector }` ),
+						extra: [ h( 'code', { class: 'etk-components__part-selector', textContent: change.selector } ), h( 'span', { class: `etk-components__reach${ wide ? ' is-wide' : '' }`, textContent: reach( change ) } ) ],
+						unticked: yes ? '' : change.from === null ? 'unticked, the new class stays empty' : 'unticked, keeps this site’s CSS',
+					},
+					diffView( diffOf( change.from ?? '', change.to ), `${ node.id }:css:${ change.selector }` )
 				)
 			);
 		}
 
-		// JS: the whole script.
+		// JS: the script, folded around what changed.
 		const scriptBefore = node.current?.script ?? '';
 		const scriptAfter = node.incoming?.script ?? '';
 		if ( node.js || ( whole && ( scriptBefore || scriptAfter ) ) ) {
 			parts.push(
-				section(
-					'JS',
-					node.status === 'changed' ? choice( `JS changes on ${ title }`, choices.js, ( yes ) => ( decide( node, 'js', yes ), render() ), `${ node.id }:js` ) : null,
-					diffView( diffLines( scriptBefore, scriptAfter ) )
+				part(
+					{
+						kind: 'js',
+						label: 'JS',
+						control: whole ? null : tick( `JS changes on ${ title }`, choices.js, ( yes ) => decided( () => decide( node, 'js', yes ) ), `${ node.id }:js` ),
+						unticked: whole ? leftOut : choices.js ? '' : 'unticked, keeps this site’s script',
+					},
+					diffView( diffOf( scriptBefore, scriptAfter ), `${ node.id }:js` )
 				)
 			);
 		}
 
-		return [ paneHead( layer.tag ? [ h( 'span', { class: 'etk-components__layer-tag', textContent: layer.tag } ), layer.label ] : layer.label, layerChips( node ) ), ...parts ];
+		return [
+			paneHead( [ layer.tag ? h( 'span', { class: 'etk-components__pane-tag etk-components__layer-tag', textContent: layer.tag } ) : null, h( 'span', { textContent: layer.label } ) ], layerText( node ) ),
+			h( 'div', { class: 'etk-components__card' }, parts ),
+		];
 	};
-
-	// The code pane's title: what's selected, and its change cues.
-	const paneHead = ( title, chips ) => h( 'div', { class: 'etk-components__pane-head' }, h( 'h3', { class: 'etk-components__pane-title' }, title ), chips.length ? h( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, chips ) : null );
 
 	// What the code pane shows for the selection.
 	const codePane = () => {
@@ -1309,78 +1433,78 @@
 		return reviewing.meta.length ? { kind: 'meta' } : null;
 	};
 
-	// Each code box starts at its first change, a few lines down so there's some before it.
-	const scrollToChanges = () => {
-		const pane = document.getElementById( CODE_PANE );
-		pane?.scrollTo( 0, 0 );
-		pane?.querySelectorAll( '.etk-components__diff' ).forEach( ( box ) => {
-			const first = box.querySelector( 'ins, del' );
-			box.scrollTop = first ? Math.max( 0, first.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 3 * first.offsetHeight ) : 0;
-		} );
-	};
-
 	const select = ( next ) => {
 		selected = next;
 		render();
-		scrollToChanges();
+		// A newly picked layer's code starts at the top.
+		document.getElementById( CODE_PANE )?.scrollTo( 0, 0 );
 		const layer = next.kind === 'layer' && [ ...walk( reviewing.tree ) ].find( ( n ) => n.id === next.id );
-		announce( `Showing ${ layer ? layerTitle( layer.incoming || layer.current ) : next.kind === 'prop' ? `the ${ next.id } prop` : 'the name and description' }.` );
+		announce( `Showing ${ layer ? layerTitle( layer.incoming || layer.current ) : next.kind === 'prop' ? `the ${ next.id } prop` : `the ${ listOf( reviewing.meta.map( ( field ) => field.label ) ).toLowerCase() }` }.` );
 	};
 
 	/* ---- Props, and the component's name and description ---- */
 
 	const PROP_STATUS = { added: 'Added', removed: 'Removed', changed: 'Changed' };
 
-	const propChip = ( prop ) => chip( prop.status === 'changed' ? 'html' : prop.status, PROP_STATUS[ prop.status ], decisions.props.get( prop.key ) );
-	const propTitle = ( prop ) => {
-		const source = prop.incoming || prop.current;
-		return source.name ? `${ source.name } (${ prop.key })` : prop.key;
-	};
+	// A changed prop's chip is in the accent color, like HTML's.
+	const propChip = ( prop ) => chip( prop.status === 'changed' ? 'html' : prop.status, PROP_STATUS[ prop.status ] );
+	const propName = ( prop ) => ( prop.incoming || prop.current ).name || prop.key;
+	const propLabel = ( prop ) => ( { added: `Add the ${ propName( prop ) } prop`, removed: `Remove the ${ propName( prop ) } prop` }[ prop.status ] || `Changes to the ${ propName( prop ) } prop` );
 
 	const propRow = ( prop ) => {
-		const source = prop.incoming || prop.current;
-		const approved = decisions.props.get( prop.key );
 		const showing = isSelected( 'prop', prop.key );
-		const head = [
-			h( 'span', { class: 'etk-components__prop-name' }, h( 'span', { textContent: source.name || prop.key } ), source.name ? h( 'code', { class: 'etk-components__prop-key', textContent: prop.key } ) : null ),
-			prop.status === 'same' ? null : h( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, propChip( prop ) ),
-		];
-		if ( prop.status === 'same' ) return h( 'li', { class: 'etk-components__prop' }, h( 'div', { class: 'etk-components__prop-head' }, head ) );
+		const name = h( 'span', { class: 'etk-components__layer-name' }, h( 'span', { class: 'etk-components__layer-label', textContent: propName( prop ) } ) );
+		if ( prop.status === 'same' ) return h( 'li', { class: 'etk-components__layer etk-components__layer--same' }, h( 'div', { class: 'etk-components__row' }, name ) );
 		return h(
 			'li',
-			{ class: `etk-components__prop etk-components__prop--${ prop.status }${ approved ? '' : ' is-rejected' }` },
+			{ class: `etk-components__layer etk-components__layer--${ prop.status }` },
 			h(
-				'button',
-				{ type: 'button', class: `etk-components__prop-head etk-components__prop-toggle${ showing ? ' is-showing' : '' }`, 'aria-current': showing ? 'true' : null, 'aria-controls': CODE_PANE, 'data-focus': `prop:${ prop.key }:toggle`, onclick: () => select( { kind: 'prop', id: prop.key } ) },
-				head,
-				h( 'span', { class: 'screen-reader-text', textContent: `, ${ prop.status }${ approved ? '' : ', rejected' }` } )
+				'div',
+				{ class: `etk-components__row${ showing ? ' is-showing' : '' }` },
+				tick( propLabel( prop ), decisions.props.get( prop.key ), ( yes ) => decided( () => decisions.props.set( prop.key, yes ) ), `prop:${ prop.key }:tick` ),
+				h(
+					'button',
+					{ type: 'button', class: 'etk-components__row-toggle', 'aria-current': showing ? 'true' : null, 'aria-controls': CODE_PANE, 'data-focus': `prop:${ prop.key }:toggle`, onclick: () => select( { kind: 'prop', id: prop.key } ) },
+					name,
+					h( 'span', { class: 'screen-reader-text', textContent: `, ${ prop.status }` } ),
+					h( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, propChip( prop ) )
+				)
 			)
 		);
 	};
 
 	const propDetails = ( prop ) => {
 		const source = prop.incoming || prop.current;
-		const fields =
+		const yes = decisions.props.get( prop.key );
+		const list =
 			prop.status === 'changed'
 				? prop.fields
 				: [ ...propFields( source, makeSides( reviewing.incoming )[ prop.incoming ? 'incoming' : 'current' ] ).values() ].filter( ( field ) => field.value ).map( ( field ) => ( { label: field.label, from: prop.status === 'removed' ? field.value : '', to: prop.status === 'added' ? field.value : '' } ) );
-		const verb = { added: 'Approving adds this prop.', removed: 'Approving removes this prop.', changed: 'Approving takes the incoming version.' }[ prop.status ];
+		const text = {
+			added: 'Added in this version. Untick it to leave it out.',
+			removed: 'Removed in this version. Untick it to keep it.',
+			changed: `Its ${ listOf( prop.fields.map( ( field ) => field.label.toLowerCase() ) ) } changed. Untick it to keep this site’s version.`,
+		}[ prop.status ];
+		const unticked = { added: 'unticked, not added', removed: 'unticked, stays on this site', changed: 'unticked, keeps this site’s prop' }[ prop.status ];
 		return [
-			paneHead( [ source.name || prop.key, source.name ? h( 'code', { class: 'etk-components__prop-key', textContent: prop.key } ) : null ].filter( Boolean ), [ propChip( prop ) ] ),
-			h( 'div', { class: 'etk-components__details-head' }, h( 'span', { class: 'etk-components__muted', textContent: verb } ), choice( `${ PROP_STATUS[ prop.status ] } prop ${ propTitle( prop ) }`, decisions.props.get( prop.key ), ( yes ) => ( decisions.props.set( prop.key, yes ), render() ), `prop:${ prop.key }` ) ),
-			h( 'div', { class: 'etk-components__fields' }, fields.map( fieldView ) ),
+			paneHead( [ h( 'span', { textContent: propName( prop ) } ), source.name ? h( 'code', { class: 'etk-components__pane-tag', textContent: prop.key } ) : null ], text ),
+			h(
+				'div',
+				{ class: 'etk-components__card' },
+				part( { kind: prop.status, label: `${ PROP_STATUS[ prop.status ] } prop`, control: tick( propLabel( prop ), yes, ( value ) => decided( () => decisions.props.set( prop.key, value ) ), `prop:${ prop.key }` ), unticked: yes ? '' : unticked }, fields( list ) )
+			),
 		];
 	};
 
 	const propsView = () => {
 		const { props } = reviewing;
 		if ( ! props.length ) return null;
-		const changed = props.filter( ( prop ) => prop.status !== 'same' ).length;
-		return h(
-			'section',
-			{ class: 'etk-components__group', 'aria-labelledby': 'etk-components-props-title' },
-			h( 'div', { class: 'etk-components__group-head' }, h( 'h3', { id: 'etk-components-props-title', class: 'etk-components__label', textContent: 'Props' } ), h( 'span', { class: 'etk-components__muted', textContent: changed ? `${ changed } changed` : 'No changes' } ) ),
-			h( 'ul', { class: 'etk-components__props', role: 'list' }, props.map( propRow ) )
+		const shown = showAll.props ? props : props.filter( ( prop ) => prop.status !== 'same' );
+		return group(
+			'etk-components-props-title',
+			'Props',
+			props.some( ( prop ) => prop.status === 'same' ) ? showToggle( 'props', 'prop' ) : null,
+			shown.length ? rows( shown.map( propRow ) ) : h( 'p', { class: 'etk-components__help', textContent: 'No prop changes.' } )
 		);
 	};
 
@@ -1389,23 +1513,26 @@
 		const { meta } = reviewing;
 		if ( ! meta.length ) return null;
 		const showing = isSelected( 'meta' );
-		const approved = meta.map( ( field ) => decisions.meta.get( field.key ) );
-		const state = approved.every( Boolean ) ? true : approved.some( Boolean ) ? 'some' : false;
-		return h(
-			'section',
-			{ class: 'etk-components__group', 'aria-labelledby': 'etk-components-meta-title' },
-			h( 'h3', { id: 'etk-components-meta-title', class: 'etk-components__label', textContent: 'Component' } ),
-			h(
-				'ul',
-				{ class: 'etk-components__props', role: 'list' },
+		const label = listOf( meta.map( ( field ) => field.label ) );
+		return group(
+			'etk-components-meta-title',
+			'Component',
+			null,
+			rows(
 				h(
 					'li',
-					{ class: `etk-components__prop etk-components__prop--changed${ state === false ? ' is-rejected' : '' }` },
+					{ class: 'etk-components__layer etk-components__layer--changed' },
 					h(
-						'button',
-						{ type: 'button', class: `etk-components__prop-head etk-components__prop-toggle${ showing ? ' is-showing' : '' }`, 'aria-current': showing ? 'true' : null, 'aria-controls': CODE_PANE, 'data-focus': 'meta:toggle', onclick: () => select( { kind: 'meta' } ) },
-						h( 'span', { class: 'etk-components__prop-name', textContent: meta.map( ( field ) => field.label ).join( ' and ' ) } ),
-						h( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, chip( 'html', 'Changed', state ) )
+						'div',
+						{ class: `etk-components__row${ showing ? ' is-showing' : '' }` },
+						tick( `Changes to the ${ label.toLowerCase() }`, stateOf( meta.map( ( field ) => decisions.meta.get( field.key ) ) ), ( yes ) => decided( () => meta.forEach( ( field ) => decisions.meta.set( field.key, yes ) ) ), 'meta:tick' ),
+						h(
+							'button',
+							{ type: 'button', class: 'etk-components__row-toggle', 'aria-current': showing ? 'true' : null, 'aria-controls': CODE_PANE, 'data-focus': 'meta:toggle', onclick: () => select( { kind: 'meta' } ) },
+							h( 'span', { class: 'etk-components__layer-name' }, h( 'span', { class: 'etk-components__layer-label', textContent: label } ) ),
+							h( 'span', { class: 'screen-reader-text', textContent: ', changed' } ),
+							h( 'span', { class: 'etk-components__chips', 'aria-hidden': 'true' }, chip( 'html', 'Changed' ) )
+						)
 					)
 				)
 			)
@@ -1413,14 +1540,17 @@
 	};
 
 	const metaDetails = () => [
-		paneHead( 'Name and description', [] ),
-		...reviewing.meta.map( ( field ) =>
-			h(
-				'section',
-				{ class: 'etk-components__change' },
-				h( 'div', { class: 'etk-components__change-head' }, h( 'h4', { class: 'etk-components__change-title', textContent: field.label } ), choice( `Component ${ field.label.toLowerCase() }`, decisions.meta.get( field.key ), ( yes ) => ( decisions.meta.set( field.key, yes ), render() ), `meta:${ field.key }` ) ),
-				fieldView( { ...field, label: '' } )
-			)
+		paneHead( listOf( reviewing.meta.map( ( field ) => field.label ) ), reviewing.meta.length > 1 ? 'Both changed. Untick one to keep this site’s version of it.' : `The ${ reviewing.meta[ 0 ].label.toLowerCase() } changed. Untick it to keep this site’s version.` ),
+		h(
+			'div',
+			{ class: 'etk-components__card' },
+			reviewing.meta.map( ( field ) => {
+				const yes = decisions.meta.get( field.key );
+				return part(
+					{ kind: 'html', label: field.label, control: tick( `${ field.label } change`, yes, ( value ) => decided( () => decisions.meta.set( field.key, value ) ), `meta:${ field.key }` ), unticked: yes ? '' : `unticked, keeps this site’s ${ field.label.toLowerCase() }` },
+					fields( [ { ...field, label: '' } ] )
+				);
+			} )
 		),
 	];
 
@@ -1429,12 +1559,14 @@
 		render();
 	};
 
-	// Render the view again, keeping focus on the same control.
+	// Render the view again, keeping focus on the same control and panes scrolled where they were.
 	const render = () => {
 		if ( ! main ) return;
 		const focused = main.contains( document.activeElement ) ? document.activeElement.dataset.focus : null;
+		const scrolled = new Map( [ ...main.querySelectorAll( '[data-scroll]' ) ].map( ( pane ) => [ pane.dataset.scroll, pane.scrollTop ] ) );
 		main.replaceChildren( h( 'div', { class: `etk-components__page etk-components__page--${ view }` }, ...views[ view ]() ) );
-		if ( focused ) main.querySelector( `[data-focus="${ CSS.escape( focused ) }"]` )?.focus();
+		main.querySelectorAll( '[data-scroll]' ).forEach( ( pane ) => ( pane.scrollTop = scrolled.get( pane.dataset.scroll ) ?? 0 ) );
+		if ( focused ) main.querySelector( `[data-focus="${ CSS.escape( focused ) }"]` )?.focus( { preventScroll: true } );
 	};
 
 	// The sidebar's two views. Review and the page after an update belong to Update.
@@ -1544,11 +1676,13 @@
 			.filter( ( field ) => field.to && field.from !== field.to );
 		reviewing = { incoming, current, now, tree: compare( now, incoming ), props: compareProps( now.properties || [], incoming.properties, makeSides( incoming ) ), meta };
 		closedLayers = new Set();
+		showAll = { layers: false, props: false };
+		unfolded = new Set();
+		diffs = new Map();
 		resetDecisions( reviewing );
 		selected = firstChange();
 		loadUsage();
 		go( 'review' );
-		scrollToChanges();
 	};
 
 	/* ------------------------------------------------------------------ */
