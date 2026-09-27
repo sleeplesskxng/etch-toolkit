@@ -468,9 +468,6 @@
 		return [ ...same( a.slice( 0, start ) ), ...middle, ...same( a.slice( endA ) ) ];
 	};
 
-	// Unchanged lines more than this far from a change fold away.
-	const CONTEXT = 3;
-
 	/* ------------------------------------------------------------------ */
 	/* Views                                                               */
 	/* ------------------------------------------------------------------ */
@@ -1038,9 +1035,6 @@
 	const CODE_PANE = 'etk-components-code';
 	const isSelected = ( kind, id ) => selected?.kind === kind && ( kind === 'meta' || selected.id === id );
 
-	// Runs of unchanged lines you've unfolded, by diff and where the run starts.
-	let openFolds = new Set();
-
 	// A change cue. A rejected one is struck through, one partly approved is dashed.
 	const chip = ( kind, text, approved = true ) => h( 'span', { class: `etk-components__chip etk-components__chip--${ kind }${ approved === false ? ' is-rejected' : approved === 'some' ? ' is-partial' : '' }`, textContent: text } );
 
@@ -1073,7 +1067,7 @@
 		const layer = node.incoming || node.current;
 		const open = ! closedLayers.has( node.id );
 		const hasChanges = node.status !== 'same';
-		const showing = hasChanges && isSelected( 'layer', node.id );
+		const showing = isSelected( 'layer', node.id );
 		const chips = layerChips( node );
 		// A closed layer says how much changed inside it.
 		if ( node.inside && ! open ) chips.push( chip( 'inside', `${ node.inside } inside` ) );
@@ -1095,16 +1089,14 @@
 				node.children.length
 					? h( 'button', { type: 'button', class: 'etk-components__caret', 'aria-expanded': String( open ), 'aria-label': `Layers inside ${ layerTitle( layer ) }`, html: CARET, 'data-focus': `${ node.id }:caret`, onclick: () => toggleLayer( node ) } )
 					: h( 'span', { class: 'etk-components__leaf', 'aria-hidden': 'true' } ),
-				// A layer with changes shows them in the code pane, like selecting a layer in the Structure panel.
-				hasChanges
-					? h(
-							'button',
-							{ type: 'button', class: 'etk-components__layer-toggle', 'aria-current': showing ? 'true' : null, 'aria-controls': CODE_PANE, 'data-focus': `${ node.id }:toggle`, onclick: () => select( { kind: 'layer', id: node.id } ) },
-							name,
-							h( 'span', { class: 'screen-reader-text', textContent: `, ${ describeChanges( node ) }` } ),
-							chipList
-					  )
-					: [ name, chipList ]
+				// Selecting a layer shows its code, like selecting one in the Structure panel.
+				h(
+					'button',
+					{ type: 'button', class: 'etk-components__layer-toggle', 'aria-current': showing ? 'true' : null, 'aria-controls': CODE_PANE, 'data-focus': `${ node.id }:toggle`, onclick: () => select( { kind: 'layer', id: node.id } ) },
+					name,
+					hasChanges ? h( 'span', { class: 'screen-reader-text', textContent: `, ${ describeChanges( node ) }` } ) : null,
+					chipList
+				)
 			),
 			node.children.length && open ? h( 'ul', { class: 'etk-components__layers etk-components__layers--inside', role: 'list' }, node.children.map( layerRow ) ) : null
 		);
@@ -1130,46 +1122,19 @@
 			)
 		);
 
-	/**
-	 * Lines of a diff, with unchanged runs folded down to CONTEXT lines around
-	 * each change. A fold opens to show its lines. key names the diff, so an
-	 * open fold stays open as the view renders again.
-	 */
-	const diffView = ( lines, key ) => {
-		const near = lines.map( ( line, i ) => line.op !== ' ' || lines.slice( Math.max( 0, i - CONTEXT ), i + CONTEXT + 1 ).some( ( other ) => other.op !== ' ' ) );
-		const rows = [];
-		for ( let i = 0; i < lines.length; i++ ) {
-			const fold = `${ key }:${ i }`;
-			if ( ! near[ i ] && ! openFolds.has( fold ) ) {
-				let j = i;
-				while ( j < lines.length && ! near[ j ] ) j++;
-				// The loop moves i on before the fold is pressed, so it keeps its own copy.
-				const [ start, end ] = [ i, j ];
-				rows.push(
-					h( 'button', {
-						type: 'button',
-						class: 'etk-components__diff-fold',
-						'data-focus': `fold:${ fold }`,
-						textContent: `Show ${ plural( end - start, 'unchanged line', 'unchanged lines' ) }`,
-						onclick: () => {
-							for ( let k = start; k < end; k++ ) openFolds.add( `${ key }:${ k }` );
-							render();
-							// The fold is gone, so focus goes to the lines it opened into.
-							main.querySelector( `[data-focus="${ CSS.escape( `diff:${ key }` ) }"]` )?.focus( { preventScroll: true } );
-						},
-					} )
-				);
-				i = j - 1;
-				continue;
-			}
-			const { op, text } = lines[ i ];
-			rows.push( h( op === '-' ? 'del' : op === '+' ? 'ins' : 'div', { class: `etk-components__diff-line etk-components__diff-line--${ op === '-' ? 'del' : op === '+' ? 'ins' : 'same' }` }, text || ' ' ) );
-		}
-		return h( 'div', { class: 'etk-components__diff', tabindex: '-1', 'data-focus': `diff:${ key }` }, rows );
-	};
+	// Every line of a diff, the changed ones marked.
+	const diffView = ( lines ) =>
+		h(
+			'div',
+			{ class: 'etk-components__diff' },
+			lines.map( ( { op, text } ) => h( op === '-' ? 'del' : op === '+' ? 'ins' : 'div', { class: `etk-components__diff-line etk-components__diff-line--${ op === '-' ? 'del' : op === '+' ? 'ins' : 'same' }` }, text || '\u00a0' ) )
+		);
+
+	// The same text on both sides: every line, none marked.
+	const codeView = ( text ) => diffView( diffLines( text, text ) );
 
 	// One field: a one-line value as before and after, more lines as a line diff.
-	const fieldView = ( { label, from, to }, key = label ) => {
+	const fieldView = ( { label, from, to } ) => {
 		const short = ! from.includes( '\n' ) && ! to.includes( '\n' );
 		return h(
 			'div',
@@ -1182,7 +1147,7 @@
 						from ? h( 'del', { class: 'etk-components__value etk-components__value--del', textContent: from } ) : null,
 						to ? h( 'ins', { class: 'etk-components__value etk-components__value--ins', textContent: to } ) : null
 				  )
-				: diffView( diffLines( from, to ), key )
+				: diffView( diffLines( from, to ) )
 		);
 	};
 
@@ -1197,30 +1162,80 @@
 	const section = ( title, control, ...body ) =>
 		h( 'section', { class: 'etk-components__change' }, h( 'div', { class: 'etk-components__change-head' }, h( 'h4', { class: 'etk-components__change-title', textContent: title } ), control ), ...body );
 
+	// Elements that never close.
+	const VOID = new Set( [ 'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr' ] );
+
+	/**
+	 * A layer's own markup, to read and compare line by line: its tag with an
+	 * attribute a line, or what stands in for it, like a loop's {#loop} or a
+	 * slot's {@slot}. The layers inside it are an "…".
+	 */
+	const markup = ( layer ) => {
+		const b = layer.block;
+		const inside = b.children?.length ? [ '  …' ] : [];
+		const attrs = ( entries ) => entries.map( ( [ key, value ] ) => `${ key }="${ asText( value ) }"` );
+		const open = ( tag, list, end = '>' ) => ( list.length > 1 ? [ `<${ tag }`, ...list.map( ( a ) => `  ${ a }` ), end.trim() ] : [ `<${ tag }${ list.length ? ` ${ list[ 0 ] }` : '' }${ end }` ] );
+		const lines = ( text ) => String( text ?? '' ).split( '\n' );
+
+		switch ( b.type ) {
+			case 'etch/text':
+				return lines( b.text ).join( '\n' );
+			case 'etch/slot-placeholder':
+				return `{@slot ${ b.slotName }}`;
+			case 'etch/slot-content':
+				return [ `{#slot ${ b.slotName }}`, ...inside, '{/slot}' ].join( '\n' );
+			case 'etch/condition':
+				return [ `{#if ${ b.conditionString }}`, ...inside, '{/if}' ].join( '\n' );
+			case 'etch/loop':
+				return [ `{#loop ${ b.target ?? b.loopId } as ${ b.itemId }${ b.indexId ? `, ${ b.indexId }` : '' }}`, ...( b.loopParams ? [ `  params: ${ asText( b.loopParams ) }` ] : [] ), ...inside, '{/loop}' ].join( '\n' );
+			case 'etch/component': {
+				const name = ( layer.html.get( 'component' )?.value || 'Component' ).replace( /\s+/g, '' );
+				const list = attrs( Object.entries( b.attributes || {} ) );
+				return ( inside.length ? [ ...open( name, list ), ...inside, `</${ name }>` ] : open( name, list, ' />' ) ).join( '\n' );
+			}
+			case 'etch/raw-html':
+				return lines( b.content ).join( '\n' );
+			case 'etch/passthrough':
+				return asText( b.gutenbergBlock );
+		}
+		const tag = layer.tag || 'div';
+		const list = attrs( Object.entries( b.attributes || {} ).filter( ( [ key ] ) => ! ( b.type === 'etch/dynamic-element' && key === 'tag' ) ) );
+		if ( VOID.has( tag ) || b.type === 'etch/dynamic-image' ) return open( tag, list, ' />' ).join( '\n' );
+		// Empty, it closes where it opens: <span></span>.
+		if ( ! inside.length ) return open( tag, list, `></${ tag }>` ).join( '\n' );
+		return [ ...open( tag, list ), ...inside, `</${ tag }>` ].join( '\n' );
+	};
+
+	// Changes to a layer that aren't in its markup: its name in the Structure panel, and such.
+	const OUTSIDE_MARKUP = new Set( [ 'name', 'hidden', 'options' ] );
+
+	/**
+	 * Everything on a layer, for the code pane: its markup, every class it
+	 * uses with its CSS, and its script, each whole with what changed marked.
+	 * Approve and Reject show where something changed.
+	 */
 	const details = ( node ) => {
 		const layer = node.incoming || node.current;
 		const title = layerTitle( layer );
 		const choices = decisions.layers.get( node.id );
+		const added = node.status === 'added';
+		const removed = node.status === 'removed';
 		const parts = [];
 
 		if ( node.status === 'changed' ) {
 			const all = changedCategories( node ).map( ( key ) => approvedCategory( node, key ) );
 			// With more than one kind of change, one choice for them all.
-			if ( all.length > 1 ) parts.push(
-				h(
-					'div',
-					{ class: 'etk-components__details-head' },
-					h( 'span', { class: 'etk-components__muted', textContent: 'Every change on this layer' } ),
-					choice( `Every change on ${ title }`, all.every( ( v ) => v === true ) ? true : all.every( ( v ) => v === false ) ? false : null, ( yes ) => decideLayer( node, yes ), `${ node.id }:all` )
-				)
-			);
-			if ( node.html.length ) parts.push( section( 'HTML', choice( `HTML changes on ${ title }`, choices.html, ( yes ) => ( decide( node, 'html', yes ), render() ), `${ node.id }:html` ), node.html.map( ( field ) => fieldView( field, `${ node.id }:html:${ field.key }` ) ) ) );
-			if ( node.js ) parts.push( section( 'JS', choice( `JS changes on ${ title }`, choices.js, ( yes ) => ( decide( node, 'js', yes ), render() ), `${ node.id }:js` ), diffView( diffLines( node.js.from, node.js.to ), `${ node.id }:js` ) ) );
-		} else {
-			// An added or removed layer: all of it, as it would arrive or leave.
-			const added = node.status === 'added';
+			if ( all.length > 1 )
+				parts.push(
+					h(
+						'div',
+						{ class: 'etk-components__details-head' },
+						h( 'span', { class: 'etk-components__muted', textContent: 'Every change on this layer' } ),
+						choice( `Every change on ${ title }`, all.every( ( v ) => v === true ) ? true : all.every( ( v ) => v === false ) ? false : null, ( yes ) => decideLayer( node, yes ), `${ node.id }:all` )
+					)
+				);
+		} else if ( added || removed ) {
 			const decider = deciderOf( node );
-			const fields = [ ...layer.html.values() ].filter( ( field ) => field.value ).map( ( field ) => ( { label: field.label, from: added ? '' : field.value, to: added ? field.value : '' } ) );
 			parts.push(
 				h(
 					'div',
@@ -1229,17 +1244,46 @@
 					follows( node ) ? null : choice( `${ added ? 'Add' : 'Remove' } ${ title }`, choices.layer, ( yes ) => ( decide( node, 'layer', yes ), render() ), `${ node.id }:layer` )
 				)
 			);
-			if ( fields.length ) parts.push( section( 'HTML', null, fields.map( ( field ) => fieldView( field, `${ node.id }:html:${ field.label }` ) ) ) );
-			if ( layer.script ) parts.push( section( 'JS', null, diffView( diffLines( added ? '' : layer.script, added ? layer.script : '' ), `${ node.id }:js` ) ) );
 		}
 
-		for ( const change of node.css ) {
+		// HTML: the layer's markup, and its name if that changed.
+		const before = node.current ? markup( node.current ) : '';
+		const after = node.incoming ? markup( node.incoming ) : '';
+		parts.push(
+			section(
+				'HTML',
+				node.status === 'changed' && node.html.length ? choice( `HTML changes on ${ title }`, choices.html, ( yes ) => ( decide( node, 'html', yes ), render() ), `${ node.id }:html` ) : null,
+				node.html.filter( ( field ) => OUTSIDE_MARKUP.has( field.key ) ).map( fieldView ),
+				diffView( diffLines( before, after ) )
+			)
+		);
+
+		// CSS: every class the layer uses, whole. Changed ones can be approved or rejected.
+		const styles = new Map();
+		for ( const style of [ ...( node.current?.styles || [] ), ...( node.incoming?.styles || [] ) ] ) if ( ! styles.has( style.selector ) ) styles.set( style.selector, style );
+		for ( const [ selector, style ] of styles ) {
+			const change = node.css.find( ( c ) => c.selector === selector );
+			parts.push(
+				change
+					? section(
+							`CSS ${ selector }`,
+							choice( `CSS changes to ${ selector }`, decisions.css.get( selector ), ( yes ) => ( decisions.css.set( selector, yes ), render() ), `${ node.id }:css:${ selector }` ),
+							h( 'p', { class: `etk-components__reach${ change.from !== null && usage && ( usage[ selector ] ?? 0 ) > usesHere( selector ) ? ' is-wide' : '' }`, textContent: reach( change ) } ),
+							diffView( diffLines( change.from ?? '', change.to ) )
+					  )
+					: section( `CSS ${ selector }`, null, codeView( style.css ) )
+			);
+		}
+
+		// JS: the whole script.
+		const scriptBefore = node.current?.script ?? '';
+		const scriptAfter = node.incoming?.script ?? '';
+		if ( scriptBefore || scriptAfter ) {
 			parts.push(
 				section(
-					`CSS ${ change.selector }`,
-					choice( `CSS changes to ${ change.selector }`, decisions.css.get( change.selector ), ( yes ) => ( decisions.css.set( change.selector, yes ), render() ), `${ node.id }:css:${ change.selector }` ),
-					h( 'p', { class: `etk-components__reach${ change.from !== null && usage && ( usage[ change.selector ] ?? 0 ) > usesHere( change.selector ) ? ' is-wide' : '' }`, textContent: reach( change ) } ),
-					diffView( diffLines( change.from ?? '', change.to ), `${ node.id }:css:${ change.selector }` )
+					'JS',
+					node.status === 'changed' && node.js ? choice( `JS changes on ${ title }`, choices.js, ( yes ) => ( decide( node, 'js', yes ), render() ), `${ node.id }:js` ) : null,
+					diffView( diffLines( scriptBefore, scriptAfter ) )
 				)
 			);
 		}
@@ -1318,7 +1362,7 @@
 		return [
 			paneHead( [ source.name || prop.key, source.name ? h( 'code', { class: 'etk-components__prop-key', textContent: prop.key } ) : null ].filter( Boolean ), [ propChip( prop ) ] ),
 			h( 'div', { class: 'etk-components__details-head' }, h( 'span', { class: 'etk-components__muted', textContent: verb } ), choice( `${ PROP_STATUS[ prop.status ] } prop ${ propTitle( prop ) }`, decisions.props.get( prop.key ), ( yes ) => ( decisions.props.set( prop.key, yes ), render() ), `prop:${ prop.key }` ) ),
-			h( 'div', { class: 'etk-components__fields' }, fields.map( ( field ) => fieldView( field, `prop:${ prop.key }:${ field.label }` ) ) ),
+			h( 'div', { class: 'etk-components__fields' }, fields.map( fieldView ) ),
 		];
 	};
 
@@ -1369,7 +1413,7 @@
 				'section',
 				{ class: 'etk-components__change' },
 				h( 'div', { class: 'etk-components__change-head' }, h( 'h4', { class: 'etk-components__change-title', textContent: field.label } ), choice( `Component ${ field.label.toLowerCase() }`, decisions.meta.get( field.key ), ( yes ) => ( decisions.meta.set( field.key, yes ), render() ), `meta:${ field.key }` ) ),
-				fieldView( { ...field, label: '' }, `meta:${ field.key }` )
+				fieldView( { ...field, label: '' } )
 			)
 		),
 	];
@@ -1494,7 +1538,6 @@
 			.filter( ( field ) => field.to && field.from !== field.to );
 		reviewing = { incoming, current, now, tree: compare( now, incoming ), props: compareProps( now.properties || [], incoming.properties, makeSides( incoming ) ), meta };
 		closedLayers = new Set();
-		openFolds = new Set();
 		resetDecisions( reviewing );
 		selected = firstChange();
 		loadUsage();

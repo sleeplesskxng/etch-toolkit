@@ -531,6 +531,12 @@
 	border-block-end: 1px solid var(--etk-components-line);
 }
 
+/* The head already draws a line under itself. */
+.etk-components__pane-head + .etk-components__change {
+	padding-block-start: 0;
+	border-block-start: 0;
+}
+
 .etk-components__pane-title {
 	display: flex;
 	flex: 1;
@@ -1043,26 +1049,6 @@
 	&::before {
 		content: "+";
 		color: var(--e-success, #67d992);
-	}
-}
-
-/* A fold of unchanged lines. Pressing it shows them. */
-.etk-components .etk-components__diff-fold {
-	display: block;
-	inline-size: 100%;
-	margin: 0;
-	padding: 2px 10px 2px 22px;
-	border: 0;
-	background: var(--etk-components-surface);
-	color: var(--etk-components-text-50);
-	font-family: var(--e-font-interface, Inter, system-ui, sans-serif);
-	font-size: inherit;
-	line-height: inherit;
-	text-align: start;
-	cursor: pointer;
-
-	&:hover {
-		color: var(--etk-components-text);
 	}
 }
 
