@@ -87,6 +87,10 @@
 	dl,
 	dd {
 		margin: 0;
+	}
+
+	/* Without weight, so a class like .etk-components__muted still sets the color. */
+	:where(h1, h2, h3, p, dl, dd) {
 		color: inherit;
 	}
 
