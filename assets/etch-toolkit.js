@@ -605,6 +605,132 @@
 		return item;
 	};
 
+	/*
+	 * Managers: the Fonts manager, the component manager and settings, each an
+	 * .etk-manager--panel beside the Settings Bar.
+	 */
+
+	/**
+	 * A button in Etch's Settings Bar, added once Etch's bar is up: { section:
+	 * 'top' (after Etch's) or 'bottom' (before them), id, icon (an Etch icon
+	 * name), tooltip, label, controls (the panel's id), className, onclick }.
+	 * svg, { paths, viewBox }, is drawn over Etch's icon, and again whenever
+	 * Etch redraws it. onother() runs when another button in the bar is
+	 * clicked. ready() runs once the button's added, or Etch's bar never came.
+	 * Returns { expanded( open ), focus(), remove() }.
+	 */
+	const settingsBarButton = ( { section, id, icon, tooltip, label, controls, className, svg, onclick, onother = () => {}, ready = () => {} } ) => {
+		let button = null;
+		let drawn = '';
+		// Compared as the browser writes it back, or every swap would look like Etch redrawing and trigger another.
+		const draw = () => {
+			const node = button?.querySelector( 'svg' );
+			if ( ! svg || ! node || node.innerHTML === drawn ) return;
+			if ( svg.viewBox ) node.setAttribute( 'viewBox', svg.viewBox );
+			node.innerHTML = svg.paths;
+			drawn = node.innerHTML;
+		};
+		let listening = false;
+		const add = () => {
+			const bar = window.etchControls?.builder?.settingsBar?.[ section ];
+			const box = document.querySelector( `.settings-bar__section.${ section }` );
+			if ( ! bar || ! box?.querySelector( 'button' ) ) return false;
+
+			const before = new Set( box.querySelectorAll( 'button' ) );
+			bar[ section === 'top' ? 'addAfter' : 'addBefore' ]( { id, icon, tooltip, callback: onclick } );
+
+			// Etch renders the button on its next update. Label it for toggling state.
+			const observer = new MutationObserver( () => {
+				button = [ ...box.querySelectorAll( 'button' ) ].find( ( b ) => ! before.has( b ) );
+				if ( ! button ) return;
+				observer.disconnect();
+				button.setAttribute( 'aria-label', label );
+				button.setAttribute( 'aria-expanded', 'false' );
+				button.setAttribute( 'aria-controls', controls );
+				if ( className ) button.classList.add( className );
+				draw();
+				new MutationObserver( draw ).observe( button, { childList: true, subtree: true } );
+			} );
+			observer.observe( box, { childList: true, subtree: true } );
+
+			// Opening one of Etch's own managers, or another of the toolkit's, closes this one.
+			if ( ! listening ) {
+				listening = true;
+				document.querySelector( '.settings-bar' )?.addEventListener( 'click', ( e ) => {
+					const clicked = e.target.closest( 'button, a' );
+					if ( clicked && clicked !== button ) onother();
+				} );
+			}
+			return true;
+		};
+		const boot = () => {
+			let tries = 0;
+			const timer = window.setInterval( () => {
+				if ( add() || ++tries > 120 ) {
+					window.clearInterval( timer );
+					ready();
+				}
+			}, 250 );
+		};
+		document.readyState === 'complete' ? boot() : window.addEventListener( 'load', boot );
+
+		return {
+			expanded( open ) {
+				button?.setAttribute( 'aria-expanded', String( open ) );
+				open ? button?.setAttribute( 'selected', 'true' ) : button?.removeAttribute( 'selected' );
+			},
+			focus: () => button?.focus(),
+			remove() {
+				window.etchControls?.builder?.settingsBar?.[ section ]?.remove( id );
+				button = null;
+			},
+		};
+	};
+
+	/**
+	 * A manager's key handlers, for its root: typing stays away from Etch's
+	 * shortcuts, Esc (outside a dialog) runs onescape, and Cmd/Ctrl+S saves
+	 * instead of opening the browser's Save Page. Etch only matches a shortcut
+	 * when it saw the Cmd or Ctrl press too, so this calls its save directly.
+	 */
+	const managerKeys = ( onescape ) => ( {
+		onkeydown: ( e ) => {
+			e.stopPropagation();
+			if ( e.key === 'Escape' && ! e.target.closest( 'dialog' ) ) {
+				// Or the Escape would also cancel a dialog onescape opens.
+				e.preventDefault();
+				onescape();
+			}
+			if ( ( e.metaKey || e.ctrlKey ) && ( e.code === 'KeyS' || e.key.toLowerCase() === 's' ) ) {
+				e.preventDefault();
+				window.etch?.saveAsync?.();
+			}
+		},
+		onkeyup: ( e ) => e.stopPropagation(),
+	} );
+
+	// Show a manager's panel. One at a time, like Etch's own, so Back goes straight to the canvas.
+	const openManager = ( panel ) => {
+		try {
+			if ( window.etch.navigation.getCurrentPlace() !== 'builder' ) window.etch.navigation.goTo( 'builder' );
+		} catch {}
+		// Pinning Automatic.css's dashboard writes left and max-width onto every fixed element. The panel's place comes from .etk-manager--panel.
+		panel.removeAttribute( 'style' );
+		panel.hidden = false;
+	};
+
+	/**
+	 * Tell screen readers what happened, through a manager's status line.
+	 * Confirmations are announced only, errors also show there.
+	 */
+	const announce = ( status, message, { error = false } = {} ) => {
+		if ( ! status ) return;
+		status.textContent = '';
+		status.classList.toggle( 'is-error', error );
+		// Cleared first so a repeated message is read again.
+		window.setTimeout( () => ( status.textContent = message ), 50 );
+	};
+
 	// Etch always reopens in the builder. reload() remembers where you were (e.g. the
 	// Style Manager) and goes back there once Etch's API is up.
 	const PLACE_KEY = 'etk-return-place';
@@ -633,6 +759,6 @@
 		if ( place && place !== 'builder' ) tick();
 	} catch {}
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onMenu, menuItem, findMenuItem, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onMenu, menuItem, findMenuItem, settingsBarButton, managerKeys, openManager, announce, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
 	window.etchToolkit = toolkit;
 } )();

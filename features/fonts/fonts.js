@@ -23,7 +23,7 @@
  */
 ( () => {
 	const toolkit = window.etchToolkit || {};
-	const { api, afterSave, unsaved, el, plural, errorText, fileSize: size, confirmDialog, slider, rebuild, barButton, bulkBar, ICONS } = toolkit;
+	const { api, afterSave, unsaved, el, plural, errorText, fileSize: size, confirmDialog, slider, rebuild, barButton, bulkBar, settingsBarButton, managerKeys, openManager, ICONS } = toolkit;
 	const config = window.etchToolkitFonts || {};
 	if ( ! confirmDialog ) return;
 
@@ -94,7 +94,6 @@
 	let panel = null;
 	let main = null;
 	let status = null;
-	let controlButton = null;
 	let sampleText = SAMPLE;
 
 	// Layout and preview size, remembered per viewer in the browser.
@@ -132,17 +131,8 @@
 	const sampleFor = ( script ) => ( sampleText === SAMPLE && SCRIPTS[ script ]?.[ 1 ] ) || sampleText;
 	const specimen = ( className, script, style, attrs = {} ) => el( 'p', { class: className, style, 'data-script': script || '', 'aria-hidden': 'true', textContent: sampleFor( script ), ...attrs } );
 
-	/**
-	 * Tell screen readers what happened. Confirmations are announced only,
-	 * errors are also shown in the header.
-	 */
-	const announce = ( message, { error = false } = {} ) => {
-		if ( ! status ) return;
-		status.textContent = '';
-		status.classList.toggle( 'is-error', error );
-		// Cleared first so a repeated message is read again.
-		window.setTimeout( () => ( status.textContent = message ), 50 );
-	};
+	// Tell screen readers what happened. Errors also show above the view.
+	const announce = ( message, options ) => toolkit.announce( status, message, options );
 	const warn = ( message ) => announce( message, { error: true } );
 
 	// @font-face rules in the builder document, for specimens. The canvas gets the real stylesheet.
@@ -2567,22 +2557,8 @@
 				class: 'etk-manager etk-manager--panel etk-fonts',
 				hidden: true,
 				'aria-labelledby': 'etk-fonts-title',
-				// Keep typing in the panel away from Etch's keyboard shortcuts.
-				onkeydown: ( e ) => {
-					e.stopPropagation();
-					if ( e.key === 'Escape' && ! e.target.closest( 'dialog' ) ) {
-						// Or the Escape would also cancel the unsaved-changes dialog close() may open.
-						e.preventDefault();
-						picked.size ? clearPicks() : close();
-					}
-					// Except Cmd/Ctrl+S, which saves instead of opening the browser's Save Page. Etch only
-					// matches a shortcut when it saw the Cmd or Ctrl press too, so this calls its save directly.
-					if ( ( e.metaKey || e.ctrlKey ) && ( e.code === 'KeyS' || e.key.toLowerCase() === 's' ) ) {
-						e.preventDefault();
-						window.etch?.saveAsync?.();
-					}
-				},
-				onkeyup: ( e ) => e.stopPropagation(),
+				// Esc clears the picked files first.
+				...managerKeys( () => ( picked.size ? clearPicks() : close() ) ),
 			},
 			// Laid out like Etch's Content Hub: a sidebar with the back button, title and views, then the view.
 			el(
@@ -2602,17 +2578,9 @@
 
 	const open = async () => {
 		if ( ! panel ) build();
-		// One manager at a time, like Etch's own, so Back goes straight to the canvas.
-		try {
-			if ( window.etch.navigation.getCurrentPlace() !== 'builder' ) window.etch.navigation.goTo( 'builder' );
-		} catch {}
-		// Pinning Automatic.css's dashboard writes left and max-width onto every fixed element
-		// on the page, which squeezes this one. Its place comes from fonts.css.
-		panel.removeAttribute( 'style' );
-		panel.hidden = false;
+		openManager( panel );
 		document.body.classList.add( 'etk-fonts-open' );
-		controlButton?.setAttribute( 'aria-expanded', 'true' );
-		controlButton?.setAttribute( 'selected', 'true' );
+		control.expanded( true );
 		if ( ! state ) {
 			main.replaceChildren( el( 'p', { class: 'etk-manager__muted', textContent: 'Loading fonts…' } ) );
 			await load();
@@ -2637,9 +2605,8 @@
 		}
 		panel.hidden = true;
 		document.body.classList.remove( 'etk-fonts-open' );
-		controlButton?.setAttribute( 'aria-expanded', 'false' );
-		controlButton?.removeAttribute( 'selected' );
-		if ( focus ) controlButton?.focus();
+		control.expanded( false );
+		if ( focus ) control.focus();
 	};
 
 	const togglePanel = () => ( panel && ! panel.hidden ? close() : open() );
@@ -2662,56 +2629,18 @@
 	/* Boot                                                                */
 	/* ------------------------------------------------------------------ */
 
-	// Compared as the browser writes it back (<path …></path>), not as CONTROL_ICON is
-	// spelled, or every swap would look like Etch re-rendering and trigger another.
-	let freeIcon = '';
-	const useFreeIcon = () => {
-		const svg = controlButton?.querySelector( 'svg' );
-		if ( ! svg || svg.innerHTML === freeIcon ) return;
-		svg.innerHTML = CONTROL_ICON;
-		freeIcon = svg.innerHTML;
-	};
-
-	const register = () => {
-		const bar = window.etchControls?.builder?.settingsBar?.top;
-		const section = document.querySelector( '.settings-bar__section.top' );
-		if ( ! bar || ! section?.querySelector( 'button' ) ) return false;
-
-		const before = new Set( section.querySelectorAll( 'button' ) );
-		bar.addAfter( { id: CONTROL_ID, icon: 'hugeicons:text-font', tooltip: 'Fonts', callback: togglePanel } );
-
-		// Etch renders the button on its next update. Label it for toggling state.
-		const observer = new MutationObserver( () => {
-			controlButton = [ ...section.querySelectorAll( 'button' ) ].find( ( b ) => ! before.has( b ) );
-			if ( ! controlButton ) return;
-			observer.disconnect();
-			controlButton.setAttribute( 'aria-label', 'Fonts' );
-			controlButton.setAttribute( 'aria-expanded', 'false' );
-			controlButton.setAttribute( 'aria-controls', 'etk-fonts' );
-			controlButton.classList.add( 'etk-fonts-control' );
-			useFreeIcon();
-			new MutationObserver( useFreeIcon ).observe( controlButton, { childList: true, subtree: true } );
-		} );
-		observer.observe( section, { childList: true, subtree: true } );
-
-		// Opening one of Etch's own managers closes this one.
-		document.querySelector( '.settings-bar' )?.addEventListener( 'click', ( e ) => {
-			const clicked = e.target.closest( 'button' );
-			if ( clicked && clicked !== controlButton ) close( { focus: false } );
-		} );
-		return true;
-	};
-
-	const boot = () => {
-		let tries = 0;
-		const timer = window.setInterval( () => {
-			if ( register() || ++tries > 120 ) {
-				window.clearInterval( timer );
-				// Repair the stylesheet if it was edited or deleted since the last change.
-				if ( etchStylesheets() ) load();
-			}
-		}, 250 );
-	};
-
-	document.readyState === 'complete' ? boot() : window.addEventListener( 'load', boot );
+	const control = settingsBarButton( {
+		section: 'top',
+		id: CONTROL_ID,
+		icon: 'hugeicons:text-font',
+		tooltip: 'Fonts',
+		label: 'Fonts',
+		controls: 'etk-fonts',
+		className: 'etk-fonts-control',
+		svg: { paths: CONTROL_ICON },
+		onclick: togglePanel,
+		onother: () => close( { focus: false } ),
+		// Repair the stylesheet if it was edited or deleted since the last change.
+		ready: () => etchStylesheets() && load(),
+	} );
 } )();

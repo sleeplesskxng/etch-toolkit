@@ -16,7 +16,7 @@
  */
 ( () => {
 	const toolkit = window.etchToolkit || {};
-	const { api, el, errorText } = toolkit;
+	const { api, el, errorText, settingsBarButton, managerKeys, openManager } = toolkit;
 	const icon = ( name ) => toolkit.icon( name, { className: 'etk-settings__icon' } );
 	const config = window.etchToolkitSettings || {};
 	if ( ! api ) return;
@@ -140,19 +140,9 @@
 	let main = null;
 	let status = null;
 	let nav = null;
-	let controlButton = null;
 
-	/**
-	 * Tell screen readers what happened. Confirmations are announced only,
-	 * errors are also shown above the section.
-	 */
-	const announce = ( message, { error = false } = {} ) => {
-		if ( ! status ) return;
-		status.textContent = '';
-		status.classList.toggle( 'is-error', error );
-		// Cleared first so a repeated message is read again.
-		window.setTimeout( () => ( status.textContent = message ), 50 );
-	};
+	// Tell screen readers what happened. Errors also show above the section.
+	const announce = ( message, options ) => toolkit.announce( status, message, options );
 	const warn = ( message ) => announce( message, { error: true } );
 
 	const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -278,17 +268,8 @@
 				class: `etk-manager etk-settings ${ builder ? 'etk-manager--panel' : 'etk-settings--page' }`,
 				hidden: builder,
 				'aria-labelledby': 'etk-settings-title',
-				// In the builder, keep typing here away from Etch's shortcuts. Esc closes.
-				onkeydown: builder
-					? ( e ) => {
-							e.stopPropagation();
-							if ( e.key === 'Escape' && ! e.target.closest( 'dialog' ) ) {
-								e.preventDefault();
-								close();
-							}
-					  }
-					: null,
-				onkeyup: builder ? ( e ) => e.stopPropagation() : null,
+				// In the builder, Etch's shortcuts stay out of it and Esc closes.
+				...( builder ? managerKeys( () => close() ) : {} ),
 			},
 			el(
 				'div',
@@ -319,15 +300,8 @@
 
 	const open = () => {
 		if ( ! panel ) build( document.body );
-		// One manager at a time, like Etch's own, so Back goes straight to the canvas.
-		try {
-			if ( window.etch.navigation.getCurrentPlace() !== 'builder' ) window.etch.navigation.goTo( 'builder' );
-		} catch {}
-		// Pinning Automatic.css's dashboard writes left and max-width onto every fixed element. Its place comes from settings.css.
-		panel.removeAttribute( 'style' );
-		panel.hidden = false;
-		controlButton?.setAttribute( 'aria-expanded', 'true' );
-		controlButton?.setAttribute( 'selected', 'true' );
+		openManager( panel );
+		control?.expanded( true );
 		show( current || lastSection() || sections[ 0 ] );
 	};
 
@@ -335,65 +309,31 @@
 	const close = ( { focus = true } = {} ) => {
 		if ( ! panel || panel.hidden ) return;
 		panel.hidden = true;
-		controlButton?.setAttribute( 'aria-expanded', 'false' );
-		controlButton?.removeAttribute( 'selected' );
-		if ( focus ) controlButton?.focus();
+		control?.expanded( false );
+		if ( focus ) control?.focus();
 	};
 
 	/* ------------------------------------------------------------------ */
 	/* Boot                                                                */
 	/* ------------------------------------------------------------------ */
 
-	// Etch draws its buttons' icons from a name. This one gets the logo swapped in after,
-	// and again whenever Etch re-renders it. Compared as the browser writes it back.
-	let drawn = '';
-	const useLogo = () => {
-		const svg = controlButton?.querySelector( 'svg' );
-		if ( ! svg || svg.innerHTML === drawn ) return;
-		svg.setAttribute( 'viewBox', '0 0 88 88' );
-		svg.innerHTML = LOGO;
-		drawn = svg.innerHTML;
-	};
+	// Etch draws its buttons' icons from a name. This one gets the logo drawn over it.
+	const control = builder
+		? settingsBarButton( {
+				section: 'bottom',
+				id: CONTROL_ID,
+				icon: 'hugeicons:settings-02',
+				tooltip: 'Etch Toolkit',
+				label: 'Etch Toolkit settings',
+				controls: 'etk-settings',
+				className: 'etk-settings-control',
+				svg: { viewBox: '0 0 88 88', paths: LOGO },
+				onclick: () => ( panel && ! panel.hidden ? close() : open() ),
+				onother: () => close( { focus: false } ),
+		  } )
+		: null;
 
-	const register = () => {
-		const bar = window.etchControls?.builder?.settingsBar?.bottom;
-		const bottom = document.querySelector( '.settings-bar__section.bottom' );
-		if ( ! bar || ! bottom?.querySelector( 'button' ) ) return false;
-
-		const before = new Set( bottom.querySelectorAll( 'button' ) );
-		bar.addBefore( { id: CONTROL_ID, icon: 'hugeicons:settings-02', tooltip: 'Etch Toolkit', callback: () => ( panel && ! panel.hidden ? close() : open() ) } );
-
-		// Etch renders the button on its next update. Label it for toggling state.
-		const observer = new MutationObserver( () => {
-			controlButton = [ ...bottom.querySelectorAll( 'button' ) ].find( ( b ) => ! before.has( b ) );
-			if ( ! controlButton ) return;
-			observer.disconnect();
-			controlButton.setAttribute( 'aria-label', 'Etch Toolkit settings' );
-			controlButton.setAttribute( 'aria-expanded', 'false' );
-			controlButton.setAttribute( 'aria-controls', 'etk-settings' );
-			controlButton.classList.add( 'etk-settings-control' );
-			useLogo();
-			new MutationObserver( useLogo ).observe( controlButton, { childList: true, subtree: true } );
-		} );
-		observer.observe( bottom, { childList: true, subtree: true } );
-
-		// Opening one of Etch's own managers, or the Fonts manager, closes this one.
-		document.querySelector( '.settings-bar' )?.addEventListener( 'click', ( e ) => {
-			const clicked = e.target.closest( 'button, a' );
-			if ( clicked && clicked !== controlButton ) close( { focus: false } );
-		} );
-		return true;
-	};
-
-	if ( builder ) {
-		const boot = () => {
-			let tries = 0;
-			const timer = window.setInterval( () => {
-				if ( register() || ++tries > 120 ) window.clearInterval( timer );
-			}, 250 );
-		};
-		document.readyState === 'complete' ? boot() : window.addEventListener( 'load', boot );
-	} else {
+	if ( ! builder ) {
 		// Sections' scripts load after this one, so the page opens once they've added theirs.
 		const start = () => {
 			const root = document.getElementById( 'etk-settings-root' );
