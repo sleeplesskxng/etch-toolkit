@@ -1,11 +1,11 @@
 /**
  * Etch Toolkit: component manager.
  *
- * A Settings Bar control opens a manager beside the bar, like the Fonts
- * manager, with two views. Components lists the site's components and where
- * they're used, with Edit, which opens one in Etch's component editor, and
- * Update. Update takes a JSON file or pasted JSON, matched to this site's
- * components by key, the way Etch's paste matches them, and reviews it.
+ * A Settings Bar control opens a manager beside the bar, headed like Etch's
+ * Style Manager. It lists the site's components and where they're used, in
+ * a table like the Fonts manager's files. Each row's menu edits one in
+ * Etch's component editor, updates it from a JSON file or pasted JSON, and
+ * reviews the changes first, or deletes it.
  *
  * It reads three shapes:
  * - Etch's copy (Cmd+C on a layer): { version, gutenbergBlock, styles,
@@ -24,13 +24,13 @@
 	if ( ! toolkit.api ) return;
 
 	const CONTROL_ID = 'etch-toolkit-component-manager';
-	// Hugeicons free git-compare.
-	const CONTROL_ICON =
-		'<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M19 17v-6c0-2.828 0-4.243-.879-5.121C17.243 5 15.828 5 13 5h-3m0 0c0-.7 1.994-2.008 2.5-2.5M10 5c0 .7 1.994 2.008 2.5 2.5M5 7.5v6c0 2.828 0 4.243.879 5.121c.878.879 2.293.879 5.121.879h3m0 0c0 .7-1.994 2.009-2.5 2.5m2.5-2.5c0-.7-1.994-2.009-2.5-2.5"/><circle cx="19" cy="19" r="2"/><circle cx="5" cy="5" r="2"/></g>';
 	// Etch's hugeicons:arrow-left-02, the back button on its own managers.
 	const BACK = '<path d="M8.99996 16.9998L4 11.9997L9 6.99976"/><path d="M4 12H20"/>';
-	// Hugeicons free menu-02, for the Components view.
-	const LIST = '<path d="M4 8.5L20 8.5"/><path d="M4 15.5L20 15.5"/>';
+	// Etch's hugeicons:search-01, as on the Selectors tab and Recipes.
+	const SEARCH = '<path d="M17.5 17.5L22 22"/><path d="M20 11C20 6.02944 15.9706 2 11 2C6.02944 2 2 6.02944 2 11C2 15.9706 6.02944 20 11 20C15.9706 20 20 15.9706 20 11Z"/>';
+	// Hugeicons more-horizontal and pencil-edit-01, for each row's menu.
+	const MORE = '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>';
+	const EDIT = '<path d="M15.2141 5.98239L16.6158 4.58063C17.39 3.80646 18.6452 3.80646 19.4194 4.58063C20.1935 5.3548 20.1935 6.60998 19.4194 7.38415L18.0176 8.78591M15.2141 5.98239L6.98023 14.2163C5.93493 15.2616 5.41226 15.7842 5.05637 16.4211C4.70047 17.058 4.3424 18.5619 4 20C5.43809 19.6576 6.94199 19.2995 7.57889 18.9436C8.21579 18.5877 8.73844 18.0651 9.78375 17.0198L18.0176 8.78591M15.2141 5.98239L18.0176 8.78591"/><path d="M11 20H17"/>';
 	const UPLOAD = '<path d="M12 4.5L12 14.5M12 4.5C11.2998 4.5 9.99153 6.4943 9.5 7M12 4.5C12.7002 4.5 14.0085 6.4943 14.5 7"/><path d="M20 16.5C20 18.982 19.482 19.5 17 19.5H7C4.518 19.5 4 18.982 4 16.5"/>';
 	const stroke = ( paths, size = 16 ) =>
 		`<svg class="etk-components__icon" viewBox="0 0 24 24" width="${ size }" height="${ size }" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ paths }</svg>`;
@@ -157,12 +157,6 @@
 		found = found.filter( Boolean );
 		if ( ! found.length ) throw new Error( 'No components found. In Etch, select one, press Cmd+C and paste it here.' );
 		return found;
-	};
-
-	// Each component matched to this site's by key, as Etch's paste matches them.
-	const match = ( components ) => {
-		const local = window.etch.components.list();
-		return components.map( ( incoming ) => ( { incoming, current: local.find( ( c ) => incoming.key && c.key === incoming.key ) || null } ) );
 	};
 
 	/* ------------------------------------------------------------------ */
@@ -479,11 +473,9 @@
 	let view = 'list';
 	let pasted = '';
 	let search = '';
-	let target = null; // The component Update was chosen for, or null for any.
+	let target = null; // The component being updated.
 	let usedOn = null; // Component ID => the posts using it, from the server. Null while it loads.
-	let matches = [];
 	let reviewing = null;
-	let fileName = '';
 
 	const announce = ( message, { error = false } = {} ) => {
 		if ( ! status ) return;
@@ -496,34 +488,22 @@
 
 	const button = ( label, onclick, { variant = 'secondary', ...attrs } = {} ) => h( 'button', { type: 'button', class: `etk-components__btn etk-components__btn--${ variant }`, onclick, ...attrs }, label );
 
-	const read = ( text, from = '' ) => {
+	const read = ( text ) => {
 		try {
 			const found = parse( text );
-			if ( target ) {
-				// The one with its key, or the only one there is.
-				const incoming = found.find( ( c ) => c.key === target.key ) || ( found.length === 1 ? found[ 0 ] : null );
-				if ( ! incoming ) throw new Error( `None of the ${ found.length } components in this JSON is ${ target.name } (key ${ target.key }).` );
-				status.textContent = '';
-				status.classList.remove( 'is-error' );
-				review( { incoming, current: target } );
-				if ( incoming.key && incoming.key !== target.key ) announce( `This JSON is for ${ incoming.name }. ${ target.name } keeps its own key.` );
-				return;
-			}
-			matches = match( parse( text ) );
-			fileName = from;
+			// The one with its key, or the only one there is.
+			const incoming = found.find( ( c ) => c.key === target.key ) || ( found.length === 1 ? found[ 0 ] : null );
+			if ( ! incoming ) throw new Error( `None of the ${ found.length } components in this JSON is ${ target.name } (key ${ target.key }).` );
 			status.textContent = '';
 			status.classList.remove( 'is-error' );
-			render();
-			announce( `Found ${ plural( matches.length, 'component', 'components' ) }.` );
-			main.querySelector( '.etk-components__found-title' )?.focus();
+			review( { incoming, current: target } );
+			if ( incoming.key && incoming.key !== target.key ) announce( `This JSON is for ${ incoming.name }. ${ target.name } keeps its own key.` );
 		} catch ( error ) {
-			matches = [];
-			render();
 			warn( errorText( error ) );
 		}
 	};
 
-	const readFile = async ( file ) => read( await file.text(), file.name );
+	const readFile = async ( file ) => read( await file.text() );
 
 	const dropzone = () => {
 		const input = h( 'input', {
@@ -558,82 +538,234 @@
 		return zone;
 	};
 
-	const foundRow = ( { incoming, current } ) =>
-		h(
-			'li',
-			{ class: 'etk-components__found-row' },
-			h(
+	/* ---- The row menu, like Etch's context menu ---- */
+
+	/*
+	 * items: [ { label, icon, onselect, danger } ], '-' for a separator.
+	 * Arrow keys, Home and End move, Enter picks, Escape closes, Tab closes
+	 * and moves on. Focus goes back to the button.
+	 */
+	let openMenu = null;
+	const onMenuOutside = ( e ) => {
+		if ( e.type === 'pointerdown' && ( openMenu?.popup.contains( e.target ) || openMenu?.trigger.contains( e.target ) ) ) return;
+		closeMenu();
+	};
+	const closeMenu = ( { focus = false } = {} ) => {
+		if ( ! openMenu ) return;
+		const { trigger, popup } = openMenu;
+		openMenu = null;
+		popup.remove();
+		trigger.setAttribute( 'aria-expanded', 'false' );
+		document.removeEventListener( 'pointerdown', onMenuOutside, true );
+		document.removeEventListener( 'scroll', onMenuOutside, true );
+		window.removeEventListener( 'resize', onMenuOutside );
+		if ( focus && trigger.isConnected ) trigger.focus();
+	};
+
+	const menu = ( trigger, items ) => {
+		trigger.setAttribute( 'aria-haspopup', 'menu' );
+		trigger.setAttribute( 'aria-expanded', 'false' );
+		const show = ( first ) => {
+			closeMenu();
+			const choices = [];
+			const popup = h(
 				'div',
-				{ class: 'etk-components__found-text' },
-				h( 'span', { class: 'etk-components__found-name', textContent: incoming.name } ),
-				h( 'span', { class: 'etk-components__muted', textContent: current ? `Updates ${ current.name } on this site` : `Not on this site${ incoming.key ? ` (key ${ incoming.key })` : '' }` } )
-			),
-			current
-				? button( 'Review', () => review( { incoming, current } ), { 'aria-label': `Review changes to ${ current.name }` } )
-				: null
-		);
+				{
+					class: 'etk-components__menu',
+					role: 'menu',
+					'aria-label': trigger.getAttribute( 'aria-label' ),
+					onkeydown: ( e ) => {
+						const i = choices.indexOf( document.activeElement );
+						const next = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: choices.length - 1 }[ e.key ];
+						if ( next !== undefined ) {
+							e.preventDefault();
+							choices[ ( next + choices.length ) % choices.length ].focus();
+						} else if ( e.key === 'Escape' ) {
+							// Not the panel's Escape, which would close the manager.
+							e.preventDefault();
+							e.stopPropagation();
+							closeMenu( { focus: true } );
+						} else if ( e.key === 'Tab' ) {
+							closeMenu( { focus: true } );
+						}
+					},
+				},
+				items().map( ( item ) => {
+					if ( item === '-' ) return h( 'div', { class: 'etk-components__menu-separator', role: 'separator' } );
+					const choice = h(
+						'button',
+						{
+							type: 'button',
+							role: 'menuitem',
+							tabindex: '-1',
+							class: `etk-components__menu-item${ item.danger ? ' is-danger' : '' }`,
+							onclick: () => {
+								closeMenu( { focus: true } );
+								item.onselect();
+							},
+						},
+						h( 'span', { class: 'etk-components__menu-icon', html: item.icon === 'delete' ? toolkit.DELETE_ICON : stroke( item.icon, 14 ) } ),
+						item.label
+					);
+					choices.push( choice );
+					return choice;
+				} )
+			);
+			// In the panel, for its tokens and its keyboard fence. Fixed, so the table doesn't clip it.
+			panel.append( popup );
+			const box = trigger.getBoundingClientRect();
+			const size = popup.getBoundingClientRect();
+			popup.style.left = `${ Math.max( 8, box.right - size.width ) }px`;
+			popup.style.top = `${ box.bottom + 4 + size.height > window.innerHeight - 8 ? Math.max( 8, box.top - 4 - size.height ) : box.bottom + 4 }px`;
+			openMenu = { trigger, popup };
+			trigger.setAttribute( 'aria-expanded', 'true' );
+			document.addEventListener( 'pointerdown', onMenuOutside, true );
+			document.addEventListener( 'scroll', onMenuOutside, true );
+			window.addEventListener( 'resize', onMenuOutside );
+			choices.at( first )?.focus();
+		};
+		trigger.addEventListener( 'click', () => ( openMenu?.trigger === trigger ? closeMenu() : show( 0 ) ) );
+		trigger.addEventListener( 'keydown', ( e ) => {
+			if ( e.key !== 'ArrowDown' && e.key !== 'ArrowUp' ) return;
+			e.preventDefault();
+			show( e.key === 'ArrowUp' ? -1 : 0 );
+		} );
+		return trigger;
+	};
+
+	/* ---- Components ---- */
+
+	// Where a component is used: pages and templates, then components it's inside.
+	const usedTitles = ( component ) => ( usedOn?.[ component.id ] || [] ).map( ( post ) => ( post.postType === 'wp_block' ? `${ post.title } (component)` : post.title ) );
 
 	// Where a component is used, in a few words.
 	const usageText = ( component ) => {
-		if ( ! usedOn ) return 'Checking where it’s used…';
-		const posts = usedOn[ component.id ] || [];
-		if ( ! posts.length ) return 'Not used on any page';
-		const titles = posts.map( ( post ) => ( post.postType === 'wp_block' ? `${ post.title } (component)` : post.title ) );
-		return titles.length <= 2 ? `On ${ titles.join( ' and ' ) }` : `On ${ titles[ 0 ] } and ${ titles.length - 1 } more`;
+		const titles = usedTitles( component );
+		return titles.length <= 2 ? listOf( titles ) : `${ titles[ 0 ] } and ${ titles.length - 1 } more`;
 	};
 
-	const componentRow = ( component ) =>
-		h(
-			'li',
-			{ class: 'etk-components__found-row' },
+	/**
+	 * Delete a component, once confirmed. Etch deletes it for good, and its
+	 * instances render nothing, so the dialog says where it's used. Instances
+	 * on the open page go too, as when Etch's component editor deletes one.
+	 */
+	const remove = async ( component ) => {
+		const titles = usedTitles( component );
+		const here = window.etch.blocks.find( { type: 'etch/component' } ).filter( ( id ) => window.etch.blocks.getJson( id ).componentId === component.id );
+		const dialog = toolkit.confirmDialog( {
+			title: `Delete ${ component.name }?`,
+			message: [
+				titles.length
+					? h( 'p', { textContent: `It’s used on ${ titles.length <= 3 ? listOf( titles ) : `${ titles.slice( 0, 2 ).join( ', ' ) } and ${ titles.length - 2 } more` }. It will disappear from ${ titles.length === 1 ? 'there' : 'all of them' }.` } )
+					: here.length
+						? null
+						: h( 'p', { textContent: 'No page uses it.' } ),
+				here.length ? h( 'p', { textContent: `It’s removed from the page you have open. Save to keep that.` } ) : null,
+				h( 'p', { textContent: 'This can’t be undone.' } ),
+			].filter( Boolean ),
+			confirmLabel: 'Delete component',
+			failTitle: 'The component wasn’t deleted',
+		} );
+		if ( ! ( await dialog.result ) ) return;
+		try {
+			await window.etch.components.deleteAsync( component.id );
+		} catch ( error ) {
+			dialog.fail( errorText( error ) );
+			return;
+		}
+		here.forEach( ( id ) => window.etch.blocks.delete( id ) );
+		dialog.close();
+		// Focus moves to the next row's menu, or the one before, or the search.
+		const rows = [ ...main.querySelectorAll( '.etk-components__row-menu' ) ];
+		const at = rows.findIndex( ( row ) => row.dataset.focus === `menu:${ component.id }` );
+		const next = rows[ at + 1 ] || rows[ at - 1 ];
+		render();
+		main.querySelector( `[data-focus="${ next ? CSS.escape( next.dataset.focus ) : 'search' }"]` )?.focus();
+		announce( `Deleted ${ component.name }.` );
+		loadUsedOn();
+	};
+
+	const componentRow = ( component ) => {
+		const used = usedOn ? usedTitles( component ).length > 0 : null;
+		const trigger = h( 'button', {
+			type: 'button',
+			class: 'etk-components__btn etk-components__btn--secondary etk-components__row-menu',
+			'aria-label': `Actions for ${ component.name }`,
+			title: 'Actions',
+			html: stroke( MORE, 14 ),
+			'data-focus': `menu:${ component.id }`,
+		} );
+		return h(
+			'tr',
+			{ class: used === false ? 'is-unused' : null },
+			h( 'th', { scope: 'row' }, h( 'span', { class: 'etk-components__cell-name', textContent: component.name } ) ),
+			h( 'td', {}, h( 'code', { class: 'etk-components__key', textContent: component.key } ) ),
+			h( 'td', {}, used === null ? null : h( 'span', { class: `etk-components__status-badge etk-components__status-badge--${ used ? 'success' : 'warning' }`, textContent: used ? 'In use' : 'Unused' } ) ),
+			h( 'td', { class: used ? null : 'etk-components__none', textContent: used === null ? 'Checking…' : used ? usageText( component ) : '—' } ),
 			h(
-				'div',
-				{ class: 'etk-components__found-text' },
-				h( 'span', { class: 'etk-components__prop-name' }, h( 'span', { class: 'etk-components__found-name', textContent: component.name } ), h( 'code', { class: 'etk-components__prop-key', textContent: component.key } ) ),
-				h( 'span', { class: 'etk-components__muted', textContent: usageText( component ) } )
-			),
-			button( 'Edit', ( e ) => editInEtch( component, e.currentTarget ), { 'aria-label': `Edit ${ component.name } in Etch`, 'data-focus': `edit:${ component.id }` } ),
-			button( 'Update', () => updateOne( component ), { 'aria-label': `Update ${ component.name } from JSON`, 'data-focus': `update:${ component.id }` } )
+				'td',
+				{},
+				menu( trigger, () => [
+					{ label: 'Edit in Etch', icon: EDIT, onselect: () => editInEtch( component, trigger ) },
+					{ label: 'Update from JSON', icon: UPLOAD, onselect: () => updateOne( component ) },
+					'-',
+					{ label: 'Delete component', icon: 'delete', danger: true, onselect: () => remove( component ) },
+				] )
+			)
 		);
+	};
 
 	const views = {
 		list: () => {
 			const count = h( 'span', { class: 'etk-components__muted', role: 'status' } );
-			const results = h( 'div', { class: 'etk-components__results' } );
-			// Only the results change as you type, so the field keeps its caret.
+			const body = h( 'tbody' );
+			// Only the rows change as you type, so the field keeps its caret.
 			const fill = () => {
+				closeMenu();
 				const all = window.etch.components.list().sort( ( a, b ) => a.name.localeCompare( b.name ) );
 				const term = search.trim().toLowerCase();
 				const shown = term ? all.filter( ( c ) => `${ c.name } ${ c.key }`.toLowerCase().includes( term ) ) : all;
 				count.textContent = term ? `${ shown.length } of ${ plural( all.length, 'component', 'components' ) }` : plural( all.length, 'component', 'components' );
-				results.replaceChildren(
-					shown.length
-						? h( 'ul', { class: 'etk-components__found-list', role: 'list' }, shown.map( componentRow ) )
-						: h( 'p', { class: 'etk-components__help', textContent: all.length ? 'No components match.' : 'This site has no components yet.' } )
+				body.replaceChildren(
+					...( shown.length
+						? shown.map( componentRow )
+						: [ h( 'tr', {}, h( 'td', { colspan: '5', class: 'etk-components__empty-row', textContent: all.length ? 'No components match.' : 'This site has no components yet.' } ) ) ] )
 				);
 			};
 			fill();
+			const th = ( text ) => h( 'th', { scope: 'col', textContent: text } );
 			return [
-				h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: 'Components' } ),
 				h(
 					'div',
-					{ class: 'etk-components__list-head' },
-					h( 'label', { class: 'screen-reader-text', htmlFor: 'etk-components-search', textContent: 'Search components' } ),
-					h( 'input', {
-						id: 'etk-components-search',
-						type: 'search',
-						class: 'etk-components__search',
-						placeholder: 'Search components',
-						value: search,
-						'data-focus': 'search',
-						oninput: ( e ) => {
-							search = e.target.value;
-							fill();
-						},
-					} ),
+					{ class: 'etk-components__toolbar' },
+					// Built like Recipes' search: Etch's magnifier and a bare field.
+					h(
+						'div',
+						{ class: 'etk-components__search' },
+						h( 'span', { class: 'etk-components__search-icon', html: stroke( SEARCH, 14 ) } ),
+						h( 'input', {
+							type: 'text',
+							class: 'etk-components__search-input',
+							placeholder: 'Search components',
+							'aria-label': 'Search components',
+							spellcheck: 'false',
+							autocomplete: 'off',
+							value: search,
+							'data-focus': 'search',
+							oninput: ( e ) => {
+								search = e.target.value;
+								fill();
+							},
+						} )
+					),
 					count
 				),
-				results,
+				h(
+					'table',
+					{ class: 'etk-components__table', 'aria-label': 'Components' },
+					h( 'thead', {}, h( 'tr', {}, th( 'Component' ), th( 'Key' ), th( 'Status' ), th( 'Used on' ), h( 'th', { scope: 'col' }, h( 'span', { class: 'screen-reader-text', textContent: 'Actions' } ) ) ) ),
+					body
+				),
 			];
 		},
 
@@ -641,15 +773,10 @@
 			h(
 				'div',
 				{ class: 'etk-components__review-head' },
-				target ? button( '', () => showList(), { class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to components', title: 'Back to components', html: stroke( BACK ), 'data-focus': 'back' } ) : null,
-				h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: target ? `Update ${ target.name }` : 'Update components' } )
+				button( '', () => showList(), { class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to components', title: 'Back to components', html: stroke( BACK ), 'data-focus': 'back' } ),
+				h( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: `Update ${ target.name }` } )
 			),
-			h(
-				'p',
-				{ class: 'etk-components__help', textContent: target
-					? `Drop or paste JSON for ${ target.name }. In Etch, select it and press Cmd+C. You’ll review changes before saving.`
-					: 'Drop or paste component JSON. In Etch, select one and press Cmd+C. You’ll review changes before saving.' }
-			),
+			h( 'p', { class: 'etk-components__help', textContent: `Drop or paste JSON for ${ target.name }. In Etch, select it and press Cmd+C. You’ll review changes before saving.` } ),
 			dropzone(),
 			h(
 				'div',
@@ -663,16 +790,8 @@
 					value: pasted,
 					oninput: ( e ) => ( pasted = e.target.value ),
 				} ),
-				h( 'div', { class: 'etk-components__actions' }, button( target ? 'Review changes' : 'Find components', () => ( pasted.trim() ? read( pasted ) : warn( 'Paste some JSON first.' ) ), { variant: 'primary' } ) )
+				h( 'div', { class: 'etk-components__actions' }, button( 'Review changes', () => ( pasted.trim() ? read( pasted ) : warn( 'Paste some JSON first.' ) ), { variant: 'primary' } ) )
 			),
-			! target && matches.length
-				? h(
-						'section',
-						{ class: 'etk-components__found', 'aria-labelledby': 'etk-components-found-title' },
-						h( 'h3', { id: 'etk-components-found-title', class: 'etk-components__found-title', tabindex: '-1', textContent: `${ plural( matches.length, 'component', 'components' ) } in ${ fileName || 'the JSON' }` } ),
-						h( 'ul', { class: 'etk-components__found-list', role: 'list' }, matches.map( foundRow ) )
-				  )
-				: null,
 		],
 
 		done: () =>
@@ -1562,6 +1681,7 @@
 	// Render the view again, keeping focus on the same control and panes scrolled where they were.
 	const render = () => {
 		if ( ! main ) return;
+		closeMenu();
 		const focused = main.contains( document.activeElement ) ? document.activeElement.dataset.focus : null;
 		const scrolled = new Map( [ ...main.querySelectorAll( '[data-scroll]' ) ].map( ( pane ) => [ pane.dataset.scroll, pane.scrollTop ] ) );
 		main.replaceChildren( h( 'div', { class: `etk-components__page etk-components__page--${ view }` }, ...views[ view ]() ) );
@@ -1569,15 +1689,11 @@
 		if ( focused ) main.querySelector( `[data-focus="${ CSS.escape( focused ) }"]` )?.focus( { preventScroll: true } );
 	};
 
-	// The sidebar's two views. Review and the page after an update belong to Update.
-	const NAV = { list: 'Components', import: 'Update' };
-	const navView = () => ( view === 'list' ? 'list' : 'import' );
-
+	// Focus goes to the view's title, or the search on the list.
 	const go = ( next, { focus = true } = {} ) => {
 		view = next;
-		panel?.querySelectorAll( '.etk-components__nav-item' ).forEach( ( item ) => ( item.dataset.view === navView() ? item.setAttribute( 'aria-current', 'page' ) : item.removeAttribute( 'aria-current' ) ) );
 		render();
-		if ( focus ) main.querySelector( '.etk-components__page-title' )?.focus();
+		if ( focus ) main.querySelector( '.etk-components__page-title, [data-focus="search"]' )?.focus();
 	};
 
 	const loadUsedOn = () =>
@@ -1595,17 +1711,9 @@
 		go( 'list' );
 	};
 
-	// Update from the sidebar: for any component in the JSON.
-	const showUpdate = () => {
-		target = null;
-		matches = [];
-		go( 'import' );
-	};
-
-	// Update from a component's row: for that one.
 	const updateOne = ( component ) => {
 		target = component;
-		matches = [];
+		pasted = '';
 		go( 'import' );
 	};
 
@@ -1714,22 +1822,12 @@
 				},
 				onkeyup: ( e ) => e.stopPropagation(),
 			},
+			// Across the top, like Etch's Style Manager.
 			h(
-				'div',
-				{ class: 'etk-components__sidebar' },
-				h(
-					'header',
-					{ class: 'etk-components__header' },
-					h( 'button', { type: 'button', class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: stroke( BACK ), onclick: () => close() } ),
-					h( 'h1', { id: 'etk-components-title', class: 'etk-components__title', textContent: 'Components' } )
-				),
-				h(
-					'nav',
-					{ class: 'etk-components__nav etk-track', 'aria-label': 'Component manager' },
-					Object.entries( NAV ).map( ( [ key, label ] ) =>
-						h( 'button', { type: 'button', class: 'etk-components__nav-item', 'data-view': key, html: stroke( key === 'list' ? LIST : UPLOAD ), onclick: () => ( key === 'list' ? showList() : showUpdate() ) }, label )
-					)
-				)
+				'header',
+				{ class: 'etk-components__header' },
+				h( 'button', { type: 'button', class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: stroke( BACK ), onclick: () => close() } ),
+				h( 'h1', { id: 'etk-components-title', class: 'etk-components__title', textContent: 'Components' } )
 			),
 			h( 'div', { class: 'etk-components__body' }, status, h( 'div', { class: 'etk-components__content' }, main ) )
 		);
@@ -1764,17 +1862,6 @@
 	/* Boot                                                                */
 	/* ------------------------------------------------------------------ */
 
-	// Etch draws its buttons' icons from a name. This one gets its own swapped in after,
-	// and again whenever Etch re-renders it. Compared as the browser writes it back.
-	let drawn = '';
-	const useIcon = () => {
-		const svg = controlButton?.querySelector( 'svg' );
-		if ( ! svg || svg.innerHTML === drawn ) return;
-		svg.setAttribute( 'viewBox', '0 0 24 24' );
-		svg.innerHTML = CONTROL_ICON;
-		drawn = svg.innerHTML;
-	};
-
 	let listening = false;
 	let added = false;
 	const addControl = () => {
@@ -1784,7 +1871,8 @@
 
 		const before = new Set( section.querySelectorAll( 'button' ) );
 		added = true;
-		bar.addAfter( { id: CONTROL_ID, icon: 'hugeicons:layers-01', tooltip: 'Component manager', callback: () => ( panel && ! panel.hidden ? close() : open() ) } );
+		// Etch's own component icon, as on its component blocks.
+		bar.addAfter( { id: CONTROL_ID, icon: 'etch:component-stroke', tooltip: 'Component manager', callback: () => ( panel && ! panel.hidden ? close() : open() ) } );
 
 		// Etch renders the button on its next update. Label it for toggling state.
 		const observer = new MutationObserver( () => {
@@ -1794,8 +1882,6 @@
 			controlButton.setAttribute( 'aria-label', 'Component manager' );
 			controlButton.setAttribute( 'aria-expanded', 'false' );
 			controlButton.setAttribute( 'aria-controls', 'etk-components' );
-			useIcon();
-			new MutationObserver( useIcon ).observe( controlButton, { childList: true, subtree: true } );
 		} );
 		observer.observe( section, { childList: true, subtree: true } );
 
@@ -1815,7 +1901,6 @@
 		window.etchControls?.builder?.settingsBar?.top?.remove( CONTROL_ID );
 		controlButton = null;
 		added = false;
-		drawn = '';
 	};
 
 	const boot = () => {
@@ -1831,5 +1916,5 @@
 	document.readyState === 'complete' ? boot() : window.addEventListener( 'load', boot );
 
 	// For tests and other features.
-	toolkit.components = { parse, match, fromGutenberg };
+	toolkit.components = { parse, fromGutenberg };
 } )();

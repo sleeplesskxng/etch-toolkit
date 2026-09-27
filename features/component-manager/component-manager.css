@@ -1,7 +1,7 @@
 /*
- * Component manager. Beside the settings bar and laid out like the Fonts
- * manager: a 256px sidebar with the back button, title and views, then the
- * view. Colors and type come from Etch's tokens.
+ * Component manager. Beside the settings bar, with the back button and title
+ * across the top like Etch's Style Manager, then the view. Colors and type
+ * come from Etch's tokens.
  */
 .etk-components {
 	/* Surfaces, darkest first. */
@@ -17,12 +17,14 @@
 	--etk-components-line: var(--e-border-color, #36363a);
 	--etk-components-line-strong: var(--e-base-semi-light, #3e3e41);
 	--etk-components-line-heavy: var(--e-base-ultra-light, #4a4a4f);
+	--etk-components-line-soft: color-mix(in srgb, var(--etk-components-line-heavy) 50%, transparent);
 
 	/* Text. */
 	--etk-components-text: var(--e-foreground-color, #e1e1e5);
 	--etk-components-text-75: color-mix(in srgb, var(--etk-components-text) 75%, transparent);
 	--etk-components-text-60: color-mix(in srgb, var(--etk-components-text) 60%, transparent);
 	--etk-components-text-50: color-mix(in srgb, var(--etk-components-text) 50%, transparent);
+	--etk-components-text-40: color-mix(in srgb, var(--etk-components-text) 40%, transparent);
 
 	/* Accent and status. */
 	--etk-components-accent: var(--e-primary, #57e9db);
@@ -40,7 +42,7 @@
 	/* Above the builder panels, below Etch's tooltips and dialogs. */
 	z-index: 60;
 	display: grid;
-	grid-template-columns: 256px minmax(0, 1fr);
+	grid-template-rows: auto minmax(0, 1fr);
 	background: var(--etk-components-view);
 	color: var(--etk-components-text);
 	font-family: var(--e-font-interface, Inter, system-ui, sans-serif);
@@ -115,13 +117,6 @@
 /* Shell                                                               */
 /* ------------------------------------------------------------------ */
 
-.etk-components__sidebar {
-	display: flex;
-	flex-direction: column;
-	min-block-size: 0;
-	background: var(--etk-components-surface);
-}
-
 .etk-components__header {
 	display: flex;
 	flex: none;
@@ -130,38 +125,6 @@
 	block-size: 57px;
 	padding: 0 12px;
 	border-block-end: 1px solid var(--etk-components-line);
-}
-
-/* The current view's highlight slides between them (.etk-track, in the core styles). */
-.etk-components__nav {
-	--etk-track-item-radius: var(--etk-components-radius);
-	--etk-track-highlight: var(--etk-components-raised);
-
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	padding: 16px;
-}
-
-.etk-components .etk-components__nav-item {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	margin: 0;
-	padding: 9px 14px 9px 12px;
-	border: 0;
-	background: none;
-	color: var(--etk-components-text-60);
-	font: inherit;
-	line-height: 16px;
-	text-align: start;
-	cursor: pointer;
-	transition: color var(--e-transition, 0.15s ease-in-out);
-
-	&:hover,
-	&[aria-current="page"] {
-		color: var(--etk-components-text);
-	}
 }
 
 .etk-components__title {
@@ -365,87 +328,248 @@
 	gap: 8px;
 }
 
-.etk-components__found {
+/* ------------------------------------------------------------------ */
+/* Components                                                          */
+/* ------------------------------------------------------------------ */
+
+.etk-components__page--list {
+	inline-size: 100%;
+}
+
+/* The search on the left and the count on the right. */
+.etk-components__toolbar {
 	display: flex;
-	flex-direction: column;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+/* Recipes' search, measured from Etch's Selectors tab: a 29px bare field after the magnifier. */
+.etk-components__search {
+	display: flex;
+	flex: 0 1 320px;
+	align-items: center;
 	gap: 8px;
-}
-
-.etk-components__found-title {
-	color: var(--etk-components-text-50);
-	font-size: var(--e-font-size-s, 11px);
-	font-weight: 600;
-	line-height: 14px;
-}
-
-.etk-components__found-list {
-	margin: 0;
-	padding: 0;
-	overflow: clip;
-	border: 1px solid var(--etk-components-line);
-	border-radius: var(--etk-components-radius-lg);
-	background: var(--etk-components-surface);
-	list-style: none;
-}
-
-.etk-components__found-row {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	margin: 0;
-	padding: 12px 16px;
-
-	& + & {
-		border-block-start: 1px solid var(--etk-components-line);
-	}
-}
-
-/* Components: a search field and the count, above the list. */
-.etk-components__list-head {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-}
-
-.etk-components .etk-components__search {
-	flex: 1;
-	block-size: 30px;
-	margin: 0;
-	padding: 0 10px;
-	border: 1px solid var(--etk-components-line-strong);
+	min-inline-size: 0;
+	block-size: 29px;
+	padding: 6px 8px;
 	border-radius: var(--etk-components-radius);
-	background: var(--etk-components-field);
+}
+
+.etk-components__search-icon {
+	display: flex;
+	flex: none;
+	margin-inline-start: 6px;
+	color: var(--e-light, var(--etk-components-text-60));
+}
+
+.etk-components .etk-components__search-input {
+	flex: 1;
+	min-inline-size: 0;
+	block-size: 17px;
+	margin: 0;
+	padding: 1px 2px;
+	border: 0;
+	background: none;
 	box-shadow: none;
-	color: var(--etk-components-text);
+	color: inherit;
 	font: inherit;
-	font-weight: 400;
+	line-height: 19.1px;
 
 	&::placeholder {
-		color: var(--etk-components-text-50);
+		color: #757575;
 	}
 }
 
-.etk-components__found-text {
-	display: flex;
-	flex: 1;
-	flex-direction: column;
-	gap: 2px;
-	min-inline-size: 0;
+/* The Fonts manager's files table, after Etch's content hub: a 35px header strip, then 46px rows with soft dividers. */
+.etk-components__table {
+	inline-size: 100%;
+	table-layout: fixed;
+	border-collapse: separate;
+	border-spacing: 0;
+
+	th,
+	td {
+		padding: 0 8px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		text-align: start;
+		vertical-align: middle;
+	}
+
+	thead th {
+		block-size: 35px;
+		background: var(--etk-components-surface);
+		font-weight: 500;
+		line-height: 16px;
+	}
+
+	thead th:first-child {
+		padding-inline-start: 12px;
+		border-start-start-radius: var(--etk-components-radius);
+	}
+
+	thead th:last-child {
+		padding-inline-end: 12px;
+		border-start-end-radius: var(--etk-components-radius);
+	}
+
+	tbody :is(th, td) {
+		block-size: 46px;
+		font-weight: 400;
+	}
+
+	tbody tr:not(:last-child) > * {
+		box-shadow: inset 0 -1px var(--etk-components-line-soft);
+	}
+
+	tbody :is(th, td):first-child {
+		padding-inline-start: 12px;
+	}
+
+	tbody td:last-child {
+		padding-inline-end: 12px;
+	}
+
+	/* Key, Status and the menu keep their width. Component and Used on share the rest. */
+	thead th:nth-child(2) {
+		inline-size: 24%;
+	}
+
+	thead th:nth-child(3) {
+		inline-size: 96px;
+	}
+
+	/* The 28px button and its cell's padding. */
+	thead th:last-child {
+		inline-size: calc(28px + 8px + 12px);
+		text-align: end;
+	}
+
+	td:last-child {
+		overflow: visible;
+		text-align: end;
+	}
 }
 
-/* A component's name with its key after it. */
-.etk-components__prop-name {
-	display: flex;
-	flex: 1;
-	align-items: baseline;
-	gap: 8px;
-	min-inline-size: 0;
+.etk-components__cell-name {
+	color: var(--etk-components-text);
+	font-weight: 400;
+	line-height: 16px;
+
+	.is-unused & {
+		color: var(--etk-components-text-60);
+	}
 }
 
-.etk-components__prop-key {
-	color: var(--etk-components-text-50);
+.etk-components__key {
+	color: var(--etk-components-text-60);
 	font-family: var(--e-font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
 	font-size: var(--e-font-size-s, 11px);
+}
+
+/* Etch's post status badge, as on font files. */
+.etk-components__status-badge {
+	display: inline-block;
+	padding: 6px;
+	border-radius: 3px;
+	line-height: 9px;
+}
+
+.etk-components__status-badge--success {
+	background: var(--e-success-dark, #32433a);
+	color: var(--e-success, #67d992);
+}
+
+.etk-components__status-badge--warning {
+	background: var(--e-warning-dark, #4c4233);
+	color: var(--e-warning, #f2c960);
+}
+
+.etk-components__none {
+	color: var(--etk-components-text-40);
+}
+
+.etk-components__empty-row {
+	color: var(--etk-components-text-60);
+}
+
+/* 28px square and bordered, like the content hub's row actions. */
+.etk-components .etk-components__row-menu {
+	inline-size: 28px;
+	padding: 0;
+	vertical-align: middle;
+	border-color: color-mix(in oklch, white 10%, transparent);
+	background: color-mix(in oklch, white 10%, transparent);
+	color: var(--etk-components-text-60);
+
+	&:is(:hover, [aria-expanded="true"]) {
+		color: var(--etk-components-text);
+	}
+}
+
+/* Etch's context menu, value for value. Its own styles only load once Etch shows one. */
+.etk-components__menu {
+	position: fixed;
+	z-index: 10;
+	display: flex;
+	flex-direction: column;
+	min-inline-size: 175px;
+	padding: var(--etch-space-sm, 6px);
+	border: var(--e-border, 1px solid #36363a);
+	border-radius: var(--etch-border-radius, 6px);
+	background: var(--etch-panel-bg, #27272b);
+	box-shadow:
+		0 4px 12px rgb(0 0 0 / 0.25),
+		0 1px 3px rgb(0 0 0 / 0.2);
+}
+
+.etk-components .etk-components__menu-item {
+	display: flex;
+	align-items: center;
+	gap: var(--e-content-gap, 12px);
+	inline-size: 100%;
+	margin: 0;
+	padding: var(--etch-space-sm, 6px) var(--etch-space-lg, 10px);
+	border: 0;
+	border-radius: var(--etch-radius-sm, 3px);
+	background: none;
+	color: var(--etch-text-color, #f7f7f8);
+	font: inherit;
+	font-weight: 400;
+	line-height: 16px;
+	text-align: start;
+	cursor: pointer;
+
+	&:is(:hover, :focus) {
+		background: var(--etch-menu-item-bg, #36363a);
+		box-shadow: none;
+	}
+
+	&.is-danger {
+		color: var(--etch-danger, #f84b4b);
+
+		&:is(:hover, :focus) {
+			background: var(--etch-danger-trans, color-mix(in srgb, var(--etk-components-danger) 10%, transparent));
+		}
+	}
+}
+
+.etk-components__menu-icon {
+	display: inline-flex;
+	opacity: 0.65;
+
+	svg {
+		inline-size: 14px;
+		block-size: 14px;
+	}
+}
+
+.etk-components__menu-separator {
+	block-size: 1px;
+	margin-block: var(--etch-space-sm, 6px);
+	background: var(--etch-border-color, #36363a);
 }
 
 /* ------------------------------------------------------------------ */

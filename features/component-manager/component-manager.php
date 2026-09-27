@@ -1,12 +1,14 @@
 <?php
 /**
- * Component manager: every component, where it's used, and updates from JSON.
+ * Component manager: every component, where it's used, updates from JSON
+ * and deleting.
  *
  * Lists the site's components with the pages that use them. Edit opens one
  * in Etch: on a page that uses it, or on a private draft, the workbench,
  * for one no page uses. Update takes a JSON file or pasted JSON, from Etch's
  * copy (Cmd+C on a component) or a component's JSON, and shows its layers
  * the way the Structure panel does with what changed in each, and its props.
+ * Delete asks first, and says where it's used.
  * Off until turned on in the toolkit's settings (General).
  */
 
