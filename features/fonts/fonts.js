@@ -607,14 +607,14 @@
 		el(
 			'fieldset',
 			{ class: `etk-seg etk-track${ fill ? ' etk-seg--fill' : '' }${ boxed ? ' etk-seg--boxed' : '' }` },
-			el( 'legend', { class: 'screen-reader-text', textContent: legend } ),
+			el( 'legend', { class: 'etk-sr', textContent: legend } ),
 			options.map( ( option ) =>
 				el(
 					'label',
 					{ title: option.icon ? option.label : null },
 					el( 'input', { type: 'radio', name: `etk-fonts-${ name }`, value: option.value, checked: option.value === value, onchange: () => onchange( option.value ) } ),
 					option.icon ? el( 'span', { class: 'etk-fonts__seg-icon', html: icon( option.icon, 14 ) } ) : null,
-					el( 'span', { class: option.icon ? 'screen-reader-text' : null, textContent: option.label } ),
+					el( 'span', { class: option.icon ? 'etk-sr' : null, textContent: option.label } ),
 					option.count === undefined ? null : el( 'span', { class: 'etk-fonts__count', textContent: String( option.count ) } )
 				)
 			)
@@ -821,7 +821,7 @@
 				o.back?.crumb
 					? el( 'nav', { class: 'etk-fonts__crumbs', 'aria-label': 'Breadcrumb' }, el( 'button', { type: 'button', class: 'etk-fonts__crumb', textContent: o.back.crumb, onclick: o.back.onclick } ), el( 'span', { class: 'etk-fonts__crumb-sep', 'aria-hidden': 'true', textContent: '/' } ) )
 					: null,
-				el( 'h2', { class: `etk-fonts__page-title${ hidden ? ' screen-reader-text' : '' }`, tabindex: '-1', textContent: o.title } ),
+				el( 'h2', { class: `etk-fonts__page-title${ hidden ? ' etk-sr' : '' }`, tabindex: '-1', textContent: o.title } ),
 				typeof o.meta === 'string' ? el( 'span', { class: 'etk-fonts__page-meta', textContent: o.meta } ) : o.meta || null,
 				o.tabs || null
 			),
@@ -948,7 +948,7 @@
 					'div',
 					{ class: 'etk-fonts__tile-top' },
 					badges.length ? el( 'div', { class: 'etk-fonts__family-badges' }, badges ) : null,
-					weights ? el( 'span', { class: 'etk-fonts__tile-note' }, el( 'span', { class: 'screen-reader-text', textContent: 'Weights ' } ), weights ) : null
+					weights ? el( 'span', { class: 'etk-fonts__tile-note' }, el( 'span', { class: 'etk-sr', textContent: 'Weights ' } ), weights ) : null
 				),
 				el( 'p', { class: 'etk-fonts__tile-specimen etk-fonts__family-specimen', 'aria-hidden': 'true', style: `font-family: "${ savedName( family ) }", ${ family.fallback || 'sans-serif' }`, textContent: glyphs } )
 			),
@@ -984,7 +984,7 @@
 		el(
 			'td',
 			{ class: 'etk-fonts__files-icon', 'aria-hidden': 'true' },
-			name === 'spinner' ? el( 'span', { class: 'etk-fonts__spinner' } ) : name ? el( 'span', { class: `etk-fonts__files-glyph etk-fonts__files-glyph--${ name }`, html: icon( name, 15 ) } ) : null
+			name === 'spinner' ? el( 'span', { class: 'etk-spinner etk-fonts__spinner' } ) : name ? el( 'span', { class: `etk-fonts__files-glyph etk-fonts__files-glyph--${ name }`, html: icon( name, 15 ) } ) : null
 		);
 
 	const STAGES = { waiting: 'Waiting', converting: 'Converting', uploading: 'Uploading' };
@@ -1249,7 +1249,7 @@
 			type: 'file',
 			multiple: true,
 			accept: '.woff2,.woff,.ttf,.otf',
-			class: 'screen-reader-text etk-fonts__upload-input',
+			class: 'etk-sr etk-fonts__upload-input',
 			onchange: ( e ) => {
 				const files = [ ...e.target.files ];
 				e.target.value = '';
@@ -1318,7 +1318,7 @@
 									} )
 								),
 								el( 'td', { class: 'etk-fonts__files-icon', 'aria-hidden': 'true' } ), th( 'File' ), th( 'Weight · Style' ), th( 'Status' ), th( 'Size' ), th( 'Family' ),
-								el( 'th', { scope: 'col' }, el( 'span', { class: 'screen-reader-text', textContent: 'Actions' } ) )
+								el( 'th', { scope: 'col' }, el( 'span', { class: 'etk-sr', textContent: 'Actions' } ) )
 							)
 						),
 						el( 'tbody', { class: 'etk-fonts__files-body' }, fileRows() )
@@ -1671,7 +1671,7 @@
 		);
 		rolesSection.classList.add( 'etk-fonts__section--roles' );
 
-		const fileInput = el( 'input', { type: 'file', multiple: true, accept: '.woff2,.woff,.ttf,.otf', class: 'screen-reader-text', tabindex: '-1', 'aria-hidden': 'true', onchange: ( e ) => uploadInto( [ ...e.target.files ] ) } );
+		const fileInput = el( 'input', { type: 'file', multiple: true, accept: '.woff2,.woff,.ttf,.otf', class: 'etk-sr', tabindex: '-1', 'aria-hidden': 'true', onchange: ( e ) => uploadInto( [ ...e.target.files ] ) } );
 		const addMenu = menu(
 			iconButton( 'Add files', 'plus', null ),
 			() => [
@@ -2050,7 +2050,7 @@
 					return el(
 						'li',
 						{ class: 'etk-fonts__gspec-row' },
-						el( 'span', { class: 'etk-fonts__gspec-weight' }, weightLabel( String( weight ) ), el( 'span', { class: 'screen-reader-text', textContent: `, ${ styles }` } ) ),
+						el( 'span', { class: 'etk-fonts__gspec-weight' }, weightLabel( String( weight ) ), el( 'span', { class: 'etk-sr', textContent: `, ${ styles }` } ) ),
 						cell( weight, 'normal' ),
 						italic ? cell( weight, 'italic' ) : null
 					);
@@ -2407,7 +2407,7 @@
 								'a',
 								{ class: btnClass( 'secondary' ), href: `https://fonts.google.com/specimen/${ font.family.replace( / /g, '+' ) }`, target: '_blank', rel: 'noopener' },
 								'View on Google Fonts',
-								el( 'span', { class: 'screen-reader-text', textContent: ' (opens in a new tab)' } ),
+								el( 'span', { class: 'etk-sr', textContent: ' (opens in a new tab)' } ),
 								btnIcon( 'external' )
 							),
 						],
@@ -2444,7 +2444,7 @@
 							: el(
 									'fieldset',
 									{ class: 'etk-fonts__fieldset' },
-									el( 'legend', { class: 'screen-reader-text', textContent: 'Styles' } ),
+									el( 'legend', { class: 'etk-sr', textContent: 'Styles' } ),
 									el(
 										'div',
 										{ class: 'etk-fonts__cuts etk-fonts__gcuts' },

@@ -482,7 +482,7 @@
 		};
 
 		const modes = el( 'fieldset', { className: 'etk-mix__modes etk-seg etk-seg--fill etk-track' }, [
-			el( 'legend', { className: 'etk-mix__hidden', textContent: 'Mix with' } ),
+			el( 'legend', { className: 'etk-sr', textContent: 'Mix with' } ),
 			...[
 				[ 'transparent', 'Transparent' ],
 				[ 'two', 'Two colors' ],

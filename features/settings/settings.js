@@ -95,7 +95,7 @@
 
 	// A dashed drop target for one .json file, with a Choose file button.
 	const dropzone = ( text, onfile ) => {
-		const input = el( 'input', { type: 'file', accept: '.json,application/json', class: 'screen-reader-text', onchange: ( e ) => {
+		const input = el( 'input', { type: 'file', accept: '.json,application/json', class: 'etk-sr', onchange: ( e ) => {
 			const [ file ] = e.target.files;
 			e.target.value = '';
 			if ( file ) onfile( file );

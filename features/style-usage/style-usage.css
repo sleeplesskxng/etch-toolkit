@@ -38,24 +38,9 @@
 		opacity: 1;
 	}
 
-	/* Still counting: an arc running round a faint track, in the count's place. */
+	/* Still counting: a spinner in the count's place. */
 	&.etk-usage--loading {
 		opacity: 1;
-	}
-
-	&.etk-usage--loading > :first-child {
-		inline-size: 0.9em;
-		block-size: 0.9em;
-		box-sizing: border-box;
-		border: 1.5px solid color-mix(in srgb, currentColor 25%, transparent);
-		border-block-start-color: currentColor;
-		border-radius: 50%;
-		animation: etk-usage-spin 0.8s linear infinite;
-
-		@media (prefers-reduced-motion: reduce) {
-			border-color: currentColor;
-			animation: etk-usage-pulse 1.6s ease-in-out infinite alternate;
-		}
 	}
 
 	/* Etch shows the delete button on hover. Hand the spot over to it. */
@@ -64,26 +49,6 @@
 	}
 }
 
-@keyframes etk-usage-spin {
-	to {
-		rotate: 1turn;
-	}
-}
-
-@keyframes etk-usage-pulse {
-	to {
-		opacity: 0.3;
-	}
-}
-
-.etk-sr {
-	position: absolute;
-	inline-size: 1px;
-	block-size: 1px;
-	overflow: hidden;
-	clip-path: inset(50%);
-	white-space: nowrap;
-}
 
 /* ---- Unused tab ---- */
 

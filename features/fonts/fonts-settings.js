@@ -141,7 +141,7 @@
 			el(
 				'fieldset',
 				{ class: 'etk-settings__fieldset' },
-				el( 'legend', { class: 'screen-reader-text', textContent: 'Families to export' } ),
+				el( 'legend', { class: 'etk-sr', textContent: 'Families to export' } ),
 				row( all, el( 'span', { class: 'etk-manager__help', textContent: chosen.length ? `About ${ size( total ) }` : '' } ) ),
 				...families.map( ( family ) =>
 					row(

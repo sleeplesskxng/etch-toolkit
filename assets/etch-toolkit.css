@@ -1,3 +1,48 @@
+/* For screen readers only. */
+.etk-sr {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+/*
+ * Still loading: an arc running round a faint track, in the current color,
+ * as big as the text unless --etk-spinner-size says. With reduced motion it
+ * pulses instead.
+ */
+.etk-spinner {
+	display: inline-block;
+	flex: none;
+	box-sizing: border-box;
+	inline-size: var(--etk-spinner-size, 0.9em);
+	block-size: var(--etk-spinner-size, 0.9em);
+	vertical-align: middle;
+	border: var(--etk-spinner-line, 1.5px) solid color-mix(in srgb, currentColor 25%, transparent);
+	border-block-start-color: currentColor;
+	border-radius: 50%;
+	animation: etk-spin 0.8s linear infinite;
+
+	@media (prefers-reduced-motion: reduce) {
+		border-color: currentColor;
+		animation: etk-pulse 1.6s ease-in-out infinite alternate;
+	}
+}
+
+@keyframes etk-spin {
+	to {
+		rotate: 1turn;
+	}
+}
+
+@keyframes etk-pulse {
+	to {
+		opacity: 0.3;
+	}
+}
+
 /* Confirm dialog, copied from Etch's confirm-dialog (svelte-149ug3g) onto a native <dialog>. */
 .etk-confirm {
 	/* Etch's builder injects `* { margin: 0 }`, which kills the native dialog's auto-centering. */
@@ -596,15 +641,6 @@
 	/* WordPress colors headings. These inherit instead, unless a class sets a color. */
 	:where(h1, h2, h3, p) {
 		color: inherit;
-	}
-
-	.screen-reader-text {
-		position: absolute;
-		inline-size: 1px;
-		block-size: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
 	}
 }
 

@@ -103,6 +103,7 @@
 		badge.dataset.count = String( count );
 		badge.classList.toggle( `${ BADGE }--unused`, count === 0 );
 		badge.classList.toggle( `${ BADGE }--loading`, loading );
+		badge.firstChild.classList.toggle( 'etk-spinner', loading );
 		badge.title = label;
 		badge.firstChild.textContent = loading ? '' : String( count );
 		badge.lastChild.textContent = `, ${ label.toLowerCase() }`;

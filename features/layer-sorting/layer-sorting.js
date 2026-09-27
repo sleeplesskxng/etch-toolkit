@@ -86,7 +86,7 @@
 		parts.canvasBox = div( 'etk-sort__box etk-sort__box--canvas', parts.canvas );
 		parts.canvasLine = div( 'etk-sort__line etk-sort__line--canvas', parts.canvas );
 		parts.ghost = div( 'etk-sort__ghost', overlay );
-		status = div( 'etk-sort__status', document.body );
+		status = div( 'etk-sr', document.body );
 		status.setAttribute( 'role', 'status' );
 	};
 

@@ -1761,15 +1761,10 @@
 }
 
 .etk-fonts__spinner {
-	display: inline-block;
-	box-sizing: border-box;
-	inline-size: 12px;
-	block-size: 12px;
-	vertical-align: middle;
-	border: 2px solid var(--etk-selected);
-	border-block-start-color: var(--etk-text);
-	border-radius: 50%;
-	animation: etk-fonts-spin 0.8s linear infinite;
+	--etk-spinner-size: 12px;
+	--etk-spinner-line: 2px;
+
+	color: var(--etk-text);
 }
 
 .etk-fonts__files-progress {
@@ -1797,12 +1792,6 @@
 		border-radius: 2px;
 		background: var(--etk-text);
 		animation: etk-fonts-progress 1.2s ease-in-out infinite alternate;
-	}
-}
-
-@keyframes etk-fonts-spin {
-	to {
-		rotate: 1turn;
 	}
 }
 
