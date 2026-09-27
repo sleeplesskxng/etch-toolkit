@@ -706,7 +706,7 @@
 				'td',
 				{},
 				menu( trigger, () => [
-					{ label: 'Edit in Etch', icon: EDIT, onselect: () => editInEtch( component, trigger ) },
+					{ label: 'Edit in Etch', icon: EDIT, onselect: () => editInEtch( component ) },
 					{ label: 'Update from JSON', icon: UPLOAD, onselect: () => updateOne( component ) },
 					'-',
 					{ label: 'Delete component', icon: 'delete', danger: true, onselect: () => remove( component ) },
@@ -1717,24 +1717,93 @@
 		go( 'import' );
 	};
 
+	/* ---- Editing in Etch ---- */
+
+	// Marks the instance Edit adds to the open page, to take off again.
+	const TEMPORARY = 'etchToolkitTemporary';
+	const isTemporary = ( blockId ) => !! window.etch.blocks.getJson( blockId ).options?.[ TEMPORARY ];
+	const temporaries = () => window.etch.blocks.find( { type: 'etch/component' } ).filter( isTemporary );
+
+	// An instance of a component on the page that's open, not one Edit added.
+	const instanceOf = ( id ) => window.etch.blocks.find( { type: 'etch/component' } ).find( ( blockId ) => window.etch.blocks.getJson( blockId ).componentId === id && ! isTemporary( blockId ) ) ?? null;
+
+	// An edit through an instance Edit added: its page, whether that was saved with it, and the timer watching it.
+	let editing = null;
+
 	/**
-	 * Open a component in Etch as the pattern it's saved as (a wp_block
-	 * post), so its layers are the page's and Save saves the component.
+	 * Take the added instance off the page. Saving in Etch's component editor
+	 * saves the page too, so if it was saved with the instance, save again.
+	 * If that fails, Etch still shows the page as unsaved.
 	 */
-	const editInEtch = async ( component, trigger ) => {
+	const tidy = async ( saved ) => {
+		temporaries().forEach( ( id ) => window.etch.blocks.delete( id ) );
+		if ( ! saved ) return;
+		try {
+			await toolkit.save();
+		} catch ( error ) {
+			console.error( 'Etch Toolkit: the page wasn’t saved without the component’s instance.', error );
+		}
+	};
+
+	const stopEditing = () => {
+		window.clearInterval( editing.timer );
+		const done = editing;
+		editing = null;
+		return done;
+	};
+
+	// Once the editor closes, the added instance goes.
+	const watch = async () => {
+		const active = window.etch.navigation.getActivePostId();
+		if ( active === editing.postId ) {
+			if ( ! window.etch.blocks.isInComponentEditMode() ) tidy( stopEditing().saved );
+			return;
+		}
+		// Another page was opened mid-edit. Etch keeps this one as it was and saves every page
+		// opened this session, so go back, close the editor and take the instance off first.
+		const { postId, saved } = stopEditing();
+		try {
+			await window.etch.navigation.openPostAsync( postId );
+			if ( window.etch.blocks.isInComponentEditMode() ) window.etch.blocks.exitComponentEditMode();
+			await tidy( saved );
+		} finally {
+			await window.etch.navigation.openPostAsync( active );
+		}
+	};
+
+	toolkit.afterSave?.( () => {
+		if ( editing && window.etch.navigation.getActivePostId() === editing.postId ) {
+			editing.saved = true;
+		} else if ( ! editing && window.etch?.blocks && temporaries().length ) {
+			// One brought back after its edit, by undo. Not waited for: this runs inside Etch's save.
+			window.setTimeout( () => tidy( true ) );
+		}
+	} );
+
+	/**
+	 * Open a component in Etch's component editor, which edits through an
+	 * instance on the open page: one already there, or one added at the top
+	 * and taken off again when the editor closes.
+	 */
+	const editInEtch = ( component ) => {
 		if ( window.etch.blocks.isInComponentEditMode() ) {
 			warn( 'Finish editing the open component first.' );
 			return;
 		}
-		trigger.disabled = true;
-		announce( `Opening ${ component.name }…` );
 		try {
-			if ( window.etch.navigation.getActivePostId() !== component.id ) await window.etch.navigation.openPostAsync( component.id );
+			// Etch's editor needs the component loaded.
+			window.etch.components.getJson( component.id );
+			let blockId = instanceOf( component.id );
+			if ( ! blockId ) {
+				blockId = window.etch.blocks.create( { type: 'etch/component', version: 1, context: {}, options: { [ TEMPORARY ]: true }, children: [], componentId: component.id, attributes: {} }, null, 0 );
+				editing = { postId: window.etch.navigation.getActivePostId(), saved: false, timer: window.setInterval( watch, 250 ) };
+			}
+			window.etch.blocks.select( blockId );
+			window.etch.blocks.enterComponentEditMode( blockId );
 			close( { focus: false } );
 		} catch ( error ) {
+			if ( editing ) tidy( stopEditing().saved );
 			warn( `Couldn’t open ${ component.name }: ${ errorText( error ) }` );
-		} finally {
-			trigger.disabled = false;
 		}
 	};
 
@@ -1874,18 +1943,6 @@
 			if ( ! enabled() || addControl() || ++tries > 120 ) window.clearInterval( timer );
 		}, 250 );
 	};
-
-	/*
-	 * A component opened as its pattern saves as a post, which Etch's own copy
-	 * of the component doesn't hear about. Its layers go through Etch's
-	 * components too, so pages using it show the change and Etch's component
-	 * editor doesn't save the old version over it.
-	 */
-	toolkit.afterSave?.( async () => {
-		const id = window.etch?.navigation?.getActivePostId();
-		if ( ! enabled() || ! window.etch.components.list().some( ( c ) => c.id === id ) ) return;
-		await window.etch.components.updateAsync( id, { blocks: window.etch.blocks.getTree().map( ( block ) => bare( window.etch.blocks.getJson( block.id ) ) ) } );
-	} );
 
 	// Turned on or off in the toolkit's settings.
 	window.addEventListener( 'etch-toolkit-settings', () => ( enabled() ? ! added && boot() : removeControl() ) );

@@ -4,7 +4,7 @@
  * and deleting.
  *
  * Lists the site's components with the pages that use them. Edit opens one
- * in Etch as the pattern it's saved as. Update takes a JSON file or pasted JSON, from Etch's
+ * in Etch's component editor, on the page that's open. Update takes a JSON file or pasted JSON, from Etch's
  * copy (Cmd+C on a component) or a component's JSON, and shows its layers
  * the way the Structure panel does with what changed in each, and its props.
  * Delete asks first, and says where it's used.
