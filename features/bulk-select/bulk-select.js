@@ -25,7 +25,7 @@
  */
 ( () => {
 	const toolkit = window.etchToolkit || {};
-	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, errorDialog, barButton, bulkBar, reload, classesIn, isClassSelector } = toolkit;
+	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, errorDialog, barButton, bulkBar, onPageChange, reload, classesIn, isClassSelector } = toolkit;
 	if ( ! confirmDialog ) return;
 
 	const MODAL = '.style-overview-modal__inner'; // Where every Style Manager tab renders.
@@ -1101,9 +1101,5 @@
 		true
 	);
 
-	new MutationObserver( schedule ).observe( document.body, {
-		childList: true,
-		subtree: true,
-		characterData: true,
-	} );
+	onPageChange( update, { text: true } );
 } )();

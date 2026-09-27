@@ -22,7 +22,7 @@
  * swatches are CodeMirror widgets, added to each editor as it appears.
  */
 ( () => {
-	const { el, slider } = window.etchToolkit || {};
+	const { el, slider, onPageChange } = window.etchToolkit || {};
 	if ( ! el || ! slider ) return;
 
 	const EDITOR = '.etch-css-editor .cm-editor';
@@ -391,13 +391,7 @@
 			}
 		}
 	};
-	let queued = 0;
-	new MutationObserver( () => {
-		queued ||= requestAnimationFrame( () => {
-			queued = 0;
-			install();
-		} );
-	} ).observe( document.body, { childList: true, subtree: true } );
+	onPageChange( install );
 
 	// ---- Panel ----
 

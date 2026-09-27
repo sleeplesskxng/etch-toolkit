@@ -11,7 +11,7 @@
  * recipes-settings.js, which saves an import at once.
  */
 ( () => {
-	const { api, el, icon, confirmDialog, afterSave, unsaved } = window.etchToolkit || {};
+	const { api, el, icon, confirmDialog, afterSave, unsaved, onPageChange } = window.etchToolkit || {};
 	if ( ! api ) return;
 
 	// The real Object.entries, kept before the hook below replaces it. Reading recipes
@@ -568,5 +568,5 @@
 		if ( ! frame ) frame = requestAnimationFrame( update );
 	};
 
-	new MutationObserver( schedule ).observe( document.body, { childList: true, subtree: true } );
+	onPageChange( update );
 } )();

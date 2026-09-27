@@ -12,7 +12,7 @@
  * clicking the matching row, since the selected style isn't exposed.
  */
 ( () => {
-	const { api, el } = window.etchToolkit || {};
+	const { api, el, onPageChange } = window.etchToolkit || {};
 	if ( ! api ) return;
 
 	const MODAL = '.style-overview-modal__inner';
@@ -312,9 +312,5 @@
 		if ( ! frame ) frame = requestAnimationFrame( update );
 	};
 
-	new MutationObserver( schedule ).observe( document.body, {
-		childList: true,
-		subtree: true,
-		characterData: true,
-	} );
+	onPageChange( update, { text: true } );
 } )();

@@ -534,6 +534,32 @@
 	};
 
 	/*
+	 * onPageChange( fn, { text } ): run fn once in the next frame after the
+	 * page's elements change, for features that fit themselves into Etch's UI
+	 * as it redraws. text: true counts changes to text too. One observer for
+	 * every feature, each fn run at most once a frame.
+	 */
+	const pageWatchers = [];
+	const due = new Set();
+	let pageFrame = 0;
+	const onPageChange = ( fn, { text = false } = {} ) => {
+		if ( ! pageWatchers.length ) {
+			new MutationObserver( ( records ) => {
+				const nodes = records.some( ( r ) => r.type === 'childList' );
+				pageWatchers.forEach( ( w ) => ( w.text || nodes ) && due.add( w.fn ) );
+				if ( ! due.size || pageFrame ) return;
+				pageFrame = requestAnimationFrame( () => {
+					pageFrame = 0;
+					const run = [ ...due ];
+					due.clear();
+					run.forEach( ( f ) => f() );
+				} );
+			} ).observe( document.body, { childList: true, subtree: true, characterData: true } );
+		}
+		pageWatchers.push( { fn, text } );
+	};
+
+	/*
 	 * Etch's right-click menus take no outside items, so features clone rows
 	 * from them. onMenu( from, className, add ): when a menu opens from an
 	 * element in `from` (a selector), add( menu, element ) runs, until the menu
@@ -759,6 +785,6 @@
 		if ( place && place !== 'builder' ) tick();
 	} catch {}
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onMenu, menuItem, findMenuItem, settingsBarButton, managerKeys, openManager, announce, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, onMenu, menuItem, findMenuItem, settingsBarButton, managerKeys, openManager, announce, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
 	window.etchToolkit = toolkit;
 } )();
