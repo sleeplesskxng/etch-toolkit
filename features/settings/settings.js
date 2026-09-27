@@ -157,12 +157,12 @@
 		const at = before.indexOf( active );
 
 		main.replaceChildren(
-			el( 'div', { class: 'etk-settings__page' }, el( 'h2', { class: 'etk-settings__page-title', tabindex: '-1', textContent: current.title } ), ...[ current.render( ui ) ].flat().filter( Boolean ) )
+			el( 'div', { class: 'etk-manager__page' }, el( 'h2', { class: 'etk-manager__page-title', tabindex: '-1', textContent: current.title } ), ...[ current.render( ui ) ].flat().filter( Boolean ) )
 		);
 
 		if ( ! active ) return;
 		const after = [ ...main.querySelectorAll( FOCUSABLE ) ].filter( ( node ) => ! node.disabled );
-		( after.find( ( node ) => key( node ) === key( active ) ) || after[ Math.min( at, after.length - 1 ) ] || main.querySelector( '.etk-settings__page-title' ) )?.focus();
+		( after.find( ( node ) => key( node ) === key( active ) ) || after[ Math.min( at, after.length - 1 ) ] || main.querySelector( '.etk-manager__page-title' ) )?.focus();
 	};
 
 	const show = async ( section, { focus = true } = {} ) => {
@@ -174,7 +174,7 @@
 			sessionStorage.setItem( 'etk-settings-section', section.id );
 		} catch {}
 		refresh();
-		if ( focus ) main.querySelector( '.etk-settings__page-title' )?.focus();
+		if ( focus ) main.querySelector( '.etk-manager__page-title' )?.focus();
 		if ( section.open ) {
 			try {
 				await section.open();

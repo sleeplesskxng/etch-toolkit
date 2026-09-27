@@ -634,14 +634,23 @@
 	h1,
 	h2,
 	h3,
-	p {
+	p,
+	dl,
+	dd {
 		margin: 0;
 	}
 
 	/* WordPress colors headings. These inherit instead, unless a class sets a color. */
-	:where(h1, h2, h3, p) {
+	:where(h1, h2, h3, p, dl, dd) {
 		color: inherit;
 	}
+}
+
+/* No sidebar: the header across the top, the view under it. */
+.etk-manager--single {
+	grid-template-columns: minmax(0, 1fr);
+	grid-template-rows: auto minmax(0, 1fr);
+	background: var(--etk-view);
 }
 
 /* Beside the settings bar, above the action bar. */
@@ -736,6 +745,22 @@
 
 .etk-manager__main {
 	padding: 24px 32px;
+}
+
+/* A page of settings or a form, centred in the view, under its title. */
+.etk-manager__page {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+	inline-size: min(680px, 100%);
+	margin-inline: auto;
+	padding-block-start: 12px;
+}
+
+.etk-manager__page-title {
+	font-size: 18px;
+	font-weight: 500;
+	line-height: 24px;
 }
 
 /* Errors show above the view. Confirmations are for screen readers only. */

@@ -1,112 +1,12 @@
 /*
- * Component manager. Beside the settings bar, with the back button and title
- * across the top like Etch's Style Manager, then the view. Colors and type
- * come from Etch's tokens.
+ * Component manager, on the core's .etk-manager--single screen: the back
+ * button and title across the top like Etch's Style Manager, then the view.
+ * Colors and type come from the manager's tokens (--etk-text, --etk-line…).
  */
 .etk-components {
-	/* Surfaces, darkest first. */
-	--etk-components-field: var(--e-base-dark, #1d1d20);
-	--etk-components-surface: var(--e-base, #27272b);
-	--etk-components-view: color-mix(in srgb, var(--e-base, #27272b), var(--e-base-light, #36363a) 47%);
-	--etk-components-raised: var(--e-base-light, #36363a);
 	/* A band a little lighter than a field, and its line, for headers inside one. */
-	--etk-components-band: color-mix(in srgb, var(--etk-components-field), var(--etk-components-text) 3%);
-	--etk-components-band-line: color-mix(in srgb, var(--etk-components-field), var(--etk-components-text) 7%);
-
-	/* Lines. */
-	--etk-components-line: var(--e-border-color, #36363a);
-	--etk-components-line-strong: var(--e-base-semi-light, #3e3e41);
-	--etk-components-line-heavy: var(--e-base-ultra-light, #4a4a4f);
-	--etk-components-line-soft: color-mix(in srgb, var(--etk-components-line-heavy) 50%, transparent);
-
-	/* Text. */
-	--etk-components-text: var(--e-foreground-color, #e1e1e5);
-	--etk-components-text-75: color-mix(in srgb, var(--etk-components-text) 75%, transparent);
-	--etk-components-text-60: color-mix(in srgb, var(--etk-components-text) 60%, transparent);
-	--etk-components-text-50: color-mix(in srgb, var(--etk-components-text) 50%, transparent);
-	--etk-components-text-40: color-mix(in srgb, var(--etk-components-text) 40%, transparent);
-
-	/* Accent and status. */
-	--etk-components-accent: var(--e-primary, #57e9db);
-	--etk-components-accent-soft: color-mix(in srgb, var(--etk-components-accent) 12%, transparent);
-	--etk-components-on-accent: var(--e-base-dark, #1d1d20);
-	--etk-components-danger: var(--e-danger, #f26060);
-
-	/* Shape. */
-	--etk-components-radius: var(--e-border-radius, 6px);
-	--etk-components-radius-lg: 8px;
-	--etk-components-focus: var(--etch-focus-box-shadow, 0 0 0 1px #28557b, 0 0 0 2px #469fea);
-
-	position: fixed;
-	inset: 0 0 var(--etch-action-bar-height, 48px) var(--e-settings-bar-width, 46.5px);
-	/* Above the builder panels, below Etch's tooltips and dialogs. */
-	z-index: 60;
-	display: grid;
-	grid-template-rows: auto minmax(0, 1fr);
-	background: var(--etk-components-view);
-	color: var(--etk-components-text);
-	font-family: var(--e-font-interface, Inter, system-ui, sans-serif);
-	font-size: var(--e-font-size-m, 12px);
-	font-weight: 500;
-	line-height: 1.34;
-	-webkit-font-smoothing: antialiased;
-
-	/* Automatic.css's pinned dashboard moves the builder aside with a margin on <body>, which fixed positioning ignores. */
-	body.push-right & {
-		inset-inline-start: calc(var(--acss-dashboard-width, 0px) + var(--e-settings-bar-width, 46.5px));
-	}
-
-	body.push-left & {
-		inset-inline-end: var(--acss-dashboard-width, 0px);
-	}
-
-	&[hidden] {
-		display: none;
-	}
-
-	*,
-	*::before,
-	*::after {
-		box-sizing: border-box;
-	}
-
-	:focus-visible {
-		outline: none;
-		box-shadow: var(--etk-components-focus);
-	}
-
-	/* Text fields show no ring, like Etch's. Browsers count any click in one as keyboard focus. */
-	:is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']), textarea):focus-visible {
-		box-shadow: none;
-	}
-
-	/* Titles get focus on navigation, for screen readers, without a ring. */
-	[tabindex="-1"]:focus {
-		box-shadow: none;
-	}
-
-	h1,
-	h2,
-	h3,
-	p,
-	dl,
-	dd {
-		margin: 0;
-	}
-
-	/* Without weight, so a class like .etk-components__muted still sets the color. */
-	:where(h1, h2, h3, p, dl, dd) {
-		color: inherit;
-	}
-
-	.screen-reader-text {
-		position: absolute;
-		inline-size: 1px;
-		block-size: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
-	}
+	--etk-components-band: color-mix(in srgb, var(--etk-field), var(--etk-text) 3%);
+	--etk-components-band-line: color-mix(in srgb, var(--etk-field), var(--etk-text) 7%);
 }
 
 .etk-components__icon {
@@ -117,91 +17,20 @@
 /* Shell                                                               */
 /* ------------------------------------------------------------------ */
 
-.etk-components__header {
-	display: flex;
-	flex: none;
-	align-items: center;
-	gap: 10px;
-	block-size: 57px;
-	padding: 0 12px;
-	border-block-end: 1px solid var(--etk-components-line);
-}
-
-.etk-components__title {
-	font-size: var(--e-hub-title-font-size, 16px);
-	font-weight: 400;
-	line-height: 20px;
-}
-
 /* A container, so the review can stack its panes when the view is narrow. */
-.etk-components__body {
+.etk-components .etk-manager__body {
 	container-type: inline-size;
-	display: flex;
-	flex-direction: column;
-	min-block-size: 0;
-	min-inline-size: 0;
 }
 
-.etk-components__content {
-	flex: 1;
-	min-block-size: 0;
-	overflow-y: auto;
-	scrollbar-gutter: stable;
-}
-
-.etk-components__main {
-	padding: 24px 32px;
-}
-
-.etk-components__page {
-	display: flex;
-	flex-direction: column;
+:where(.etk-components) .etk-manager__page {
 	gap: 16px;
-	inline-size: min(680px, 100%);
-	margin-inline: auto;
-	padding-block-start: 12px;
-}
-
-.etk-components__page-title {
-	font-size: 18px;
-	font-weight: 500;
-	line-height: 24px;
-}
-
-/* Errors show above the view. Confirmations are for screen readers only. */
-.etk-components__status:not(.is-error) {
-	position: absolute;
-	inline-size: 1px;
-	block-size: 1px;
-	overflow: hidden;
-	clip-path: inset(50%);
-	white-space: nowrap;
-}
-
-.etk-components__status.is-error {
-	padding: 8px 32px;
-	border-block-end: 1px solid var(--etk-components-line);
-	color: var(--etk-components-danger);
-	font-size: var(--e-font-size-s, 11px);
 }
 
 .etk-components__help {
 	max-inline-size: 70ch;
-	color: var(--etk-components-text-60);
+	color: var(--etk-text-60);
 	font-weight: 400;
 	line-height: 16px;
-}
-
-.etk-components__muted {
-	color: var(--etk-components-text-60);
-	font-weight: 400;
-}
-
-.etk-components__label {
-	color: var(--etk-components-text-50);
-	font-size: var(--e-font-size-s, 11px);
-	font-weight: 600;
-	line-height: 14px;
 }
 
 /* ------------------------------------------------------------------ */
@@ -218,10 +47,10 @@
 	block-size: 28px;
 	margin: 0;
 	padding: 0 10px;
-	border: 1px solid var(--etk-components-line-strong);
-	border-radius: var(--etk-components-radius);
+	border: 1px solid var(--etk-line-strong);
+	border-radius: var(--etk-radius);
 	background: none;
-	color: var(--etk-components-text);
+	color: var(--etk-text);
 	font: inherit;
 	font-weight: 500;
 	line-height: 16px;
@@ -232,8 +61,8 @@
 		border-color var(--e-transition, 0.15s ease-in-out);
 
 	&:hover {
-		border-color: var(--etk-components-line-heavy);
-		background: var(--etk-components-raised);
+		border-color: var(--etk-line-heavy);
+		background: var(--etk-raised);
 	}
 
 	&:is(:disabled, [aria-disabled="true"]) {
@@ -244,13 +73,13 @@
 
 .etk-components__btn--primary {
 	border-color: transparent;
-	background: var(--etk-components-accent);
-	color: var(--etk-components-on-accent);
+	background: var(--etk-accent);
+	color: var(--etk-on-accent);
 	font-weight: 600;
 
 	&:hover {
 		border-color: transparent;
-		background: var(--etch-primary-hover, color-mix(in srgb, var(--etk-components-accent), white 15%));
+		background: var(--etch-primary-hover, color-mix(in srgb, var(--etk-accent), white 15%));
 	}
 }
 
@@ -264,7 +93,7 @@
 	position: relative;
 
 	&:has(:focus-visible) {
-		box-shadow: var(--etk-components-focus);
+		box-shadow: var(--etk-focus);
 	}
 }
 
@@ -278,26 +107,26 @@
 	align-items: center;
 	gap: 14px;
 	padding: 16px;
-	border: 1px dashed var(--etk-components-line-heavy);
-	border-radius: var(--etk-components-radius-lg);
+	border: 1px dashed var(--etk-line-heavy);
+	border-radius: var(--etk-radius-lg);
 	transition:
 		background-color var(--e-transition, 0.15s ease-in-out),
 		border-color var(--e-transition, 0.15s ease-in-out);
 
 	&.is-over {
-		border-color: var(--etk-components-accent);
-		background: var(--etk-components-accent-soft);
+		border-color: var(--etk-accent);
+		background: var(--etk-accent-soft);
 	}
 }
 
 .etk-components__dropzone-icon {
 	display: flex;
-	color: var(--etk-components-text-75);
+	color: var(--etk-text-75);
 }
 
 .etk-components__dropzone-text {
 	flex: 1;
-	color: var(--etk-components-text-75);
+	color: var(--etk-text-75);
 	font-weight: 400;
 }
 
@@ -312,10 +141,10 @@
 	min-block-size: 120px;
 	margin: 0;
 	padding: 8px 10px;
-	border: 1px solid var(--etk-components-line-strong);
-	border-radius: var(--etk-components-radius);
-	background: var(--etk-components-field);
-	color: var(--etk-components-text);
+	border: 1px solid var(--etk-line-strong);
+	border-radius: var(--etk-radius);
+	background: var(--etk-field);
+	color: var(--etk-text);
 	font-family: var(--e-font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
 	font-size: var(--e-font-size-s, 11px);
 	line-height: 16px;
@@ -343,7 +172,7 @@
 	align-items: center;
 	gap: 8px 16px;
 
-	> .etk-components__muted {
+	> .etk-manager__muted {
 		margin-inline-start: auto;
 	}
 }
@@ -353,9 +182,9 @@
  * whose highlight slides to the picked one (.etk-track, in the core styles).
  */
 .etk-components__seg {
-	--etk-track-radius: var(--etk-components-radius);
+	--etk-track-radius: var(--etk-radius);
 	--etk-track-inset: 2px;
-	--etk-track-highlight: var(--etk-components-raised);
+	--etk-track-highlight: var(--etk-raised);
 
 	display: inline-flex;
 	flex: none;
@@ -363,7 +192,7 @@
 	margin: 0;
 	padding: 2px;
 	border: 0;
-	background: var(--etk-components-field);
+	background: var(--etk-field);
 
 	input {
 		position: absolute;
@@ -379,7 +208,7 @@
 		align-items: center;
 		gap: 6px;
 		padding: 4px 10px;
-		color: var(--etk-components-text-60);
+		color: var(--etk-text-60);
 		line-height: 16px;
 		white-space: nowrap;
 		cursor: pointer;
@@ -387,11 +216,11 @@
 
 		&:hover,
 		&:has(input:checked) {
-			color: var(--etk-components-text);
+			color: var(--etk-text);
 		}
 
 		&:has(input:focus-visible) {
-			box-shadow: var(--etk-components-focus);
+			box-shadow: var(--etk-focus);
 		}
 	}
 }
@@ -405,14 +234,14 @@
 	min-inline-size: 0;
 	block-size: 29px;
 	padding: 6px 8px;
-	border-radius: var(--etk-components-radius);
+	border-radius: var(--etk-radius);
 }
 
 .etk-components__search-icon {
 	display: flex;
 	flex: none;
 	margin-inline-start: 6px;
-	color: var(--e-light, var(--etk-components-text-60));
+	color: var(--e-light, var(--etk-text-60));
 }
 
 .etk-components .etk-components__search-input {
@@ -458,7 +287,7 @@
 	thead th {
 		block-size: calc(35px + 4px);
 		border-block-end: 4px solid transparent;
-		background: var(--etk-components-surface);
+		background: var(--etk-surface);
 		background-clip: padding-box;
 		font-weight: 500;
 		line-height: 16px;
@@ -466,14 +295,14 @@
 
 	thead th:first-child {
 		padding-inline-start: 12px;
-		border-top-left-radius: var(--etk-components-radius);
-		border-bottom-left-radius: var(--etk-components-radius) calc(var(--etk-components-radius) + 4px);
+		border-top-left-radius: var(--etk-radius);
+		border-bottom-left-radius: var(--etk-radius) calc(var(--etk-radius) + 4px);
 	}
 
 	thead th:last-child {
 		padding-inline-end: 12px;
-		border-top-right-radius: var(--etk-components-radius);
-		border-bottom-right-radius: var(--etk-components-radius) calc(var(--etk-components-radius) + 4px);
+		border-top-right-radius: var(--etk-radius);
+		border-bottom-right-radius: var(--etk-radius) calc(var(--etk-radius) + 4px);
 	}
 
 	tbody :is(th, td) {
@@ -482,7 +311,7 @@
 	}
 
 	tbody tr:not(:last-child) > * {
-		box-shadow: inset 0 -1px var(--etk-components-line-soft);
+		box-shadow: inset 0 -1px var(--etk-line-soft);
 	}
 
 	tbody :is(th, td):first-child {
@@ -515,17 +344,17 @@
 }
 
 .etk-components__cell-name {
-	color: var(--etk-components-text);
+	color: var(--etk-text);
 	font-weight: 400;
 	line-height: 16px;
 
 	.is-unused & {
-		color: var(--etk-components-text-60);
+		color: var(--etk-text-60);
 	}
 }
 
 .etk-components__key {
-	color: var(--etk-components-text-60);
+	color: var(--etk-text-60);
 	font-family: var(--e-font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
 	font-size: var(--e-font-size-s, 11px);
 }
@@ -570,7 +399,7 @@
 	padding: 0;
 	border: 0;
 	background: none;
-	color: var(--etk-components-text);
+	color: var(--etk-text);
 	font: inherit;
 	font-weight: 400;
 	line-height: 16px;
@@ -586,10 +415,10 @@
 .etk-components__use-icon {
 	display: inline-flex;
 	flex: none;
-	color: var(--etk-components-text-60);
+	color: var(--etk-text-60);
 
 	.etk-components__use:hover & {
-		color: var(--etk-components-text);
+		color: var(--etk-text);
 	}
 }
 
@@ -598,23 +427,23 @@
 	padding: 0;
 	border: 0;
 	background: none;
-	color: var(--etk-components-text-60);
+	color: var(--etk-text-60);
 	font: inherit;
 	font-weight: 400;
 	line-height: 16px;
 	cursor: pointer;
 
 	&:hover {
-		color: var(--etk-components-text);
+		color: var(--etk-text);
 	}
 }
 
 .etk-components__none {
-	color: var(--etk-components-text-40);
+	color: var(--etk-text-40);
 }
 
 .etk-components__empty-row {
-	color: var(--etk-components-text-60);
+	color: var(--etk-text-60);
 }
 
 /* Edit, Update and Delete: 28px squares, bordered like the content hub's row actions. */
@@ -629,10 +458,10 @@
 	padding: 0;
 	border-color: color-mix(in oklch, white 10%, transparent);
 	background: color-mix(in oklch, white 10%, transparent);
-	color: var(--etk-components-text-60);
+	color: var(--etk-text-60);
 
 	&:hover {
-		color: var(--etk-components-text);
+		color: var(--etk-text);
 	}
 
 	svg {
@@ -642,7 +471,7 @@
 }
 
 .etk-components .etk-components__row-delete:hover {
-	color: var(--etk-components-danger);
+	color: var(--etk-danger);
 }
 
 /* ------------------------------------------------------------------ */
@@ -654,10 +483,10 @@
  * on the left like Etch's Structure panel and the picked one's code on the
  * right, each scrolling on its own.
  */
-.etk-components__content:has(> .etk-components__main > .etk-components__page--review) {
+.etk-manager__content:has(> .etk-manager__main > .etk-components__page--review) {
 	overflow: hidden;
 
-	> .etk-components__main {
+	> .etk-manager__main {
 		block-size: 100%;
 		padding: 0;
 	}
@@ -677,7 +506,7 @@
 		gap: 14px;
 		margin: 0;
 		padding: 22px 32px;
-		border-block-end: 1px solid var(--etk-components-line);
+		border-block-end: 1px solid var(--etk-line);
 	}
 }
 
@@ -694,7 +523,7 @@
 	min-block-size: 0;
 	overflow-y: auto;
 	padding: 20px 16px;
-	border-inline-end: 1px solid var(--etk-components-line);
+	border-inline-end: 1px solid var(--etk-line);
 }
 
 .etk-components__code {
@@ -708,10 +537,10 @@
 
 /* Too narrow for two panes: the layers first, then the code, and the page scrolls. */
 @container (inline-size < 820px) {
-	.etk-components__content:has(> .etk-components__main > .etk-components__page--review) {
+	.etk-manager__content:has(> .etk-manager__main > .etk-components__page--review) {
 		overflow-y: auto;
 
-		> .etk-components__main {
+		> .etk-manager__main {
 			block-size: auto;
 		}
 	}
@@ -724,7 +553,7 @@
 
 	.etk-components__side {
 		border-inline-end: 0;
-		border-block-end: 1px solid var(--etk-components-line);
+		border-block-end: 1px solid var(--etk-line);
 	}
 
 	.etk-components__code,
@@ -743,7 +572,7 @@
 	gap: 12px;
 	margin-block: -12px 0;
 	padding-block: 12px;
-	background: var(--etk-components-view);
+	background: var(--etk-view);
 }
 
 .etk-components__done-actions {
@@ -810,11 +639,11 @@
  */
 .etk-components__tree {
 	--etk-layer-accent: var(--e-base-light, #36363a);
-	--etk-layer-text: var(--etk-components-text);
+	--etk-layer-text: var(--etk-text);
 
 	padding: 4px;
-	border: 1px solid var(--etk-components-line);
-	border-radius: var(--etk-components-radius-lg);
+	border: 1px solid var(--etk-line);
+	border-radius: var(--etk-radius-lg);
 	background: var(--e-panel-background-color, #27272b);
 }
 
@@ -1011,7 +840,7 @@
 
 /* A small count: how many of a layer's changes are ticked, or how many components are unused. */
 .etk-components__count {
-	color: var(--etk-components-text-60);
+	color: var(--etk-text-60);
 	font-size: var(--e-font-size-s, 11px);
 	font-weight: 400;
 	line-height: 14px;
@@ -1024,7 +853,7 @@
 
 /* A change cue: a small label in its category's color. */
 .etk-components__chip {
-	--etk-chip: var(--etk-components-text-60);
+	--etk-chip: var(--etk-text-60);
 
 	padding: 1px 5px;
 	border-radius: 3px;
@@ -1037,7 +866,7 @@
 }
 
 .etk-components__chip--html {
-	--etk-chip: var(--etk-components-accent);
+	--etk-chip: var(--etk-accent);
 }
 
 .etk-components__chip--css {
@@ -1058,7 +887,7 @@
 }
 
 .etk-components__chip--inside {
-	--etk-chip: var(--etk-components-text-60);
+	--etk-chip: var(--etk-text-60);
 
 	background: none;
 	font-weight: 500;
@@ -1074,7 +903,7 @@
 	gap: 4px;
 	padding-block: 4px 6px;
 
-	.etk-components__muted {
+	.etk-manager__muted {
 		line-height: 16px;
 	}
 }
@@ -1091,7 +920,7 @@
 }
 
 .etk-components__pane-tag {
-	color: var(--etk-components-text-50);
+	color: var(--etk-text-50);
 	font-family: var(--e-font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
 	font-size: 13px;
 	font-weight: 400;
@@ -1100,7 +929,7 @@
 
 .etk-components__empty {
 	margin: auto;
-	color: var(--etk-components-text-50);
+	color: var(--etk-text-50);
 	font-weight: 400;
 }
 
@@ -1109,9 +938,9 @@
 	display: flex;
 	flex-direction: column;
 	overflow: clip;
-	border: 1px solid var(--etk-components-line);
-	border-radius: var(--etk-components-radius-lg);
-	background: var(--etk-components-field);
+	border: 1px solid var(--etk-line);
+	border-radius: var(--etk-radius-lg);
+	background: var(--etk-field);
 }
 
 .etk-components__part + .etk-components__part {
@@ -1132,7 +961,7 @@
 }
 
 .etk-components__part-title {
-	--etk-part: var(--etk-components-accent);
+	--etk-part: var(--etk-accent);
 
 	margin: 0;
 	color: var(--etk-part);
@@ -1158,13 +987,13 @@
 }
 
 .etk-components__part-selector {
-	color: var(--etk-components-text);
+	color: var(--etk-text);
 	font-family: var(--e-font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
 	font-size: var(--e-font-size-s, 11px);
 }
 
 .etk-components__part-note {
-	color: var(--etk-components-text-50);
+	color: var(--etk-text-50);
 	font-weight: 400;
 }
 
@@ -1181,7 +1010,7 @@
 
 /* How far a CSS change reaches. Amber when it changes elements outside this component. */
 .etk-components__reach {
-	color: var(--etk-components-text-60);
+	color: var(--etk-text-60);
 	font-weight: 400;
 
 	&.is-wide {
@@ -1207,8 +1036,8 @@
 		grid-column: 1 / -1;
 		max-block-size: 360px;
 		overflow-y: auto;
-		border: 1px solid var(--etk-components-line);
-		border-radius: var(--etk-components-radius);
+		border: 1px solid var(--etk-line);
+		border-radius: var(--etk-radius);
 	}
 }
 
@@ -1238,7 +1067,7 @@
 .etk-components__inner-prop {
 	margin: 0;
 	padding-inline-start: 12px;
-	border-inline-start: 1px solid var(--etk-components-line);
+	border-inline-start: 1px solid var(--etk-line);
 
 	.etk-components__fields {
 		padding: 8px 0 0;
@@ -1262,7 +1091,7 @@
 }
 
 .etk-components__field-name {
-	color: var(--etk-components-text-60);
+	color: var(--etk-text-60);
 	font-family: var(--e-font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
 	font-size: var(--e-font-size-s, 11px);
 }
@@ -1287,14 +1116,14 @@
 
 .etk-components__value--del {
 	background: color-mix(in srgb, var(--e-danger, #f26060) 14%, transparent);
-	color: color-mix(in srgb, var(--e-danger, #f26060), var(--etk-components-text) 45%);
+	color: color-mix(in srgb, var(--e-danger, #f26060), var(--etk-text) 45%);
 	text-decoration: line-through;
 	text-decoration-color: color-mix(in srgb, var(--e-danger, #f26060) 60%, transparent);
 }
 
 .etk-components__value--ins {
 	background: color-mix(in srgb, var(--e-success, #67d992) 14%, transparent);
-	color: color-mix(in srgb, var(--e-success, #67d992), var(--etk-components-text) 45%);
+	color: color-mix(in srgb, var(--e-success, #67d992), var(--etk-text) 45%);
 }
 
 /*
@@ -1303,7 +1132,7 @@
  */
 .etk-components__diff {
 	padding-block: 6px;
-	background: var(--etk-components-field);
+	background: var(--etk-field);
 	font-family: var(--e-font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
 	font-size: var(--e-font-size-s, 11px);
 	font-weight: 400;
@@ -1311,11 +1140,11 @@
 }
 
 .etk-components__diff-line {
-	--etk-diff-num: color-mix(in srgb, var(--etk-components-text) 28%, transparent);
+	--etk-diff-num: color-mix(in srgb, var(--etk-text) 28%, transparent);
 
 	display: grid;
 	grid-template-columns: 44px 44px 26px minmax(0, 1fr);
-	color: var(--etk-components-text);
+	color: var(--etk-text);
 	text-decoration: none;
 }
 
@@ -1340,7 +1169,7 @@
 }
 
 .etk-components__diff-line--same {
-	color: var(--etk-components-text-60);
+	color: var(--etk-text-60);
 }
 
 .etk-components__diff-line--del {
@@ -1365,7 +1194,7 @@
 	padding: 0;
 	border: 0;
 	background: var(--etk-components-band);
-	color: color-mix(in srgb, var(--etk-components-text) 45%, transparent);
+	color: color-mix(in srgb, var(--etk-text) 45%, transparent);
 	font-family: var(--e-font-interface, Inter, system-ui, sans-serif);
 	font-size: var(--e-font-size-s, 11px);
 	font-weight: 400;
@@ -1373,7 +1202,7 @@
 	cursor: pointer;
 
 	&:hover {
-		color: var(--etk-components-text-75);
+		color: var(--etk-text-75);
 	}
 }
 

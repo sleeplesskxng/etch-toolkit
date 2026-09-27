@@ -682,7 +682,7 @@
 
 	const views = {
 		list: () => {
-			const count = el( 'span', { class: 'etk-components__muted', role: 'status' } );
+			const count = el( 'span', { class: 'etk-manager__muted', role: 'status' } );
 			const body = el( 'tbody' );
 			// Only the rows change as you type, so the field keeps its caret.
 			const fill = () => {
@@ -738,14 +738,14 @@
 				'div',
 				{ class: 'etk-components__review-head' },
 				button( '', () => showList(), { class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to components', title: 'Back to components', html: icon( 'arrow-left' ), 'data-focus': 'back' } ),
-				el( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: `Update ${ target.name }` } )
+				el( 'h2', { class: 'etk-manager__page-title', tabindex: '-1', textContent: `Update ${ target.name }` } )
 			),
 			el( 'p', { class: 'etk-components__help', textContent: `Drop or paste JSON for ${ target.name }. In Etch, select it and press Cmd+C. You’ll review changes before saving.` } ),
 			dropzone(),
 			el(
 				'div',
 				{ class: 'etk-components__paste' },
-				el( 'label', { class: 'etk-components__label', htmlFor: 'etk-components-json', textContent: 'Or paste JSON' } ),
+				el( 'label', { class: 'etk-manager__label', htmlFor: 'etk-components-json', textContent: 'Or paste JSON' } ),
 				el( 'textarea', {
 					id: 'etk-components-json',
 					class: 'etk-components__textarea',
@@ -761,7 +761,7 @@
 		done: () =>
 			previous
 				? [
-						el( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: `${ previous.name } is updated` } ),
+						el( 'h2', { class: 'etk-manager__page-title', tabindex: '-1', textContent: `${ previous.name } is updated` } ),
 						el( 'p', { class: 'etk-components__help', textContent: previous.update.length || previous.made.length ? 'The component is saved. Save in Etch to keep the class changes too.' : 'The component is saved.' } ),
 						el(
 							'div',
@@ -772,7 +772,7 @@
 						),
 				  ]
 				: [
-						el( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: 'The previous version is back' } ),
+						el( 'h2', { class: 'etk-manager__page-title', tabindex: '-1', textContent: 'The previous version is back' } ),
 						el( 'div', { class: 'etk-components__done-actions' }, button( 'Back to components', showList, { 'data-focus': 'another' } ) ),
 				  ],
 
@@ -789,14 +789,14 @@
 					el(
 						'div',
 						{ class: 'etk-components__review-title' },
-						el( 'h2', { class: 'etk-components__page-title', tabindex: '-1', textContent: `Update ${ current.name }` } ),
-						el( 'p', { class: 'etk-components__muted', textContent: total ? 'Pick a layer to see its code.' : 'No changes. This matches the site’s version.' } )
+						el( 'h2', { class: 'etk-manager__page-title', tabindex: '-1', textContent: `Update ${ current.name }` } ),
+						el( 'p', { class: 'etk-manager__muted', textContent: total ? 'Pick a layer to see its code.' : 'No changes. This matches the site’s version.' } )
 					),
 					total
 						? el(
 								'div',
 								{ class: 'etk-components__review-actions' },
-								approved < total ? el( 'span', { class: 'etk-components__muted', textContent: `${ plural( total - approved, 'change', 'changes' ) } left out` } ) : null,
+								approved < total ? el( 'span', { class: 'etk-manager__muted', textContent: `${ plural( total - approved, 'change', 'changes' ) } left out` } ) : null,
 								el(
 									'span',
 									{ class: 'etk-components__lines' },
@@ -1095,7 +1095,7 @@
 			previous = null;
 			render();
 			announce( `Put back the previous version of ${ name }.` );
-			main.querySelector( '.etk-components__page-title' )?.focus();
+			main.querySelector( '.etk-manager__page-title' )?.focus();
 		} catch ( error ) {
 			trigger.disabled = false;
 			warn( `Couldn’t put the previous version back: ${ errorText( error ) }` );
@@ -1181,7 +1181,7 @@
 
 	// A group on the left: its label, Show all, and its rows.
 	const group = ( id, title, toggle, body ) =>
-		el( 'section', { class: 'etk-components__group', 'aria-labelledby': id }, el( 'div', { class: 'etk-components__group-head' }, el( 'h3', { id, class: 'etk-components__label', textContent: title } ), toggle ), body );
+		el( 'section', { class: 'etk-components__group', 'aria-labelledby': id }, el( 'div', { class: 'etk-components__group-head' }, el( 'h3', { id, class: 'etk-manager__label', textContent: title } ), toggle ), body );
 
 	const rows = ( items ) => el( 'div', { class: 'etk-components__tree' }, el( 'ul', { class: 'etk-components__layers', role: 'list' }, items ) );
 
@@ -1366,7 +1366,7 @@
 		);
 
 	// The code pane's title: what's picked, and a sentence about it.
-	const paneHead = ( title, text ) => el( 'div', { class: 'etk-components__pane-head' }, el( 'h3', { class: 'etk-components__pane-title' }, title ), el( 'p', { class: 'etk-components__muted', textContent: text } ) );
+	const paneHead = ( title, text ) => el( 'div', { class: 'etk-components__pane-head' }, el( 'h3', { class: 'etk-components__pane-title' }, title ), el( 'p', { class: 'etk-manager__muted', textContent: text } ) );
 
 	// Elements that never close.
 	const VOID = new Set( [ 'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr' ] );
@@ -1720,7 +1720,7 @@
 		if ( ! main ) return;
 		const focused = main.contains( document.activeElement ) ? document.activeElement.dataset.focus : null;
 		const scrolled = new Map( [ ...main.querySelectorAll( '[data-scroll]' ) ].map( ( pane ) => [ pane.dataset.scroll, pane.scrollTop ] ) );
-		main.replaceChildren( el( 'div', { class: `etk-components__page etk-components__page--${ view }` }, ...views[ view ]() ) );
+		main.replaceChildren( el( 'div', { class: `etk-manager__page etk-components__page--${ view }` }, ...views[ view ]() ) );
 		main.querySelectorAll( '[data-scroll]' ).forEach( ( pane ) => ( pane.scrollTop = scrolled.get( pane.dataset.scroll ) ?? 0 ) );
 		if ( focused ) main.querySelector( `[data-focus="${ CSS.escape( focused ) }"]` )?.focus( { preventScroll: true } );
 	};
@@ -1729,7 +1729,7 @@
 	const go = ( next, { focus = true } = {} ) => {
 		view = next;
 		render();
-		if ( focus ) main.querySelector( '.etk-components__page-title, [data-focus="search"]' )?.focus();
+		if ( focus ) main.querySelector( '.etk-manager__page-title, [data-focus="search"]' )?.focus();
 	};
 
 	const loadUsedOn = () =>
@@ -1869,13 +1869,13 @@
 	/* ------------------------------------------------------------------ */
 
 	const build = () => {
-		status = el( 'div', { class: 'etk-components__status', role: 'status', 'aria-live': 'polite' } );
-		main = el( 'div', { class: 'etk-components__main' } );
+		status = el( 'div', { class: 'etk-manager__status', role: 'status', 'aria-live': 'polite' } );
+		main = el( 'div', { class: 'etk-manager__main' } );
 		panel = el(
 			'section',
 			{
 				id: 'etk-components',
-				class: 'etk-components',
+				class: 'etk-manager etk-manager--panel etk-manager--single etk-components',
 				hidden: true,
 				'aria-labelledby': 'etk-components-title',
 				// Keep typing in the panel away from Etch's keyboard shortcuts. Esc closes.
@@ -1896,11 +1896,11 @@
 			// Across the top, like Etch's Style Manager.
 			el(
 				'header',
-				{ class: 'etk-components__header' },
+				{ class: 'etk-manager__header' },
 				el( 'button', { type: 'button', class: 'etk-components__btn etk-components__btn--secondary etk-components__icon-btn', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: icon( 'arrow-left' ), onclick: () => close() } ),
-				el( 'h1', { id: 'etk-components-title', class: 'etk-components__title', textContent: 'Components' } )
+				el( 'h1', { id: 'etk-components-title', class: 'etk-manager__title', textContent: 'Components' } )
 			),
-			el( 'div', { class: 'etk-components__body' }, status, el( 'div', { class: 'etk-components__content' }, main ) )
+			el( 'div', { class: 'etk-manager__body' }, status, el( 'div', { class: 'etk-manager__content' }, main ) )
 		);
 		document.body.append( panel );
 	};

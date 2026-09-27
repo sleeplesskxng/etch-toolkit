@@ -27,21 +27,6 @@
 	color: var(--etk-text);
 }
 
-.etk-settings__page {
-	display: flex;
-	flex-direction: column;
-	gap: 20px;
-	inline-size: min(680px, 100%);
-	margin-inline: auto;
-	padding-block-start: 12px;
-}
-
-.etk-settings__page-title {
-	font-size: 18px;
-	font-weight: 500;
-	line-height: 24px;
-}
-
 /* ------------------------------------------------------------------ */
 /* Groups and rows                                                     */
 /* ------------------------------------------------------------------ */
