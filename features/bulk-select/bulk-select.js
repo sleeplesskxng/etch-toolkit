@@ -25,7 +25,7 @@
  */
 ( () => {
 	const toolkit = window.etchToolkit || {};
-	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, reload, classesIn, isClassSelector } = toolkit;
+	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, barButton, bulkBar, reload, classesIn, isClassSelector } = toolkit;
 	if ( ! confirmDialog ) return;
 
 	const MODAL = '.style-overview-modal__inner'; // Where every Style Manager tab renders.
@@ -984,96 +984,37 @@
 		row.classList.toggle( 'etk-row--checked', box.checked );
 	};
 
-	const icon = ( name, size ) => toolkit.icon( name, { size, className: 'etch-icon' } );
-
-	// Markup of Etch's own button component, so its global .etch-builder-button styles apply.
-	const etchButton = ( { variant, size = 'm', iconName, iconSize = 14, label, className = '', onClick } ) => {
-		const b = el( 'button', {
-			type: 'button',
-			className: `etch-builder-button etch-builder-button--icon-placement-before etch-builder-button--variant-${ variant } ${ className }`,
+	// Built once, the first time something's selected, and moved into the full-screen view when that's open.
+	let bulk = null;
+	const buildBar = () =>
+		bulkBar( {
+			label: 'Bulk style actions',
+			className: 'etk-bulk-bar--styles',
+			actions: [
+				barButton( 'Rename…', 'rename', bulkRename, { className: 'etk-bulk-bar__rename' } ),
+				barButton( el( 'span', { textContent: 'Delete' } ), 'delete', bulkDelete, { className: 'etk-bulk-bar__delete' } ),
+			],
+			onClear: clear,
+			onSelectAll: () => {
+				const r = getRoot();
+				if ( r ) visibleOrder( r ).forEach( ( id ) => selected.add( id ) );
+				schedule();
+			},
+			refocus: () => getRoot()?.querySelector( SEARCH ),
 		} );
-		b.style.setProperty( '--button-font-size', `var(--e-font-size-${ size })` );
-		b.innerHTML = `<div class="etk-bulk-bar__icon">${ icon( iconName, iconSize ) }</div>`;
-		if ( label ) b.append( ' ', label );
-		b.addEventListener( 'click', onClick );
-		return b;
-	};
-
-	// Built once per full-screen view and shown or hidden, so CSS can animate both ways.
-	const buildBar = ( screen ) => {
-		const clearButton = etchButton( { variant: 'icon', size: 's', iconName: 'close', iconSize: 12, className: 'etk-bulk-bar__clear', onClick: clear } );
-		clearButton.setAttribute( 'aria-label', 'Clear selection' );
-		clearButton.title = 'Clear selection';
-
-		const count = el( 'div', { className: 'etk-bulk-bar__count' }, [
-			el( 'span', { className: 'etk-bulk-bar__count-number' } ),
-			' ',
-			el( 'span', { className: 'etk-bulk-bar__count-label', textContent: 'selected' } ),
-		] );
-		count.setAttribute( 'role', 'status' );
-
-		const selectAll = el( 'button', { type: 'button', className: 'etk-bulk-bar__select-all', textContent: 'Select All' } );
-		selectAll.addEventListener( 'click', () => {
-			const r = getRoot();
-			if ( r ) visibleOrder( r ).forEach( ( id ) => selected.add( id ) );
-			// It hides once everything is selected. Keep focus in the bar, not on the page behind.
-			if ( document.activeElement === selectAll ) bar.querySelector( '.etk-bulk-bar__actions button:not(:disabled)' )?.focus();
-			schedule();
-		} );
-
-		const bar = el( 'div', { className: 'etk-bulk-bar etk-bulk-bar--styles', hidden: true }, [
-			el( 'div', { className: 'etk-bulk-bar__left' }, [ clearButton, count, selectAll ] ),
-			el( 'div', { className: 'etk-bulk-bar__divider' } ),
-			el( 'div', { className: 'etk-bulk-bar__actions' }, [
-				etchButton( { variant: 'transparent', iconName: 'rename', label: 'Rename…', className: 'etk-bulk-bar__rename', onClick: bulkRename } ),
-				etchButton( {
-					variant: 'transparent',
-					iconName: 'delete',
-					label: el( 'span', { textContent: 'Delete' } ),
-					className: 'etk-bulk-bar__delete',
-					onClick: bulkDelete,
-				} ),
-			] ),
-		] );
-		bar.setAttribute( 'role', 'group' );
-		bar.setAttribute( 'aria-label', 'Bulk style actions' );
-
-		screen.append( el( 'div', { className: 'etk-bulk-bar-scrim', hidden: true } ), bar );
-		return bar;
-	};
-
-	// Only write on change: every write is a DOM mutation, which would schedule another update.
-	const setHidden = ( node, hidden ) => {
-		if ( node && node.hidden !== hidden ) node.hidden = hidden;
-	};
 
 	const renderBar = ( root ) => {
 		const screen = root && ( root.closest( SCREEN ) ?? root );
-		let bar = document.querySelector( '.etk-bulk-bar--styles' );
 		const show = Boolean( screen && selected.size && ! renaming );
+		if ( ! bulk && ! show ) return;
+		bulk ||= buildBar();
+		if ( show && bulk.bar.parentElement !== screen ) screen.append( bulk.scrim, bulk.bar );
 
-		if ( ! bar ) {
-			if ( ! show ) return;
-			bar = buildBar( screen );
-		} else if ( show && bar.parentElement !== screen ) {
-			screen.append( bar.previousElementSibling, bar );
-		}
-
-		// Don't strand keyboard focus on a bar that's going away.
-		if ( ! show && bar.contains( document.activeElement ) ) root?.querySelector( SEARCH )?.focus();
-
-		setHidden( bar, ! show );
-		setHidden( bar.previousElementSibling, ! show );
+		bulk.update( show ? selected.size : 0, show && visibleOrder( root ).every( ( id ) => selected.has( id ) ) );
 		if ( ! show ) return;
 
-		const number = bar.querySelector( '.etk-bulk-bar__count-number' );
-		const text = String( selected.size );
-		if ( number.textContent !== text ) number.textContent = text;
-
-		setHidden( bar.querySelector( '.etk-bulk-bar__select-all' ), visibleOrder( root ).every( ( id ) => selected.has( id ) ) );
-
 		// Rename works on class names, which a selection of only #id styles doesn't have.
-		const rename = bar.querySelector( '.etk-bulk-bar__rename' );
+		const rename = bulk.bar.querySelector( '.etk-bulk-bar__rename' );
 		const renamable = allStyles().some( ( s ) => selected.has( s.id ) && classesIn( s.selector ).length );
 		if ( rename.disabled === renamable ) {
 			rename.disabled = ! renamable;

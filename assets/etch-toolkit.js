@@ -476,6 +476,60 @@
 		return root;
 	};
 
+	// Etch's button markup, as its bulk bars have it, so its .etch-builder-button styles apply. label is text or a node, or null for an icon alone.
+	const barButton = ( label, iconName, onclick, { variant = 'transparent', className = '', size = 'm', iconSize = 14 } = {} ) =>
+		el(
+			'button',
+			{ type: 'button', class: `etch-builder-button etch-builder-button--icon-placement-before etch-builder-button--variant-${ variant } ${ className }`, style: `--button-font-size: var(--e-font-size-${ size })`, onclick },
+			el( 'div', { class: 'etk-bulk-bar__icon', html: icon( iconName, { size: iconSize, className: 'etch-icon' } ) } ),
+			label ? [ ' ', label ] : null
+		);
+
+	/**
+	 * The Asset Manager's bulk bar: Clear, "3 selected" and Select All, then
+	 * actions (barButton()s). Built once, then shown and hidden, so CSS can
+	 * animate both ways. Put scrim, then bar, in the positioned box it floats
+	 * over. update( count, all ) shows it while count is above 0, with Select
+	 * All until all are selected, and writes only what changed. When it hides
+	 * with focus in it, focus goes to refocus()'s element.
+	 */
+	const bulkBar = ( { label, className = '', actions, onClear, onSelectAll, refocus = () => null } ) => {
+		const number = el( 'span', { class: 'etk-bulk-bar__count-number' } );
+		const selectAll = el( 'button', {
+			type: 'button',
+			class: 'etk-bulk-bar__select-all',
+			textContent: 'Select All',
+			onclick: () => {
+				// It hides once everything is selected. Keep focus in the bar, not on the page behind.
+				if ( document.activeElement === selectAll ) bar.querySelector( '.etk-bulk-bar__actions button:not(:disabled)' )?.focus();
+				onSelectAll();
+			},
+		} );
+		const clear = barButton( null, 'close', onClear, { variant: 'icon', className: 'etk-bulk-bar__clear', size: 's', iconSize: 12 } );
+		clear.setAttribute( 'aria-label', 'Clear selection' );
+		clear.title = 'Clear selection';
+		const bar = el(
+			'div',
+			{ class: `etk-bulk-bar ${ className }`, hidden: true, role: 'group', 'aria-label': label },
+			el( 'div', { class: 'etk-bulk-bar__left' }, clear, el( 'div', { class: 'etk-bulk-bar__count', role: 'status' }, number, ' ', el( 'span', { class: 'etk-bulk-bar__count-label', textContent: 'selected' } ) ), selectAll ),
+			el( 'div', { class: 'etk-bulk-bar__divider' } ),
+			el( 'div', { class: 'etk-bulk-bar__actions' }, actions )
+		);
+		const scrim = el( 'div', { class: 'etk-bulk-bar-scrim', hidden: true } );
+		// Only write on change: a feature watching the DOM would take every write as news.
+		const setHidden = ( node, hidden ) => node.hidden !== hidden && ( node.hidden = hidden );
+		const update = ( count, all ) => {
+			const show = count > 0;
+			if ( ! show && bar.contains( document.activeElement ) ) refocus()?.focus();
+			setHidden( bar, ! show );
+			setHidden( scrim, ! show );
+			if ( ! show ) return;
+			if ( number.textContent !== String( count ) ) number.textContent = String( count );
+			setHidden( selectAll, all );
+		};
+		return { bar, scrim, update };
+	};
+
 	// Etch always reopens in the builder. reload() remembers where you were (e.g. the
 	// Style Manager) and goes back there once Etch's API is up.
 	const PLACE_KEY = 'etk-return-place';
@@ -504,6 +558,6 @@
 		if ( place && place !== 'builder' ) tick();
 	} catch {}
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, slider, rebuild, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, slider, rebuild, barButton, bulkBar, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
 	window.etchToolkit = toolkit;
 } )();

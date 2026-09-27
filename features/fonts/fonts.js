@@ -23,7 +23,7 @@
  */
 ( () => {
 	const toolkit = window.etchToolkit || {};
-	const { api, afterSave, unsaved, el, plural, errorText, fileSize: size, confirmDialog, slider, rebuild, ICONS } = toolkit;
+	const { api, afterSave, unsaved, el, plural, errorText, fileSize: size, confirmDialog, slider, rebuild, barButton, bulkBar, ICONS } = toolkit;
 	const config = window.etchToolkitFonts || {};
 	if ( ! confirmDialog ) return;
 
@@ -1025,7 +1025,7 @@
 	 */
 	const picked = new Set();
 	let pickAnchor = null;
-	let bulkBar = null;
+	let bulk = null;
 
 	const editable = ( file ) => ! file.unsafe && ( ! file.family || state.families.some( ( f ) => f.name === file.family ) );
 	const shownFiles = () => state.files.filter( ( f ) => fileFilter === 'all' || ( fileFilter === 'unused' ? ! f.family : !! f.family ) );
@@ -1076,43 +1076,13 @@
 	};
 
 	const renderBulkBar = ( shown ) => {
-		if ( ! bulkBar ) return;
-		const show = picked.size > 0;
-		// Don't strand focus on a bar that's going away.
-		if ( ! show && bulkBar.contains( document.activeElement ) ) ( main.querySelector( '.etk-fonts__pick-all:not(:disabled)' ) || panel.querySelector( '.etk-fonts__page-title' ) )?.focus();
-		bulkBar.hidden = ! show;
-		bulkBar.previousElementSibling.hidden = ! show;
-		if ( ! show ) return;
-		bulkBar.querySelector( '.etk-bulk-bar__count-number' ).textContent = String( picked.size );
-		bulkBar.querySelector( '.etk-bulk-bar__select-all' ).hidden = picked.size >= shown.length;
-		bulkBar.querySelector( '.etk-fonts__bulk-remove' ).disabled = ! pickedFiles().some( ( f ) => f.family );
+		if ( ! bulk ) return;
+		bulk.update( picked.size, picked.size >= shown.length );
+		bulk.bar.querySelector( '.etk-fonts__bulk-remove' ).disabled = ! pickedFiles().some( ( f ) => f.family );
 	};
-
-	// Etch's button markup, as the Style Manager's bulk bar has it.
-	const barButton = ( label, iconName, onclick, { variant = 'transparent', className = '', size = 'm', iconSize = 14 } = {} ) =>
-		el(
-			'button',
-			{ type: 'button', class: `etch-builder-button etch-builder-button--icon-placement-before etch-builder-button--variant-${ variant } ${ className }`, style: `--button-font-size: var(--e-font-size-${ size })`, onclick },
-			el( 'div', { class: 'etk-bulk-bar__icon', html: icon( iconName, iconSize ) } ),
-			label ? [ ' ', label ] : null
-		);
 
 	// The Style Manager's bulk bar, for the Files tab. Built once, then shown and hidden.
 	const buildBulkBar = () => {
-		const clearButton = barButton( null, 'close', clearPicks, { variant: 'icon', className: 'etk-bulk-bar__clear', size: 's', iconSize: 12 } );
-		clearButton.setAttribute( 'aria-label', 'Clear selection' );
-		clearButton.title = 'Clear selection';
-		const selectAll = el( 'button', {
-			type: 'button',
-			class: 'etk-bulk-bar__select-all',
-			textContent: 'Select All',
-			onclick: () => {
-				pickable().forEach( ( f ) => picked.add( f.name ) );
-				// It hides once everything is picked. Keep focus in the bar.
-				if ( document.activeElement === selectAll ) bulkBar.querySelector( '.etk-bulk-bar__actions button:not(:disabled)' )?.focus();
-				syncPicks();
-			},
-		} );
 		const add = menu(
 			barButton( 'Add to family', 'plus', null ),
 			() => [
@@ -1122,26 +1092,23 @@
 			],
 			{ label: 'Add to family', align: 'start' }
 		);
-		bulkBar = el(
-			'div',
-			{ class: 'etk-bulk-bar etk-fonts__bulk', hidden: true, role: 'group', 'aria-label': 'Bulk file actions' },
-			el(
-				'div',
-				{ class: 'etk-bulk-bar__left' },
-				clearButton,
-				el( 'div', { class: 'etk-bulk-bar__count', role: 'status' }, el( 'span', { class: 'etk-bulk-bar__count-number' } ), ' ', el( 'span', { class: 'etk-bulk-bar__count-label', textContent: 'selected' } ) ),
-				selectAll
-			),
-			el( 'div', { class: 'etk-bulk-bar__divider' } ),
-			el(
-				'div',
-				{ class: 'etk-bulk-bar__actions' },
+		bulk = bulkBar( {
+			label: 'Bulk file actions',
+			className: 'etk-fonts__bulk',
+			actions: [
 				add,
 				barButton( 'Remove from family', 'close', () => moveFiles( pickedFiles().filter( ( f ) => f.family ), null ), { className: 'etk-fonts__bulk-remove' } ),
-				barButton( el( 'span', { textContent: 'Delete' } ), 'delete', () => deleteFiles( pickedFiles() ), { className: 'etk-bulk-bar__delete' } )
-			)
-		);
-		return [ el( 'div', { class: 'etk-bulk-bar-scrim', hidden: true } ), bulkBar ];
+				barButton( el( 'span', { textContent: 'Delete' } ), 'delete', () => deleteFiles( pickedFiles() ), { className: 'etk-bulk-bar__delete' } ),
+			],
+			onClear: clearPicks,
+			onSelectAll: () => {
+				pickable().forEach( ( f ) => picked.add( f.name ) );
+				syncPicks();
+			},
+			// Don't strand focus on a bar that's going away.
+			refocus: () => main.querySelector( '.etk-fonts__pick-all:not(:disabled)' ) || panel.querySelector( '.etk-fonts__page-title' ),
+		} );
+		return [ bulk.scrim, bulk.bar ];
 	};
 
 	const newFamily = ( files ) => {
