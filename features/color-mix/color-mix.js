@@ -13,10 +13,9 @@
  * A color-mix() opens with its own values, in the mode that fits it.
  *
  * Changes show in the code and on the canvas as you make them. Esc or Cancel
- * puts the color back, Done, Enter or a click outside keeps it. The previews
- * stay out of the editor's undo history, so Cmd+Z in the editor takes the
- * whole change back in one step. Etch's own undo can't be held off from
- * outside, so it may keep a step for each pause.
+ * puts the color back, Done, Enter or a click outside keeps it. Only what's
+ * kept reaches Etch, as one step of its undo history and the editor's, so
+ * one Cmd+Z takes the whole change back.
  */
 ( () => {
 	const { el, slider, cssText, editorWidgets, editorEdit, editorPanel, colorField, resolveColor, isColor } = window.etchToolkit || {};

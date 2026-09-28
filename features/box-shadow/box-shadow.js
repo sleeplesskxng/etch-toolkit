@@ -19,8 +19,8 @@
  * only replaced once you change something.
  *
  * As with color mix, changes show in the code and on the canvas as you make
- * them, Esc or Cancel puts the shadow back, and Cmd+Z in the editor takes the
- * whole change back in one step.
+ * them, Esc or Cancel puts the shadow back, and only what's kept reaches
+ * Etch, so one Cmd+Z takes the whole change back.
  */
 ( () => {
 	const { el, slider, cssText, editorWidgets, editorEdit, editorPanel, colorField, resolveColor, isColor } = window.etchToolkit || {};

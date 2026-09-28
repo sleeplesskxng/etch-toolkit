@@ -1168,33 +1168,140 @@
 	// The editor's undo history: its steps so far, in `done`.
 	const historyOf = ( view ) => view.state.values.find( ( value ) => Array.isArray( value?.done ) && Array.isArray( value?.undone ) ) || null;
 
+	/*
+	 * canvasPreview( text, from, length ): the declaration in a CSS editor's
+	 * `text` that holds from..from + length, found in the canvas's style
+	 * sheets, where Etch draws its styles. show( text ) sets it there from the
+	 * editor's text now, restore() puts it back. Where it can't be found, both
+	 * do nothing.
+	 *
+	 * The editor's top selector names the rule, and the declaration is the
+	 * nth of its property in it, counting only those the browser keeps. With
+	 * no such rule, as in a stylesheet, a declaration of the same value found
+	 * only once will do.
+	 */
+	const IMPORTANT = /\s*!\s*important\s*$/i;
+	const canvasPreview = ( text, from, length ) => {
+		const none = { show() {}, restore() {} };
+		const all = declarations( text );
+		const target = all.find( ( d ) => d.from <= from && from + length <= d.to );
+		if ( ! target ) return none;
+		const property = target.property.toLowerCase();
+		const split = ( value ) => ( { value: value.replace( IMPORTANT, '' ).trim(), priority: IMPORTANT.test( value ) ? 'important' : '' } );
+		// As the browser writes it back.
+		const probe = document.createElement( 'div' ).style;
+		const normal = ( raw ) => {
+			const { value, priority } = split( raw );
+			probe.cssText = '';
+			probe.setProperty( property, value, priority );
+			return probe.getPropertyValue( property );
+		};
+		const kept = all.filter( ( d ) => d.property.toLowerCase() === property && normal( text.slice( d.from, d.to ) ) );
+		const nth = kept.indexOf( target );
+		if ( nth < 0 ) return none;
+		const original = text.slice( target.from, target.to );
+		const wanted = normal( original );
+
+		let selector = null;
+		const head = text.replace( /\/\*[^]*?\*\//g, '' ).split( '{' )[ 0 ].trim();
+		if ( head && ! head.startsWith( '@' ) ) {
+			try {
+				const sheet = new CSSStyleSheet();
+				sheet.replaceSync( `${ head } {}` );
+				selector = sheet.cssRules[ 0 ]?.selectorText || null;
+			} catch {}
+		}
+		// A rule's declarations of the property, in order: its own, then its nested rules'.
+		const declared = ( rule, list = [] ) => {
+			if ( rule.style?.getPropertyValue( property ) ) list.push( rule.style );
+			for ( const child of rule.cssRules || [] ) declared( child, list );
+			return list;
+		};
+		const find = () => {
+			const sheets = [];
+			for ( const sheet of canvasDoc()?.styleSheets || [] ) {
+				try {
+					sheets.push( sheet.cssRules );
+				} catch {}
+			}
+			// Style rules at the top, or in layers and at-rules round them.
+			const tops = ( rules, list = [] ) => {
+				for ( const rule of rules ) {
+					if ( rule.selectorText !== undefined ) list.push( rule );
+					else if ( rule.cssRules ) tops( rule.cssRules, list );
+				}
+				return list;
+			};
+			const rules = sheets.flatMap( ( rules ) => tops( rules ) );
+			if ( selector ) {
+				for ( const rule of rules ) {
+					if ( rule.selectorText !== selector ) continue;
+					const style = declared( rule )[ nth ];
+					if ( style?.getPropertyValue( property ) === wanted ) return style;
+				}
+			}
+			const same = rules.flatMap( ( rule ) => declared( rule ) ).filter( ( style ) => style.getPropertyValue( property ) === wanted );
+			return same.length === 1 ? same[ 0 ] : null;
+		};
+		let style = null;
+		// Etch redraws a sheet whole, which leaves the one found without a page.
+		const current = () => {
+			if ( ! style?.parentRule?.parentStyleSheet?.ownerNode?.isConnected ) style = find();
+			return style;
+		};
+		const set = ( raw ) => {
+			const { value, priority } = split( raw );
+			current()?.setProperty( property, value, priority );
+		};
+		return {
+			show: ( now ) => set( now.slice( target.from, target.to + now.length - text.length ) ),
+			restore: () => set( original ),
+		};
+	};
+
 	/**
 	 * editorEdit( view, from, original ): edits the text `original` at `from`.
 	 * set( text ) shows a change in the code and on the canvas as you make it.
-	 * finish( true ) keeps it as one step of the editor's undo history, so one
-	 * Cmd+Z takes the whole change back. finish( false ) puts the original back.
+	 * finish( true ) hands it to Etch as one step of its undo history and one
+	 * of the editor's, so one Cmd+Z takes the whole change back.
+	 * finish( false ) puts the original back, and Etch never has it.
 	 *
-	 * The changes go into the history as they're made, and finish undoes them
-	 * all, then writes the result once. Kept out of the history and put back
-	 * by hand, they'd leave it mapping its earlier steps through them, and a
-	 * step that wrote this same text then couldn't find it to undo.
+	 * Etch's history takes a step whenever a style changes after a pause, so
+	 * until the end the style doesn't change. The editor's view is updated
+	 * directly, past Etch's dispatch, which is what hands the text to the
+	 * style, and the canvas gets the declaration in its style sheet.
+	 *
+	 * The changes go into the editor's history as they're made, and finish
+	 * undoes them all, then writes the result once. Kept out of the history
+	 * and put back by hand, they'd leave it mapping its earlier steps through
+	 * them, and a step that wrote this same text then couldn't find it to undo.
 	 */
 	const editorEdit = ( view, from, original ) => {
 		const Transaction = view.state.update( {} ).constructor;
 		const undo = undoCommand( view );
 		const tracked = !! ( undo && historyOf( view ) );
+		const preview = canvasPreview( view.state.doc.toString(), from, original.length );
+		// What the editor's commands take, updating the view without Etch.
+		const quietly = {
+			get state() {
+				return view.state;
+			},
+			dispatch: ( tr ) => view.update( [ tr ] ),
+		};
 		// A selection closes the history's last step, so no typing before or after joins these.
 		const apart = () => view.dom.isConnected && view.dispatch( { selection: view.state.selection } );
 		let current = original;
 		let base = null; // How many steps the history had before the first change.
-		// Only what differs.
-		const write = ( text, annotations ) => {
+		// Only what differs. Quiet unless it's for Etch.
+		const write = ( text, annotations, loud = false ) => {
 			if ( ! view.dom.isConnected ) return;
 			let start = 0;
 			while ( start < current.length && current[ start ] === text[ start ] ) start++;
 			let end = 0;
 			while ( end < current.length - start && end < text.length - start && current.at( -1 - end ) === text.at( -1 - end ) ) end++;
-			view.dispatch( { changes: { from: from + start, to: from + current.length - end, insert: text.slice( start, text.length - end ) }, annotations } );
+			const spec = { changes: { from: from + start, to: from + current.length - end, insert: text.slice( start, text.length - end ) }, annotations };
+			if ( loud ) view.dispatch( spec );
+			else quietly.dispatch( view.state.update( spec ) );
 			current = text;
 		};
 		return {
@@ -1206,21 +1313,23 @@
 					base = historyOf( view ).done.length;
 				}
 				write( text, tracked ? [] : Transaction.addToHistory.of( false ) );
+				preview.show( view.state.doc.toString() );
 			},
 			finish( keep ) {
 				const final = current;
+				const changed = keep && final !== original && view.dom.isConnected;
+				if ( ! changed ) preview.restore();
 				if ( ! view.dom.isConnected ) return;
 				if ( base !== null ) {
 					// Back to before the first change. A step that won't undo ends it.
-					for ( let guard = 0; historyOf( view ).done.length > base && guard < 1000; guard++ ) if ( ! undo( view ) ) break;
-					current = original;
-					if ( keep && final !== original ) write( final, Transaction.userEvent.of( 'input' ) );
-					apart();
+					for ( let guard = 0; historyOf( view ).done.length > base && guard < 1000; guard++ ) if ( ! undo( quietly ) ) break;
 				} else if ( final !== original ) {
 					write( original, Transaction.addToHistory.of( false ) );
-					if ( keep ) write( final, Transaction.userEvent.of( 'input' ) );
 				}
-				if ( view.dom.isConnected ) view.focus();
+				current = original;
+				if ( changed ) write( final, Transaction.userEvent.of( 'input' ), true );
+				if ( base !== null ) apart();
+				view.focus();
 			},
 		};
 	};
