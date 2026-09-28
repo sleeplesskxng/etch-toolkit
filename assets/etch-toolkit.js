@@ -165,6 +165,7 @@
 		eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>',
 		copy: '<path d="M9 15C9 12.1716 9 10.7574 9.87868 9.87868C10.7574 9 12.1716 9 15 9H16C18.8284 9 20.2426 9 21.1213 9.87868C22 10.7574 22 12.1716 22 15V16C22 18.8284 22 20.2426 21.1213 21.1213C20.2426 22 18.8284 22 16 22H15C12.1716 22 10.7574 22 9.87868 21.1213C9 20.2426 9 18.8284 9 16V15Z"/><path d="M16.9999 9C16.9975 6.04291 16.9528 4.51121 16.092 3.46243C15.9258 3.25989 15.7401 3.07418 15.5376 2.90796C14.4312 2 12.7875 2 9.5 2C6.21252 2 4.56878 2 3.46243 2.90796C3.25989 3.07417 3.07418 3.25989 2.90796 3.46243C2 4.56878 2 6.21252 2 9.5C2 12.7875 2 14.4312 2.90796 15.5376C3.07417 15.7401 3.25989 15.9258 3.46243 16.092C4.51121 16.9528 6.04291 16.9975 9 16.9999"/>',
 		upload: '<path d="M12 4.5L12 14.5M12 4.5C11.2998 4.5 9.99153 6.4943 9.5 7M12 4.5C12.7002 4.5 14.0085 6.4943 14.5 7"/><path d="M20 16.5C20 18.982 19.482 19.5 17 19.5H7C4.518 19.5 4 18.982 4 16.5"/>',
+		download: '<path d="M12 14.5L12 4.5M12 14.5C11.2998 14.5 9.99153 12.5057 9.5 12M12 14.5C12.7002 14.5 14.0085 12.5057 14.5 12"/><path d="M20 16.5C20 18.982 19.482 19.5 17 19.5H7C4.518 19.5 4 18.982 4 16.5"/>',
 		// Etch's hugeicons:search-01, as on the Selectors tab.
 		search: '<path d="M17.5 17.5L22 22"/><path d="M20 11C20 6.02944 15.9706 2 11 2C6.02944 2 2 6.02944 2 11C2 15.9706 6.02944 20 11 20C15.9706 20 20 15.9706 20 11Z"/>',
 		// Hugeicons free arrow-up-right-01, as Etch uses for "Open in Builder".
@@ -756,6 +757,122 @@
 		return el( 'div', { ...attrs, class: `etk-search${ attrs.class ? ` ${ attrs.class }` : '' }` }, el( 'span', { class: 'etk-search__icon', html: icon( 'search', { size: 14 } ) } ), input );
 	};
 
+	/**
+	 * A menu on a button in a manager, styled like Etch's context menu. items: [ { label,
+	 * onselect, icon, danger, disabled } ], '-' for a separator, or a function
+	 * returning them, read on open. Arrow keys, Home and End move, Enter picks,
+	 * Escape closes, Tab closes and moves on. Focus returns to the button.
+	 * One menu or popup is open at a time.
+	 */
+	let openMenu = null;
+	const onMenuOutside = ( e ) => {
+		if ( e.type === 'pointerdown' && ( openMenu?.popup.contains( e.target ) || openMenu?.trigger.contains( e.target ) ) ) return;
+		if ( e.type === 'scroll' && openMenu?.popup.contains( e.target ) ) return;
+		closePopup();
+	};
+	const closePopup = ( { focus = false } = {} ) => {
+		if ( ! openMenu ) return;
+		const { trigger, popup, onclose } = openMenu;
+		openMenu = null;
+		popup.remove();
+		trigger.setAttribute( 'aria-expanded', 'false' );
+		trigger.removeAttribute( 'selected' );
+		document.removeEventListener( 'pointerdown', onMenuOutside, true );
+		document.removeEventListener( 'scroll', onMenuOutside, true );
+		window.removeEventListener( 'resize', onMenuOutside );
+		if ( focus && trigger.isConnected ) trigger.focus();
+		onclose?.();
+	};
+
+	// Whether trigger's menu or popup is the one open.
+	const popupOpen = ( trigger ) => openMenu?.trigger === trigger;
+
+	// Show a menu or popover under its trigger, or above when there's no room.
+	const openPopup = ( trigger, popup, { align = 'end', onclose } = {} ) => {
+		// In the manager, for its tokens and its keyboard fence. Fixed, so no scroller clips it.
+		( trigger.closest( '.etk-manager' ) || document.body ).append( popup );
+		const box = trigger.getBoundingClientRect();
+		const size = popup.getBoundingClientRect();
+		const left = Math.max( 8, Math.min( align === 'end' ? box.right - size.width : box.left, window.innerWidth - size.width - 8 ) );
+		const top = box.bottom + 4 + size.height > window.innerHeight - 8 ? Math.max( 8, box.top - 4 - size.height ) : box.bottom + 4;
+		popup.style.left = `${ left }px`;
+		popup.style.top = `${ top }px`;
+
+		openMenu = { trigger, popup, onclose };
+		trigger.setAttribute( 'aria-expanded', 'true' );
+		trigger.setAttribute( 'selected', 'true' );
+		document.addEventListener( 'pointerdown', onMenuOutside, true );
+		document.addEventListener( 'scroll', onMenuOutside, true );
+		window.addEventListener( 'resize', onMenuOutside );
+	};
+
+	const menu = ( trigger, items, { label, align = 'end' } = {} ) => {
+		trigger.setAttribute( 'aria-haspopup', 'menu' );
+		trigger.setAttribute( 'aria-expanded', 'false' );
+
+		const show = ( first ) => {
+			closePopup();
+			const entries = ( typeof items === 'function' ? items() : items ).filter( Boolean );
+			const choices = [];
+			const popup = el(
+				'div',
+				{
+					class: 'right-click-menu__content etk-menu',
+					role: 'menu',
+					'aria-label': label || trigger.getAttribute( 'aria-label' ) || trigger.textContent.trim(),
+					onkeydown: ( e ) => {
+						const i = choices.indexOf( document.activeElement );
+						const next = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: choices.length - 1 }[ e.key ];
+						if ( next !== undefined ) {
+							e.preventDefault();
+							choices[ ( next + choices.length ) % choices.length ]?.focus();
+						} else if ( e.key === 'Escape' ) {
+							// Not the manager's Escape, which would close it.
+							e.preventDefault();
+							e.stopPropagation();
+							closePopup( { focus: true } );
+						} else if ( e.key === 'Tab' ) {
+							// Back on the button first, so Tab moves on from there.
+							closePopup( { focus: true } );
+						}
+					},
+				},
+				entries.map( ( item ) => {
+					if ( item === '-' ) return el( 'div', { class: 'right-click-menu__separator etk-menu__separator', role: 'separator' } );
+					const node = el(
+						'button',
+						{
+							type: 'button',
+							role: 'menuitem',
+							tabindex: '-1',
+							class: `right-click-menu__item etk-menu__item${ item.danger ? ' danger' : '' }`,
+							'aria-disabled': item.disabled ? 'true' : null,
+							'data-disabled': item.disabled ? '' : null,
+							onclick: () => {
+								if ( item.disabled ) return;
+								closePopup( { focus: true } );
+								item.onselect();
+							},
+						},
+						el( 'span', { class: 'right-click-menu__item-label etk-menu__label' }, item.icon ? el( 'span', { class: 'etk-menu__icon', html: icon( item.icon, { size: 14 } ) } ) : null, item.label )
+					);
+					choices.push( node );
+					return node;
+				} )
+			);
+			openPopup( trigger, popup, { align } );
+			choices.at( first )?.focus();
+		};
+
+		trigger.addEventListener( 'click', () => ( openMenu?.trigger === trigger ? closePopup() : show( 0 ) ) );
+		trigger.addEventListener( 'keydown', ( e ) => {
+			if ( e.key !== 'ArrowDown' && e.key !== 'ArrowUp' ) return;
+			e.preventDefault();
+			show( e.key === 'ArrowUp' ? -1 : 0 );
+		} );
+		return trigger;
+	};
+
 	// Save data as a .json file. A string goes as it is, anything else as JSON.
 	const downloadJson = ( data, name ) => {
 		const url = URL.createObjectURL( new Blob( [ typeof data === 'string' ? data : JSON.stringify( data ) ], { type: 'application/json' } ) );
@@ -838,6 +955,6 @@
 		if ( place && place !== 'builder' ) tick();
 	} catch {}
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, onMenu, menuItem, findMenuItem, settingsBarButton, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, onMenu, menuItem, findMenuItem, settingsBarButton, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
 	window.etchToolkit = toolkit;
 } )();

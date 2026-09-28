@@ -23,7 +23,7 @@
  */
 ( () => {
 	const toolkit = window.etchToolkit || {};
-	const { api, afterSave, unsaved, el, plural, errorText, fileSize: size, confirmDialog, slider, rebuild, barButton, bulkBar, settingsBarButton, managerKeys, openManager, ICONS } = toolkit;
+	const { api, afterSave, unsaved, el, plural, errorText, fileSize: size, confirmDialog, slider, rebuild, barButton, bulkBar, settingsBarButton, managerKeys, openManager, menu, openPopup, closePopup, popupOpen, ICONS } = toolkit;
 	const config = window.etchToolkitFonts || {};
 	if ( ! confirmDialog ) return;
 
@@ -611,118 +611,6 @@
 		);
 
 	/**
-	 * A menu on a button, styled like Etch's context menu. items: [ { label,
-	 * onselect, icon, danger, disabled } ], '-' for a separator, or a function
-	 * returning them, read on open. Arrow keys, Home and End move, Enter picks,
-	 * Escape closes, Tab closes and moves on. Focus returns to the button.
-	 */
-	let openMenu = null;
-	const onMenuOutside = ( e ) => {
-		if ( e.type === 'pointerdown' && ( openMenu?.popup.contains( e.target ) || openMenu?.trigger.contains( e.target ) ) ) return;
-		if ( e.type === 'scroll' && openMenu?.popup.contains( e.target ) ) return;
-		closeMenu();
-	};
-	const closeMenu = ( { focus = false } = {} ) => {
-		if ( ! openMenu ) return;
-		const { trigger, popup, onclose } = openMenu;
-		openMenu = null;
-		popup.remove();
-		trigger.setAttribute( 'aria-expanded', 'false' );
-		trigger.removeAttribute( 'selected' );
-		document.removeEventListener( 'pointerdown', onMenuOutside, true );
-		document.removeEventListener( 'scroll', onMenuOutside, true );
-		window.removeEventListener( 'resize', onMenuOutside );
-		if ( focus && trigger.isConnected ) trigger.focus();
-		onclose?.();
-	};
-
-	// Show a menu or popover under its trigger, or above when there's no room.
-	const openPopup = ( trigger, popup, { align = 'end', onclose } = {} ) => {
-		// In the panel, for its tokens and its keyboard fence. Fixed, so no scroller clips it.
-		panel.append( popup );
-		const box = trigger.getBoundingClientRect();
-		const size = popup.getBoundingClientRect();
-		const left = Math.max( 8, Math.min( align === 'end' ? box.right - size.width : box.left, window.innerWidth - size.width - 8 ) );
-		const top = box.bottom + 4 + size.height > window.innerHeight - 8 ? Math.max( 8, box.top - 4 - size.height ) : box.bottom + 4;
-		popup.style.left = `${ left }px`;
-		popup.style.top = `${ top }px`;
-
-		openMenu = { trigger, popup, onclose };
-		trigger.setAttribute( 'aria-expanded', 'true' );
-		trigger.setAttribute( 'selected', 'true' );
-		document.addEventListener( 'pointerdown', onMenuOutside, true );
-		document.addEventListener( 'scroll', onMenuOutside, true );
-		window.addEventListener( 'resize', onMenuOutside );
-	};
-
-	const menu = ( trigger, items, { label, align = 'end' } = {} ) => {
-		trigger.setAttribute( 'aria-haspopup', 'menu' );
-		trigger.setAttribute( 'aria-expanded', 'false' );
-
-		const show = ( first ) => {
-			closeMenu();
-			const entries = ( typeof items === 'function' ? items() : items ).filter( Boolean );
-			const choices = [];
-			const popup = el(
-				'div',
-				{
-					class: 'right-click-menu__content etk-fonts__menu',
-					role: 'menu',
-					'aria-label': label || trigger.getAttribute( 'aria-label' ) || trigger.textContent.trim(),
-					onkeydown: ( e ) => {
-						const i = choices.indexOf( document.activeElement );
-						const next = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: choices.length - 1 }[ e.key ];
-						if ( next !== undefined ) {
-							e.preventDefault();
-							choices[ ( next + choices.length ) % choices.length ]?.focus();
-						} else if ( e.key === 'Escape' ) {
-							// Not the panel's Escape, which would close the fonts manager.
-							e.preventDefault();
-							e.stopPropagation();
-							closeMenu( { focus: true } );
-						} else if ( e.key === 'Tab' ) {
-							// Back on the button first, so Tab moves on from there.
-							closeMenu( { focus: true } );
-						}
-					},
-				},
-				entries.map( ( item ) => {
-					if ( item === '-' ) return el( 'div', { class: 'right-click-menu__separator etk-fonts__menu-separator', role: 'separator' } );
-					const node = el(
-						'button',
-						{
-							type: 'button',
-							role: 'menuitem',
-							tabindex: '-1',
-							class: `right-click-menu__item etk-fonts__menu-item${ item.danger ? ' danger' : '' }`,
-							'aria-disabled': item.disabled ? 'true' : null,
-							'data-disabled': item.disabled ? '' : null,
-							onclick: () => {
-								if ( item.disabled ) return;
-								closeMenu( { focus: true } );
-								item.onselect();
-							},
-						},
-						el( 'span', { class: 'right-click-menu__item-label etk-fonts__menu-label' }, item.icon ? el( 'span', { class: 'etk-fonts__menu-icon', html: icon( item.icon, 14 ) } ) : null, item.label )
-					);
-					choices.push( node );
-					return node;
-				} )
-			);
-			openPopup( trigger, popup, { align } );
-			choices.at( first )?.focus();
-		};
-
-		trigger.addEventListener( 'click', () => ( openMenu?.trigger === trigger ? closeMenu() : show( 0 ) ) );
-		trigger.addEventListener( 'keydown', ( e ) => {
-			if ( e.key !== 'ArrowDown' && e.key !== 'ArrowUp' ) return;
-			e.preventDefault();
-			show( e.key === 'ArrowUp' ? -1 : 0 );
-		} );
-		return trigger;
-	};
-
-	/**
 	 * A family's CSS variable, with a copy button that shows a tick for a moment.
 	 * Takes the saved name, so a family renamed in the editor shows its variable
 	 * as it is until it's saved. Variants: chip (inline), field (a full-width
@@ -1155,8 +1043,8 @@
 			el( 'span', { class: 'etk-fonts__weight-cell-icon', html: icon( 'chevron-down', 10 ) } )
 		);
 		trigger.addEventListener( 'click', () => {
-			if ( openMenu?.trigger === trigger ) return closeMenu();
-			closeMenu();
+			if ( popupOpen( trigger ) ) return closePopup();
+			closePopup();
 			const edited = clone( variant );
 			const title = el( 'span', { class: 'etk-fonts__file-title' } );
 			const body = el( 'div', { class: 'etk-fonts__popover-body' } );
@@ -1176,13 +1064,13 @@
 							// Not the panel's Escape, which would close the fonts manager.
 							e.preventDefault();
 							e.stopPropagation();
-							closeMenu( { focus: true } );
+							closePopup( { focus: true } );
 						} else if ( e.key === 'Tab' ) {
 							// Tabbing past either end goes back to the button.
 							const stops = [ ...popup.querySelectorAll( 'input:checked, select' ) ];
 							if ( document.activeElement === ( e.shiftKey ? stops[ 0 ] : stops.at( -1 ) ) ) {
 								e.preventDefault();
-								closeMenu( { focus: true } );
+								closePopup( { focus: true } );
 							}
 						}
 					},
@@ -2531,7 +2419,7 @@
 		const views = { library: renderLibrary, family: renderFamily, google: renderGoogle, 'google-font': renderGoogleFont };
 		if ( view === 'family' && ! draft ) view = 'library';
 		// Its button may be about to go.
-		closeMenu();
+		closePopup();
 
 		panel.querySelectorAll( '.etk-manager__nav button' ).forEach( ( b ) => {
 			const current = b.dataset.view === ( PARENTS[ view ] || view );
@@ -2599,7 +2487,7 @@
 	// focus: false when another Settings Bar button closed it, so focus stays on that one.
 	const close = async ( { focus = true } = {} ) => {
 		if ( ! panel || panel.hidden ) return;
-		closeMenu();
+		closePopup();
 		// Your changes stay, until Etch's Save. The editor opens on the library next time.
 		if ( view === 'family' ) {
 			draft = null;
