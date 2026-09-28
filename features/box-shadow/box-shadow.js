@@ -30,7 +30,7 @@
 	const { splitTop, declarations } = cssText;
 
 	const PROPERTY = /^box-shadow$/i;
-	const LAYERS = { min: 1, max: 8, start: 5 };
+	const LAYERS = { min: 1, max: 8, start: 6 };
 	const SIZE = { min: 1, max: 64, start: 24 }; // The biggest layer's offset, in pixels.
 	const SOFTNESS = { min: 1, max: 3.5, start: 2 }; // 2 blurs as the plugin does.
 	const OPACITY = 20; // Percent, to start.
