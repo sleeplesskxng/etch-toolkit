@@ -6,7 +6,8 @@
  * a table like the Fonts manager's files. Each row's buttons edit one in
  * Etch's component editor, update it from a JSON file or pasted JSON after
  * reviewing the changes, or delete it. Its More menu copies or downloads it
- * as Etch's copy JSON, to paste into Etch on any site.
+ * as Etch's copy JSON, to paste into Etch on any site. Checkboxes pick
+ * several for the bulk bar, to download (a file each) or delete.
  *
  * It reads three shapes:
  * - Etch's copy (Cmd+C on a layer): { version, gutenbergBlock, styles,
@@ -25,7 +26,7 @@
 	if ( ! toolkit.api ) return;
 
 	const CONTROL_ID = 'etch-toolkit-component-manager';
-	const { el, plural, errorText, settingsBarButton, managerKeys, openManager, downloadJson, jsonDropzone, searchBox, menu } = toolkit;
+	const { el, plural, errorText, settingsBarButton, managerKeys, openManager, downloadJson, jsonDropzone, searchBox, menu, barButton, bulkBar } = toolkit;
 	const icon = ( name, size ) => toolkit.icon( name, { size, className: 'etk-components__icon' } );
 
 	const enabled = () => window.etchToolkitSettings?.settings?.componentManager === true && typeof window.etch?.components?.updateAsync === 'function';
@@ -654,13 +655,150 @@
 		);
 	};
 
+	/* ---- Picking several, for the bulk bar ---- */
+
+	// Components picked for the bulk bar, by ID. Only the ones the list shows stay picked.
+	const picked = new Set();
+	let pickAnchor = null;
+	let shownIds = []; // The list's components, in its order.
+	let bulk = null;
+
+	const pickedComponents = () => window.etch.components.list().filter( ( c ) => picked.has( c.id ) );
+
+	const pickBox = ( component ) =>
+		el( 'input', {
+			type: 'checkbox',
+			class: 'etk-components__pick etk-checkbox',
+			'data-id': String( component.id ),
+			'data-focus': `pick:${ component.id }`,
+			checked: picked.has( component.id ),
+			'aria-label': `Select ${ component.name }`,
+			// Shift-click sets everything from the last one clicked to this one.
+			onclick: ( e ) => {
+				const on = e.target.checked;
+				const from = shownIds.indexOf( pickAnchor );
+				const to = shownIds.indexOf( component.id );
+				const range = e.shiftKey && from >= 0 ? shownIds.slice( Math.min( from, to ), Math.max( from, to ) + 1 ) : [ component.id ];
+				range.forEach( ( id ) => ( on ? picked.add( id ) : picked.delete( id ) ) );
+				pickAnchor = component.id;
+				syncPicks();
+			},
+		} );
+
+	// Checkboxes, rows and the bulk bar, after the selection or the list changes.
+	const syncPicks = () => {
+		const shown = view === 'list' ? shownIds : [];
+		[ ...picked ].forEach( ( id ) => shown.includes( id ) || picked.delete( id ) );
+		main?.querySelectorAll( '.etk-components__pick[data-id]' ).forEach( ( box ) => {
+			box.checked = picked.has( Number( box.dataset.id ) );
+			box.closest( 'tr' ).classList.toggle( 'is-picked', box.checked );
+		} );
+		const all = main?.querySelector( '.etk-components__pick-all' );
+		if ( all ) {
+			all.checked = shown.length > 0 && picked.size === shown.length;
+			all.indeterminate = picked.size > 0 && picked.size < shown.length;
+			all.disabled = ! shown.length;
+		}
+		bulk?.update( picked.size, picked.size >= shown.length );
+	};
+
+	const clearPicks = () => {
+		picked.clear();
+		syncPicks();
+	};
+
+	// One file each, the same as each row's Download JSON gives.
+	const downloadPicked = () => {
+		const components = pickedComponents();
+		let copies;
+		try {
+			copies = components.map( ( component ) => [ component, copyOf( component ) ] );
+		} catch ( error ) {
+			warn( `Couldn’t download the components: ${ errorText( error ) }` );
+			return;
+		}
+		// Spaced out, or the browser can drop all but the first.
+		copies.forEach( ( [ component, copy ], i ) => window.setTimeout( () => downloadJson( JSON.stringify( copy, null, 2 ), `${ component.key || 'component' }.json` ), i * 200 ) );
+		announce( `Downloading ${ plural( copies.length, 'component', 'components' ) }.` );
+	};
+
+	/**
+	 * Delete the picked components, once confirmed, one after another. Like
+	 * Delete on a row, instances on the open page go too. If one fails, the
+	 * ones before it stay deleted and the dialog says so.
+	 */
+	const removePicked = async () => {
+		const components = pickedComponents();
+		if ( components.length === 1 ) return remove( components[ 0 ] );
+		const ids = new Set( components.map( ( c ) => c.id ) );
+		const used = components.filter( isUsed ).map( ( c ) => c.name );
+		const here = window.etch.blocks.find( { type: 'etch/component' } ).filter( ( id ) => ids.has( window.etch.blocks.getJson( id ).componentId ) );
+		const dialog = toolkit.confirmDialog( {
+			title: `Delete ${ components.length } components?`,
+			message: [
+				used.length
+					? el( 'p', { textContent: `${ used.length <= 3 ? listOf( used ) : `${ used.slice( 0, 2 ).join( ', ' ) } and ${ used.length - 2 } more` } ${ used.length === 1 ? 'is' : 'are' } in use. ${ used.length === 1 ? 'It' : 'They' } will disappear from every page using ${ used.length === 1 ? 'it' : 'them' }.` } )
+					: here.length
+						? null
+						: el( 'p', { textContent: 'No page uses them.' } ),
+				here.length ? el( 'p', { textContent: 'They’re removed from the page you have open. Save to keep that.' } ) : null,
+				el( 'p', { textContent: 'This can’t be undone.' } ),
+			].filter( Boolean ),
+			confirmLabel: `Delete ${ components.length } components`,
+			failTitle: 'Not every component was deleted',
+		} );
+		if ( ! ( await dialog.result ) ) return;
+		const deleted = new Set();
+		let failed = null;
+		for ( const component of components ) {
+			try {
+				await window.etch.components.deleteAsync( component.id );
+				deleted.add( component.id );
+				picked.delete( component.id );
+			} catch ( error ) {
+				failed = `${ component.name }: ${ errorText( error ) }`;
+				break;
+			}
+		}
+		here.filter( ( id ) => deleted.has( window.etch.blocks.getJson( id ).componentId ) ).forEach( ( id ) => window.etch.blocks.delete( id ) );
+		if ( failed ) {
+			dialog.fail( deleted.size ? `Deleted ${ deleted.size } of ${ components.length }. ${ failed }` : failed );
+		} else {
+			dialog.close();
+		}
+		if ( deleted.size ) {
+			render();
+			if ( ! failed ) main.querySelector( '[data-focus="search"]' )?.focus();
+			announce( `Deleted ${ plural( deleted.size, 'component', 'components' ) }.` );
+			loadUsedOn();
+		}
+	};
+
+	// The Style Manager's bulk bar. Built once, then shown and hidden.
+	const buildBulkBar = () => {
+		bulk = bulkBar( {
+			label: 'Bulk component actions',
+			className: 'etk-components__bulk',
+			actions: [ barButton( 'Download JSON', 'download', downloadPicked ), barButton( el( 'span', { textContent: 'Delete' } ), 'delete', removePicked, { className: 'etk-bulk-bar__delete' } ) ],
+			onClear: clearPicks,
+			onSelectAll: () => {
+				shownIds.forEach( ( id ) => picked.add( id ) );
+				syncPicks();
+			},
+			// Don't strand focus on a bar that's going away.
+			refocus: () => main.querySelector( '.etk-components__pick-all:not(:disabled), [data-focus="search"]' ),
+		} );
+		return [ bulk.scrim, bulk.bar ];
+	};
+
 	const componentRow = ( component ) => {
 		const used = usedOn ? isUsed( component ) : null;
 		const action = ( key, label, title, icon, onclick, extra = '' ) =>
 			button( '', onclick, { class: `etk-btn etk-btn--secondary etk-components__row-action${ extra }`, 'aria-label': label, 'data-etk-tooltip': title, html: icon, 'data-focus': `${ key }:${ component.id }` } );
 		return el(
 			'tr',
-			{ class: used === false ? 'is-unused' : null },
+			{ class: [ used === false ? 'is-unused' : '', picked.has( component.id ) ? 'is-picked' : '' ].join( ' ' ).trim() || null },
+			el( 'td', { class: 'etk-table__pick' }, pickBox( component ) ),
 			el( 'th', { scope: 'row' }, el( 'span', { class: 'etk-components__cell-name', textContent: component.name } ) ),
 			el( 'td', {}, el( 'code', { class: 'etk-components__key', textContent: component.key } ) ),
 			el( 'td', {}, used === null ? null : el( 'span', { class: `etk-badge etk-badge--${ used ? 'success' : 'warning' }`, textContent: used ? 'In use' : 'Unused' } ) ),
@@ -693,10 +831,23 @@
 				const shown = all.filter( ( c ) => inFilter( c ) && ( ! term || `${ c.name } ${ c.key }`.toLowerCase().includes( term ) ) );
 				count.textContent = shown.length === all.length ? plural( all.length, 'component', 'components' ) : `${ shown.length } of ${ plural( all.length, 'component', 'components' ) }`;
 				const empty = ! all.length ? 'This site has no components yet.' : term ? 'No components match.' : filter === 'used' ? 'No component is in use.' : 'Every component is in use.';
-				body.replaceChildren( ...( shown.length ? shown.map( componentRow ) : [ el( 'tr', {}, el( 'td', { colspan: '5', class: 'etk-components__empty-row', textContent: empty } ) ) ] ) );
+				shownIds = shown.map( ( c ) => c.id );
+				body.replaceChildren( ...( shown.length ? shown.map( componentRow ) : [ el( 'tr', {}, el( 'td', { colspan: '6', class: 'etk-components__empty-row', textContent: empty } ) ) ] ) );
+				syncPicks();
 			};
-			fill();
 			const th = ( text ) => el( 'th', { scope: 'col', textContent: text } );
+			const pickAll = el( 'input', {
+				type: 'checkbox',
+				class: 'etk-components__pick-all etk-checkbox',
+				'aria-label': 'Select all components',
+				'data-focus': 'pick-all',
+				onclick: ( e ) => {
+					const on = e.target.checked;
+					shownIds.forEach( ( id ) => ( on ? picked.add( id ) : picked.delete( id ) ) );
+					syncPicks();
+				},
+			} );
+			fill();
 			return [
 				el(
 					'div',
@@ -722,8 +873,8 @@
 				),
 				el(
 					'table',
-					{ class: 'etk-table etk-components__table', 'aria-label': 'Components' },
-					el( 'thead', {}, el( 'tr', {}, th( 'Component' ), th( 'Key' ), th( 'Status' ), th( 'Used on' ), el( 'th', { scope: 'col' }, el( 'span', { class: 'etk-sr', textContent: 'Actions' } ) ) ) ),
+					{ class: 'etk-table etk-table--pick etk-components__table', 'aria-label': 'Components' },
+					el( 'thead', {}, el( 'tr', {}, el( 'td', { class: 'etk-table__pick' }, pickAll ), th( 'Component' ), th( 'Key' ), th( 'Status' ), th( 'Used on' ), el( 'th', { scope: 'col' }, el( 'span', { class: 'etk-sr', textContent: 'Actions' } ) ) ) ),
 					body
 				),
 			];
@@ -1712,6 +1863,7 @@
 		const focused = main.contains( document.activeElement ) ? document.activeElement.dataset.focus : null;
 		const scrolled = new Map( [ ...main.querySelectorAll( '[data-scroll]' ) ].map( ( pane ) => [ pane.dataset.scroll, pane.scrollTop ] ) );
 		main.replaceChildren( el( 'div', { class: `etk-manager__page etk-components__page--${ view }` }, ...views[ view ]() ) );
+		syncPicks();
 		main.querySelectorAll( '[data-scroll]' ).forEach( ( pane ) => ( pane.scrollTop = scrolled.get( pane.dataset.scroll ) ?? 0 ) );
 		if ( focused ) main.querySelector( `[data-focus="${ CSS.escape( focused ) }"]` )?.focus( { preventScroll: true } );
 	};
@@ -1887,7 +2039,8 @@
 				class: 'etk-manager etk-manager--panel etk-manager--single etk-components',
 				hidden: true,
 				'aria-labelledby': 'etk-components-title',
-				...managerKeys( () => close() ),
+				// Esc clears the picked components first.
+				...managerKeys( () => ( picked.size ? clearPicks() : close() ) ),
 			},
 			// Across the top, like Etch's Style Manager.
 			el(
@@ -1896,7 +2049,7 @@
 				el( 'button', { type: 'button', class: 'etk-btn etk-btn--secondary etk-btn--icon', 'aria-label': 'Back to the builder', 'data-etk-tooltip': 'Back to the builder', html: icon( 'arrow-left' ), onclick: () => close() } ),
 				el( 'h1', { id: 'etk-components-title', class: 'etk-manager__title', textContent: 'Components' } )
 			),
-			el( 'div', { class: 'etk-manager__body' }, status, el( 'div', { class: 'etk-manager__content' }, main ) )
+			el( 'div', { class: 'etk-manager__body' }, status, el( 'div', { class: 'etk-manager__content' }, main ), buildBulkBar() )
 		);
 		document.body.append( panel );
 	};

@@ -105,14 +105,19 @@
 	flex: 0 1 320px;
 }
 
+/* Room to scroll the last rows out from under the bulk bar. */
+.etk-components .etk-manager__body:has(> .etk-bulk-bar:not([hidden])) .etk-manager__main {
+	padding-block-end: 96px;
+}
+
 /* The core's .etk-table, with its columns. */
 .etk-components__table {
 	/* Key, Status and the buttons keep their width. Component and Used on share the rest. */
-	thead th:nth-child(2) {
+	thead th:nth-child(3) {
 		inline-size: 24%;
 	}
 
-	thead th:nth-child(3) {
+	thead th:nth-child(4) {
 		inline-size: 96px;
 	}
 
