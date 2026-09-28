@@ -1461,13 +1461,7 @@
 }
 
 .etk-fonts__files-table {
-	/* The checkbox, then the status icon, sharing the gap between them. */
-	.etk-fonts__files-pick {
-		inline-size: 26px;
-		padding-inline-end: 0;
-		line-height: 0;
-	}
-
+	/* After the checkboxes, the status icon. */
 	.etk-fonts__files-icon {
 		inline-size: 34px;
 		text-align: center;

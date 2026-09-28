@@ -983,7 +983,7 @@
 		return el(
 			'tr',
 			{},
-			el( 'td', { class: 'etk-fonts__files-pick' } ),
+			el( 'td', { class: 'etk-table__pick' } ),
 			iconCell( entry.error ? 'alert' : entry.done ? 'tick' : busy ? 'spinner' : null ),
 			el( 'td', {}, el( 'span', { class: 'etk-fonts__files-name', textContent: entry.name } ) ),
 			el( 'td' ),
@@ -1216,7 +1216,7 @@
 		return el(
 			'tr',
 			{ class: [ unused ? 'is-unused' : '', picked.has( file.name ) ? 'is-picked' : '' ].join( ' ' ).trim() || null },
-			el( 'td', { class: 'etk-fonts__files-pick' }, own ? pickBox( file ) : null ),
+			el( 'td', { class: 'etk-table__pick' }, own ? pickBox( file ) : null ),
 			iconCell( done ? 'tick' : null ),
 			el( 'td', {}, el( 'span', { class: 'etk-fonts__files-name', textContent: file.name } ) ),
 			own ? weightCell( file ) : el( 'td', { class: 'etk-table__none', textContent: '—' } ),
@@ -1295,7 +1295,7 @@
 								{},
 								el(
 									'td',
-									{ class: 'etk-fonts__files-pick' },
+									{ class: 'etk-table__pick' },
 									el( 'input', {
 										type: 'checkbox',
 										class: 'etk-fonts__pick etk-fonts__pick-all etk-checkbox',

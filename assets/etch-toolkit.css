@@ -974,6 +974,13 @@
 	tbody tr:not(:last-child) > * {
 		box-shadow: inset 0 -1px var(--etk-line-soft);
 	}
+
+	/* A column of checkboxes. */
+	.etk-table__pick {
+		inline-size: 26px;
+		padding-inline-end: 0;
+		line-height: 0;
+	}
 }
 
 /*

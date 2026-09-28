@@ -11,7 +11,7 @@
 	const config = window.etchToolkitFontsSettings || {};
 	if ( ! settings ) return;
 
-	const { button, group, row, value, toggle, check, dropzone, download, announce, warn, refresh, builder } = settings.ui;
+	const { button, group, row, value, toggle, dropzone, download, announce, warn, refresh, builder } = settings.ui;
 	const ROLES = { heading: 'Headings', text: 'Body text' };
 
 	let state = null; // As the server has it: { families, files, settings, … }
@@ -125,40 +125,46 @@
 		const chosen = families.filter( ( f ) => ! skip.has( f.name ) );
 		const bytesOf = ( family ) => family.variants.reduce( ( sum, v ) => sum + ( state.files.find( ( f ) => f.name === v.file )?.size || 0 ), 0 );
 		const total = chosen.reduce( ( sum, f ) => sum + bytesOf( f ), 0 );
-		const all = check(
-			`${ chosen.length } of ${ plural( families.length, 'family', 'families' ) }`,
-			chosen.length === families.length,
-			( on ) => {
-				families.forEach( ( f ) => ( on ? skip.delete( f.name ) : skip.add( f.name ) ) );
-				refresh();
-			}
-		);
-		const box = all.querySelector( 'input' );
-		box.indeterminate = chosen.length > 0 && chosen.length < families.length;
+		const pick = ( label, checked, onchange ) => el( 'input', { type: 'checkbox', class: 'etk-checkbox', 'aria-label': label, checked, onchange: ( e ) => onchange( e.target.checked ) } );
+		const all = pick( 'Export every family', chosen.length === families.length, ( on ) => {
+			families.forEach( ( f ) => ( on ? skip.delete( f.name ) : skip.add( f.name ) ) );
+			refresh();
+		} );
+		all.indeterminate = chosen.length > 0 && chosen.length < families.length;
+		const th = ( text ) => el( 'th', { scope: 'col', textContent: text } );
 
 		return group(
-			'Export',
+			{ title: 'Export', bare: true },
 			el(
-				'fieldset',
-				{ class: 'etk-settings__fieldset' },
-				el( 'legend', { class: 'etk-sr', textContent: 'Families to export' } ),
-				row( all, el( 'span', { class: 'etk-manager__help', textContent: chosen.length ? `About ${ size( total ) }` : '' } ) ),
-				...families.map( ( family ) =>
-					row(
-						check(
-							family.name,
-							! skip.has( family.name ),
-							( on ) => {
-								on ? skip.delete( family.name ) : skip.add( family.name );
-								refresh();
-							}
-						),
-						el( 'span', { class: 'etk-manager__help', textContent: plural( family.variants.length, 'file', 'files' ) } )
+				'table',
+				{ class: 'etk-table etk-settings__export', 'aria-label': 'Families to export' },
+				el( 'thead', {}, el( 'tr', {}, el( 'td', { class: 'etk-table__pick' }, all ), th( 'Family' ), th( 'Files' ), th( 'Size' ) ) ),
+				el(
+					'tbody',
+					{},
+					families.map( ( family ) =>
+						el(
+							'tr',
+							{},
+							el(
+								'td',
+								{ class: 'etk-table__pick' },
+								pick( `Export ${ family.name }`, ! skip.has( family.name ), ( on ) => {
+									on ? skip.delete( family.name ) : skip.add( family.name );
+									refresh();
+								} )
+							),
+							el( 'td', { textContent: family.name } ),
+							el( 'td', { textContent: plural( family.variants.length, 'file', 'files' ) } ),
+							el( 'td', { textContent: size( bytesOf( family ) ) } )
+						)
 					)
 				)
 			),
-			row(
-				el( 'span', { class: 'etk-settings__row-title' } ),
+			el(
+				'div',
+				{ class: 'etk-settings__export-actions' },
+				el( 'span', { class: 'etk-manager__help', textContent: chosen.length ? `${ chosen.length } of ${ plural( families.length, 'family', 'families' ) }, about ${ size( total ) }` : 'Pick the families to export.' } ),
 				button( exporting ? 'Exporting…' : chosen.length ? `Export ${ plural( chosen.length, 'family', 'families' ) }` : 'Export', () => exportFonts( chosen.map( ( f ) => f.name ) ), {
 					attrs: { disabled: ! chosen.length, 'aria-disabled': exporting ? 'true' : null },
 				} )
