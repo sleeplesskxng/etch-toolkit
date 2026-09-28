@@ -10,8 +10,9 @@
  *   a touch on it. Drag the beam along its length for a stronger shadow, and
  *   across it for a softer one. Pull its edge out for more layers, push it
  *   in for fewer. It draws a ring for each.
- * - The shadow's color, and its opacity. A light color puts it all on a
- *   dark stage, so it shows.
+ * - The shadow's color. A light color puts it all on a dark stage, so it
+ *   shows.
+ * - A slider for each value, for the keyboard, or anyone who'd rather.
  *
  * Each layer's blur is its offset times the softness, growing to the size
  * you set, and they add up to the opacity you set. A shadow it wrote opens
@@ -178,7 +179,7 @@
 		// Drawn pointing up from the light. Its aim turns it to the tile.
 		const beam = el( 'div', {
 			className: 'etk-shadow__beam',
-			html: `<svg width="120" height="80" viewBox="-60 -76 120 80">
+			html: `<svg width="220" height="124" viewBox="-110 -120 220 124">
 				<defs>
 					<radialGradient id="etk-shadow-beam" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse">
 						<stop offset="0" stop-color="currentColor" stop-opacity="0.9"/>
@@ -199,32 +200,15 @@
 		const light = el( 'div', { className: 'etk-shadow__light' } );
 		const aim = el( 'div', { className: 'etk-shadow__aim' }, [ beam ] );
 		const handle = el( 'div', { className: 'etk-shadow__handle' }, [ aim, light ] );
-		const readout = el( 'div', { className: 'etk-shadow__readout' } );
-		[ tile, handle, readout ].forEach( ( node ) => node.setAttribute( 'aria-hidden', 'true' ) );
+		[ tile, handle ].forEach( ( node ) => node.setAttribute( 'aria-hidden', 'true' ) );
 
-		// The keyboard and screen readers get a slider for each, hidden, and what they move shows focus.
-		const range = ( label, min, max, step, value, valuetext ) => {
-			const input = el( 'input', { type: 'range', className: 'etk-sr', min, max, step, value, 'aria-label': label } );
-			input.setAttribute( 'aria-valuetext', valuetext( value ) );
-			input.addEventListener( 'input', () => input.setAttribute( 'aria-valuetext', valuetext( Number( input.value ) ) ) );
-			return input;
-		};
-		const direction = range( 'Light direction', 0, 359, 1, shadow.angle % 360, ( v ) => `From the ${ side( v ) }, ${ v } degrees` );
-		const size = range( 'Shadow size', SIZE.min, SIZE.max, 1, shadow.size, ( v ) => `${ v } pixels` );
-		const softness = range( 'Shadow softness', SOFTNESS.min, SOFTNESS.max, 0.1, shadow.softness, ( v ) => `Blur ${ v } times the offset` );
-		const count = range( 'Shadow layers', LAYERS.min, LAYERS.max, 1, shadow.count, ( v ) => `${ v } ${ v === 1 ? 'layer' : 'layers' }` );
-		direction.classList.add( 'etk-shadow__for-light' );
-		size.classList.add( 'etk-shadow__for-light' );
-		softness.classList.add( 'etk-shadow__for-beam' );
-		count.classList.add( 'etk-shadow__for-beam', 'etk-shadow__for-edge' );
-
-		const stage = el( 'div', { className: 'etk-shadow__stage' }, [ tile, handle, readout, direction, size, softness, count ] );
+		const stage = el( 'div', { className: 'etk-shadow__stage' }, [ tile, handle ] );
 		stage.style.setProperty( '--etk-shadow-edge', `${ EDGE }px` );
 
 		// The beam: as long as the shadow is strong, as wide as it's soft, a ring for each layer.
 		const drawBeam = () => {
-			const spread = 0.42 + ( ( shadow.softness - SOFTNESS.min ) / ( SOFTNESS.max - SOFTNESS.min ) ) * 0.75;
-			const length = 34 + ( shadow.opacity / 100 ) * 36;
+			const spread = 0.5 + ( ( shadow.softness - SOFTNESS.min ) / ( SOFTNESS.max - SOFTNESS.min ) ) * 0.8;
+			const length = 48 + ( shadow.opacity / 100 ) * 50;
 			const a0 = -Math.PI / 2 - spread;
 			const a1 = -Math.PI / 2 + spread;
 			const pt = ( a, r ) => `${ round( Math.cos( a ) * r ) } ${ round( Math.sin( a ) * r ) }`;
@@ -274,7 +258,6 @@
 			tile.style.boxShadow = layers( { ...shadow, size: shadow.size * TILE } )
 				.map( ( l ) => `${ l.x }px ${ l.y }px ${ l.blur }px color-mix(in srgb, ${ shown } ${ l.alpha }%, transparent)` )
 				.join( ', ' );
-			readout.textContent = `${ shadow.size }px · ${ shadow.softness }× blur · ${ shadow.count } ${ shadow.count === 1 ? 'layer' : 'layers' }`;
 		};
 
 		// Written once a frame at most, since each write redraws the canvas.
@@ -288,21 +271,38 @@
 			} );
 		};
 
-		const inputs = { angle: direction, size, softness, count };
+		// ---- Sliders: the same values, for the keyboard, or anyone who'd rather ----
+
+		const sliders = {};
+		const field = ( key, options, className = '' ) => {
+			sliders[ key ] = slider( {
+				...options,
+				value: shadow[ key ],
+				// Its steps can add up to 2.1000000000000001.
+				onchange: ( v ) => round( v ) !== shadow[ key ] && set( { [ key ]: round( v ) } ),
+			} );
+			if ( className ) sliders[ key ].classList.add( className );
+			return sliders[ key ];
+		};
+		const fields = [
+			field( 'angle', { name: 'Direction', label: 'Light direction', min: 0, max: 359, text: ( v ) => `${ v }°`, spoken: ( v ) => `From the ${ side( v ) }, ${ v } degrees` }, 'etk-shadow__for-light' ),
+			field( 'size', { name: 'Size', label: 'Shadow size', min: SIZE.min, max: SIZE.max, text: ( v ) => `${ v }px` }, 'etk-shadow__for-light' ),
+			field( 'opacity', { name: 'Opacity', min: 0, max: 100, text: ( v ) => `${ v }%` }, 'etk-shadow__for-beam' ),
+			field( 'softness', { name: 'Softness', label: 'Shadow softness', min: SOFTNESS.min, max: SOFTNESS.max, step: 0.1, text: ( v ) => `${ round( v ) }×`, spoken: ( v ) => `Blur ${ round( v ) } times the offset` }, 'etk-shadow__for-beam' ),
+			field( 'count', { name: 'Layers', label: 'Shadow layers', min: LAYERS.min, max: LAYERS.max, text: String, spoken: ( v ) => `${ v } ${ v === 1 ? 'layer' : 'layers' }` }, 'etk-shadow__for-edge' ),
+		];
+		const inputOf = ( key ) => sliders[ key ].querySelector( 'input' );
+
 		const set = ( changes ) => {
 			Object.assign( shadow, changes );
-			for ( const [ key, input ] of Object.entries( inputs ) ) {
+			for ( const key of Object.keys( sliders ) ) {
+				const input = inputOf( key );
+				if ( round( Number( input.value ) ) === shadow[ key ] ) continue;
 				input.value = shadow[ key ];
 				input.dispatchEvent( new Event( 'input' ) );
 			}
-			const opacityInput = opacity.querySelector( 'input' );
-			if ( Number( opacityInput.value ) !== shadow.opacity ) {
-				opacityInput.value = shadow.opacity;
-				opacityInput.dispatchEvent( new Event( 'input' ) );
-			}
 			update();
 		};
-		for ( const [ key, input ] of Object.entries( inputs ) ) input.addEventListener( 'change', () => set( { [ key ]: Number( input.value ) } ) );
 
 		/*
 		 * The beam shows while the pointer is on the light or the beam, and a
@@ -394,9 +394,9 @@
 			node.addEventListener( 'pointerup', release );
 			node.addEventListener( 'pointercancel', release );
 		};
-		grab( light, 'light', direction );
-		grab( hit, 'beam', softness );
-		grab( edgeHit, 'edge', count );
+		grab( light, 'light', inputOf( 'angle' ) );
+		grab( hit, 'beam', inputOf( 'opacity' ) );
+		grab( edgeHit, 'edge', inputOf( 'count' ) );
 		edgeHit.addEventListener( 'pointerenter', () => stage.classList.add( 'is-on-edge' ) );
 		edgeHit.addEventListener( 'pointerleave', () => stage.classList.remove( 'is-on-edge' ) );
 
@@ -413,14 +413,6 @@
 				update();
 			},
 		} );
-		const opacity = slider( {
-			name: 'Opacity',
-			min: 0,
-			max: 100,
-			value: shadow.opacity,
-			text: ( v ) => `${ v }%`,
-			onchange: ( v ) => v !== shadow.opacity && set( { opacity: v } ),
-		} );
 
 		theme();
 		paint();
@@ -428,8 +420,8 @@
 			anchor: button,
 			label: 'Box shadow',
 			className: 'etk-shadow',
-			content: [ stage, el( 'div', { className: 'etk-pop__fields' }, [ colorRow, opacity ] ) ],
-			focus: direction,
+			content: [ stage, el( 'div', { className: 'etk-pop__fields' }, [ colorRow, ...fields ] ) ],
+			focus: inputOf( 'angle' ),
 			onclose: ( keep ) => {
 				cancelAnimationFrame( writing );
 				clearTimeout( hiding );

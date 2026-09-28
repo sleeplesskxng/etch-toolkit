@@ -46,7 +46,6 @@
 	--etk-shadow-tile: #fff;
 	--etk-shadow-light-edge: rgb(0 0 0 / 0.14);
 	--etk-shadow-beam: rgb(0 0 0 / 0.28);
-	--etk-shadow-muted: rgb(0 0 0 / 0.45);
 
 	&[data-theme='dark'] {
 		--etk-shadow-pad: #1c1c1e;
@@ -55,7 +54,6 @@
 		--etk-shadow-tile: #3a3a3c;
 		--etk-shadow-light-edge: rgb(0 0 0 / 0.5);
 		--etk-shadow-beam: #fff;
-		--etk-shadow-muted: rgb(255 255 255 / 0.45);
 	}
 
 	position: relative;
@@ -69,14 +67,6 @@
 	touch-action: none;
 	user-select: none;
 	transition: background-color 0.2s var(--etk-shadow-ease);
-
-	/* The hidden sliders stay 1px, whatever the panel does to fields. */
-	.etk-sr {
-		inline-size: 1px;
-		block-size: 1px;
-		padding: 0;
-		border: 0;
-	}
 }
 
 .etk-shadow__tile {
@@ -127,7 +117,11 @@
 	left: 0;
 }
 
-/* Out from the light's edge, turning round its middle. */
+/*
+ * Out from the light's edge, turning round its middle. It shows on the
+ * stage's say, and while a slider for what it sets is dragged or has the
+ * keyboard.
+ */
 .etk-shadow__beam {
 	position: absolute;
 	bottom: 14px;
@@ -140,7 +134,7 @@
 	pointer-events: none;
 	transition: opacity 0.16s var(--etk-shadow-ease), scale 0.2s var(--etk-shadow-ease);
 
-	:is(.shows-beam, .is-dragging-beam, .is-dragging-edge, :has(.etk-shadow__for-beam:focus-visible)) > .etk-shadow__handle & {
+	.etk-shadow:has(.shows-beam, .is-dragging-beam, .is-dragging-edge, .etk-shadow__for-beam.is-dragging, .etk-shadow__for-beam input:focus-visible, .etk-shadow__for-edge.is-dragging, .etk-shadow__for-edge input:focus-visible) & {
 		scale: 1;
 		opacity: 1;
 		pointer-events: auto;
@@ -181,7 +175,7 @@
 	pointer-events: none;
 	transition: stroke-opacity 0.16s var(--etk-shadow-ease);
 
-	:is(.is-on-edge, .is-dragging-edge, :has(.etk-shadow__for-edge:focus-visible)) & {
+	.etk-shadow:has(.is-on-edge, .is-dragging-edge, .etk-shadow__for-edge.is-dragging, .etk-shadow__for-edge input:focus-visible) & {
 		stroke-opacity: 0.55;
 	}
 }
@@ -196,24 +190,14 @@
 	}
 }
 
-.etk-shadow__stage:has(.etk-shadow__for-light:focus-visible) .etk-shadow__light {
+.etk-shadow:has(.etk-shadow__for-light input:focus-visible) .etk-shadow__light {
 	outline: 2px solid var(--etch-primary, #6ce0d4);
 	outline-offset: 2px;
 }
 
-.etk-shadow__readout {
-	position: absolute;
-	right: 10px;
-	bottom: 8px;
-	color: var(--etk-shadow-muted);
-	font-family: var(--e-font-code);
-	font-size: var(--etch-font-size-s, 11px);
-	pointer-events: none;
-}
-
 @media (prefers-reduced-motion: reduce) {
 	.etk-shadow__beam,
-	:is(.shows-beam, .is-dragging-beam, .is-dragging-edge, :has(.etk-shadow__for-beam:focus-visible)) > .etk-shadow__handle .etk-shadow__beam {
+	.etk-shadow .etk-shadow__beam {
 		scale: 1;
 		transition: opacity 0.12s linear;
 	}
