@@ -1147,29 +1147,77 @@
 		onPageChange( install );
 	};
 
+	// The editor's undo command, from its key bindings, which Etch doesn't expose either.
+	const undoCommand = ( view ) => {
+		const seen = new Set();
+		const find = ( value ) => {
+			if ( ! value || typeof value !== 'object' || seen.has( value ) ) return null;
+			seen.add( value );
+			if ( Array.isArray( value ) ) {
+				for ( const item of value ) {
+					const found = find( item );
+					if ( found ) return found;
+				}
+				return null;
+			}
+			return value.key === 'Mod-z' && typeof value.run === 'function' ? value.run : null;
+		};
+		return find( view.state.values );
+	};
+
+	// The editor's undo history: its steps so far, in `done`.
+	const historyOf = ( view ) => view.state.values.find( ( value ) => Array.isArray( value?.done ) && Array.isArray( value?.undone ) ) || null;
+
 	/**
 	 * editorEdit( view, from, original ): edits the text `original` at `from`.
-	 * set( text ) shows a change in the code and on the canvas as you make it,
-	 * kept out of the editor's undo history, so finish( true ) takes the whole
-	 * change back in one Cmd+Z. finish( false ) puts the original back.
+	 * set( text ) shows a change in the code and on the canvas as you make it.
+	 * finish( true ) keeps it as one step of the editor's undo history, so one
+	 * Cmd+Z takes the whole change back. finish( false ) puts the original back.
+	 *
+	 * The changes go into the history as they're made, and finish undoes them
+	 * all, then writes the result once. Kept out of the history and put back
+	 * by hand, they'd leave it mapping its earlier steps through them, and a
+	 * step that wrote this same text then couldn't find it to undo.
 	 */
 	const editorEdit = ( view, from, original ) => {
-		// Transactions carry the annotations that keep previews out of the undo history.
 		const Transaction = view.state.update( {} ).constructor;
-		const preview = Transaction.addToHistory.of( false );
+		const undo = undoCommand( view );
+		const tracked = !! ( undo && historyOf( view ) );
+		// A selection closes the history's last step, so no typing before or after joins these.
+		const apart = () => view.dom.isConnected && view.dispatch( { selection: view.state.selection } );
 		let current = original;
+		let base = null; // How many steps the history had before the first change.
+		// Only what differs.
 		const write = ( text, annotations ) => {
 			if ( ! view.dom.isConnected ) return;
-			view.dispatch( { changes: { from, to: from + current.length, insert: text }, annotations } );
+			let start = 0;
+			while ( start < current.length && current[ start ] === text[ start ] ) start++;
+			let end = 0;
+			while ( end < current.length - start && end < text.length - start && current.at( -1 - end ) === text.at( -1 - end ) ) end++;
+			view.dispatch( { changes: { from: from + start, to: from + current.length - end, insert: text.slice( start, text.length - end ) }, annotations } );
 			current = text;
 		};
 		return {
 			text: () => current,
-			set: ( text ) => text !== current && write( text, preview ),
+			set( text ) {
+				if ( text === current || ! view.dom.isConnected ) return;
+				if ( tracked && base === null ) {
+					apart();
+					base = historyOf( view ).done.length;
+				}
+				write( text, tracked ? [] : Transaction.addToHistory.of( false ) );
+			},
 			finish( keep ) {
 				const final = current;
-				if ( final !== original ) {
-					write( original, preview );
+				if ( ! view.dom.isConnected ) return;
+				if ( base !== null ) {
+					// Back to before the first change. A step that won't undo ends it.
+					for ( let guard = 0; historyOf( view ).done.length > base && guard < 1000; guard++ ) if ( ! undo( view ) ) break;
+					current = original;
+					if ( keep && final !== original ) write( final, Transaction.userEvent.of( 'input' ) );
+					apart();
+				} else if ( final !== original ) {
+					write( original, Transaction.addToHistory.of( false ) );
 					if ( keep ) write( final, Transaction.userEvent.of( 'input' ) );
 				}
 				if ( view.dom.isConnected ) view.focus();
