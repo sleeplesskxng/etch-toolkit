@@ -956,6 +956,378 @@
 		if ( place && place !== 'builder' ) tick();
 	} catch {}
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, onMenu, menuItem, findMenuItem, settingsBarButton, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON } );
+	/*
+	 * CSS editors: Etch's are CodeMirror views, reached from their DOM. Features
+	 * add widgets to them (color mix's swatches, the shadow button) and open a
+	 * small panel from one that edits the CSS as you go.
+	 */
+
+	// ---- Reading CSS text ----
+
+	// The index of a string's closing quote, or the end.
+	const stringEnd = ( text, i ) => {
+		const quote = text[ i ];
+		for ( i++; i < text.length; i++ ) {
+			if ( text[ i ] === '\\' ) i++;
+			else if ( text[ i ] === quote || text[ i ] === '\n' ) return i;
+		}
+		return text.length;
+	};
+
+	const commentEnd = ( text, i ) => {
+		const end = text.indexOf( '*/', i + 2 );
+		return end < 0 ? text.length : end + 1;
+	};
+
+	// The index of the `)` that closes the `(` at i. An unclosed one, while
+	// you're typing, stops before the next `;`, `{` or `}`.
+	const parenEnd = ( text, i, to = text.length ) => {
+		let depth = 0;
+		for ( ; i < to; i++ ) {
+			const c = text[ i ];
+			if ( c === '"' || c === "'" ) i = stringEnd( text, i );
+			else if ( c === '/' && text[ i + 1 ] === '*' ) i = commentEnd( text, i );
+			else if ( c === '(' ) depth++;
+			else if ( c === ')' && --depth === 0 ) return i;
+			else if ( c === ';' || c === '{' || c === '}' ) return i - 1;
+		}
+		return to - 1;
+	};
+
+	// Splits at a separator outside parentheses and strings.
+	const splitTop = ( text, separator ) => {
+		const parts = [];
+		let depth = 0;
+		let start = 0;
+		for ( let i = 0; i < text.length; i++ ) {
+			const c = text[ i ];
+			if ( c === '"' || c === "'" ) i = stringEnd( text, i );
+			else if ( c === '(' ) depth++;
+			else if ( c === ')' ) depth--;
+			else if ( depth === 0 && separator.test( c ) ) {
+				parts.push( text.slice( start, i ) );
+				start = i + 1;
+			}
+		}
+		parts.push( text.slice( start ) );
+		return parts.map( ( part ) => part.trim() ).filter( ( part, i, all ) => part || all.length === 1 );
+	};
+
+	/*
+	 * Every declaration in a style's CSS, as { property, from, to }: where its
+	 * value starts, after the colon, and ends. It goes through the text a
+	 * statement at a time: what ends in `;` or `}` can be a declaration, what
+	 * ends in `{` is a selector or an at-rule.
+	 */
+	const PROPERTY = /^(?:\s|\/\*[^]*?\*\/)*(--[\w-]+|-?[a-zA-Z][\w-]*)\s*:/;
+	const declarations = ( text ) => {
+		const found = [];
+		const statement = ( from, to ) => {
+			const property = PROPERTY.exec( text.slice( from, to ) );
+			if ( property ) found.push( { property: property[ 1 ], from: from + property[ 0 ].length, to } );
+		};
+		let start = 0;
+		for ( let i = 0; i < text.length; i++ ) {
+			const c = text[ i ];
+			if ( c === '"' || c === "'" ) i = stringEnd( text, i );
+			else if ( c === '/' && text[ i + 1 ] === '*' ) i = commentEnd( text, i );
+			else if ( c === '(' ) i = parenEnd( text, i );
+			else if ( c === '{' ) start = i + 1;
+			else if ( c === ';' || c === '}' ) {
+				statement( start, i );
+				start = i + 1;
+			}
+		}
+		statement( start, text.length );
+		return found;
+	};
+
+	const cssText = { stringEnd, commentEnd, parenEnd, splitTop, declarations };
+
+	// ---- Widgets ----
+
+	const CSS_EDITOR = '.etch-css-editor .cm-editor';
+	const viewOf = ( editor ) => editor?.querySelector( '.cm-content' )?.cmTile?.root?.view || null;
+
+	/*
+	 * CodeMirror's classes, from Etch's copy, which it doesn't expose:
+	 * EditorView is a view's constructor, StateEffect an effect's, and
+	 * Decoration the parent class of a syntax highlight's mark. Found once an
+	 * editor has highlighted text.
+	 */
+	let cm = null;
+	const codemirror = ( view ) => {
+		if ( cm ) return cm;
+		const mark = [ ...document.querySelectorAll( '.cm-line span' ) ].map( ( span ) => span.cmTile?.mark ).find( Boolean );
+		const Decoration = mark && Object.getPrototypeOf( mark.constructor );
+		const EditorView = view.constructor;
+		const StateEffect = EditorView.scrollIntoView?.( 0 )?.constructor;
+		if ( typeof Decoration?.widget !== 'function' || ! EditorView.decorations || ! StateEffect?.appendConfig ) return null;
+		cm = { EditorView, StateEffect, Decoration };
+		return cm;
+	};
+
+	// Shaped like CodeMirror's WidgetType, which isn't exposed either. Widgets with the same key are the same.
+	class Widget {
+		constructor( key, render ) {
+			this.key = key;
+			this.render = render;
+		}
+
+		eq( other ) {
+			return other.key === this.key;
+		}
+
+		compare( other ) {
+			return this === other || ( this.constructor === other.constructor && this.eq( other ) );
+		}
+
+		toDOM( view ) {
+			return this.render( view );
+		}
+
+		updateDOM() {
+			return false;
+		}
+
+		get estimatedHeight() {
+			return -1;
+		}
+
+		get lineBreaks() {
+			return 0;
+		}
+
+		ignoreEvent() {
+			return true;
+		}
+
+		coordsAt() {
+			return null;
+		}
+
+		get isHidden() {
+			return false;
+		}
+
+		get editable() {
+			return false;
+		}
+
+		destroy() {}
+	}
+
+	/**
+	 * editorWidgets( find ): widgets in every CSS editor. find( doc ), once per
+	 * version of an editor's text, returns [ { at, key, render( view ) } ]:
+	 * render builds the widget's node, placed before the character at `at`.
+	 * Etch builds and rebuilds its editors, so each one gets them whenever it
+	 * shows up without.
+	 */
+	const editorWidgets = ( find ) => {
+		const decorated = new WeakMap();
+		const decorations = ( view ) => {
+			const doc = view.state.doc;
+			if ( ! decorated.has( doc ) ) {
+				const ranges = find( doc ).map( ( { at, key, render } ) => cm.Decoration.widget( { widget: new Widget( key, render ), side: -1 } ).range( at ) );
+				decorated.set( doc, cm.Decoration.set( ranges, true ) );
+			}
+			return decorated.get( doc );
+		};
+		const install = () => {
+			for ( const editor of document.querySelectorAll( CSS_EDITOR ) ) {
+				const view = viewOf( editor );
+				if ( ! view || ! codemirror( view ) ) continue;
+				const { EditorView, StateEffect } = cm;
+				if ( ! view.state.facet( EditorView.decorations ).includes( decorations ) ) {
+					view.dispatch( { effects: StateEffect.appendConfig.of( EditorView.decorations.of( decorations ) ) } );
+				}
+			}
+		};
+		onPageChange( install );
+	};
+
+	/**
+	 * editorEdit( view, from, original ): edits the text `original` at `from`.
+	 * set( text ) shows a change in the code and on the canvas as you make it,
+	 * kept out of the editor's undo history, so finish( true ) takes the whole
+	 * change back in one Cmd+Z. finish( false ) puts the original back.
+	 */
+	const editorEdit = ( view, from, original ) => {
+		// Transactions carry the annotations that keep previews out of the undo history.
+		const Transaction = view.state.update( {} ).constructor;
+		const preview = Transaction.addToHistory.of( false );
+		let current = original;
+		const write = ( text, annotations ) => {
+			if ( ! view.dom.isConnected ) return;
+			view.dispatch( { changes: { from, to: from + current.length, insert: text }, annotations } );
+			current = text;
+		};
+		return {
+			text: () => current,
+			set: ( text ) => text !== current && write( text, preview ),
+			finish( keep ) {
+				const final = current;
+				if ( final !== original ) {
+					write( original, preview );
+					if ( keep ) write( final, Transaction.userEvent.of( 'input' ) );
+				}
+				if ( view.dom.isConnected ) view.focus();
+			},
+		};
+	};
+
+	// ---- Colors ----
+
+	const CANVAS_FRAME = '#etch-iframe';
+	// Etch's own variables, which the canvas has for its UI.
+	const ETCH_SHEET = 'etch-default-iframe-styles';
+	const COLOR_LIST = 'etk-colors';
+	const canvasDoc = () => document.querySelector( CANVAS_FRAME )?.contentDocument || null;
+	const isColor = ( value ) => value.trim() !== '' && CSS.supports( 'color', value.trim() );
+
+	/*
+	 * resolveColor( value ): the color a value paints on the canvas, where the
+	 * site's variables are, or null. The probe sits in a box with an unlikely
+	 * color, so a var() that doesn't resolve, which leaves the probe on its
+	 * parent's color, reads as null.
+	 */
+	const SENTINEL = 'rgb(1, 2, 3)';
+	let probe = null;
+	const resolveColor = ( value ) => {
+		const doc = canvasDoc();
+		if ( ! doc?.body || ! value ) return null;
+		if ( ! probe?.isConnected || probe.ownerDocument !== doc ) {
+			const box = doc.createElement( 'div' );
+			box.setAttribute( 'aria-hidden', 'true' );
+			box.style.cssText = 'position:absolute;inset:0 auto auto 0;visibility:hidden;pointer-events:none';
+			probe = doc.createElement( 'span' );
+			box.append( probe );
+			doc.body.append( box );
+		}
+		const view = doc.defaultView;
+		// currentColor is the parent's color, so there it's the page's text color.
+		const current = /currentcolor/i.test( value );
+		probe.parentElement.style.color = current ? view.getComputedStyle( doc.body ).color : SENTINEL;
+		probe.style.color = '';
+		probe.style.setProperty( 'color', value );
+		if ( ! probe.style.color ) return null;
+		const color = view.getComputedStyle( probe ).color;
+		return color === SENTINEL && ! current ? null : color;
+	};
+
+	// Custom properties the site sets on :root, html or body that hold a color, as var()s.
+	const siteColors = () => {
+		const doc = canvasDoc();
+		if ( ! doc ) return [];
+		const names = new Set();
+		const walk = ( rules ) => {
+			for ( const rule of rules ) {
+				if ( rule.style && rule.selectorText && rule.selectorText.split( ',' ).some( ( s ) => /^(?::root|html|body|:where\(:root\))$/.test( s.trim() ) ) ) {
+					for ( const name of rule.style ) if ( name.startsWith( '--' ) ) names.add( name );
+				}
+				if ( rule.cssRules ) walk( rule.cssRules );
+			}
+		};
+		for ( const sheet of doc.styleSheets ) {
+			if ( sheet.ownerNode?.id === ETCH_SHEET ) continue;
+			try {
+				walk( sheet.cssRules );
+			} catch {}
+		}
+		const root = doc.defaultView.getComputedStyle( doc.documentElement );
+		return [ ...names ]
+			.filter( ( name ) => CSS.supports( 'color', root.getPropertyValue( name ).trim() ) )
+			.sort()
+			.map( ( name ) => `var(${ name })` );
+	};
+
+	// A text field for a color in an editorPanel(), with a swatch of it and the site's colors to pick from. Empty isn't wrong, just not ready.
+	const colorField = ( { id, label, value, placeholder = '', oninput } ) => {
+		const swatch = el( 'span', { className: 'etk-swatch etk-swatch--field', 'aria-hidden': 'true' } );
+		const input = el( 'input', { type: 'text', id, value, placeholder, spellcheck: 'false', autocomplete: 'off', list: COLOR_LIST } );
+		const paint = () => {
+			swatch.style.setProperty( '--etk-swatch-color', resolveColor( input.value.trim() ) || 'transparent' );
+			// var()s pass at parse time, so only typos show.
+			input.setAttribute( 'aria-invalid', String( input.value.trim() !== '' && ! isColor( input.value ) ) );
+		};
+		input.addEventListener( 'input', () => {
+			paint();
+			oninput( input.value );
+		} );
+		paint();
+		return el( 'div', { className: 'etk-pop__row' }, [ el( 'label', { htmlFor: id, textContent: label } ), el( 'div', { className: 'etk-pop__input' }, [ swatch, input ] ) ] );
+	};
+
+	// ---- The panel ----
+
+	/**
+	 * editorPanel( { anchor, label, className, content, focus, onclose } ): a
+	 * small panel under anchor, or above it where there's no room, with
+	 * content, then Cancel and Done. Esc or Cancel runs onclose( false ), Done,
+	 * Enter in a field or a click outside onclose( true ). One at a time:
+	 * returns null while another is open. focus is the element to focus first.
+	 */
+	let panelOpen = null;
+	const editorPanel = ( { anchor, label, className = '', content, focus, onclose } ) => {
+		if ( panelOpen ) return null;
+		const cancel = el( 'button', { type: 'button', className: 'etk-confirm__btn etk-confirm__btn--cancel', textContent: 'Cancel' } );
+		const done = el( 'button', { type: 'button', className: 'etk-confirm__btn etk-confirm__btn--primary', textContent: 'Done' } );
+		const dialog = el( 'dialog', { className: `etk-pop ${ className }`, 'aria-label': label }, [ content, el( 'div', { className: 'etk-pop__actions' }, [ cancel, done ] ) ] );
+		if ( dialog.querySelector( `[list="${ COLOR_LIST }"]` ) ) {
+			dialog.append( el( 'datalist', { id: COLOR_LIST }, [ 'white', 'black', 'currentColor', ...siteColors() ].map( ( value ) => el( 'option', { value } ) ) ) );
+		}
+
+		const close = ( keep ) => {
+			if ( panelOpen !== dialog ) return;
+			panelOpen = null;
+			onclose( keep );
+			dialog.close();
+			dialog.remove();
+		};
+		cancel.addEventListener( 'click', () => close( false ) );
+		done.addEventListener( 'click', () => close( true ) );
+		// Esc puts it back.
+		dialog.addEventListener( 'cancel', ( event ) => {
+			event.preventDefault();
+			close( false );
+		} );
+		// A click outside keeps it.
+		dialog.addEventListener( 'click', ( event ) => {
+			if ( event.target !== dialog ) return;
+			const r = dialog.getBoundingClientRect();
+			if ( event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom ) close( true );
+		} );
+		for ( const type of [ 'keydown', 'keyup' ] ) {
+			dialog.addEventListener( type, ( event ) => {
+				if ( type === 'keydown' && event.key === 'Enter' && event.target.matches( 'input:not([type="radio"])' ) ) {
+					event.preventDefault();
+					close( true );
+				}
+				// Etch's shortcuts, Esc included, stay out of it while you type here.
+				event.stopPropagation();
+			} );
+		}
+
+		const at = anchor.getBoundingClientRect();
+		panelOpen = dialog;
+		document.body.append( dialog );
+		dialog.showModal();
+
+		// Below the anchor, or above it where there's no room, left edges lined up.
+		const gap = 8;
+		const edge = 16;
+		const { offsetWidth: width, offsetHeight: height } = dialog;
+		const left = Math.min( Math.max( edge, at.left ), window.innerWidth - width - edge );
+		const below = at.bottom + gap;
+		const top = below + height <= window.innerHeight - edge ? below : Math.max( edge, at.top - gap - height );
+		dialog.style.left = `${ left }px`;
+		dialog.style.top = `${ top }px`;
+		focus?.focus();
+		if ( focus?.select ) focus.select();
+		return { dialog, close };
+	};
+
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, onMenu, menuItem, findMenuItem, settingsBarButton, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorEdit, editorPanel, colorField, resolveColor, siteColors, isColor } );
 	window.etchToolkit = toolkit;
 } )();

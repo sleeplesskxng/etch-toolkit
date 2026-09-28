@@ -1573,3 +1573,178 @@ input.etk-switch {
 	justify-content: center;
 	flex-shrink: 0;
 }
+
+/* ---- CSS editors: swatches and editorPanel() ---- */
+
+/* The color over a checkerboard, so see-through colors read as such. */
+.etk-swatch {
+	all: unset;
+	box-sizing: border-box;
+	display: inline-block;
+	flex: none;
+	inline-size: 10px;
+	block-size: 10px;
+	margin-inline-end: 4px;
+	vertical-align: -1px;
+	border-radius: 2px;
+	background:
+		linear-gradient(var(--etk-swatch-color, transparent) 0 0),
+		repeating-conic-gradient(#8a8a8e 0 25%, #c8c8cc 0 50%) 0 0 / 6px 6px;
+	box-shadow: 0 0 0 1px rgb(255 255 255 / 0.3);
+	cursor: pointer;
+	transition: scale 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+
+	&:is(button):hover {
+		scale: 1.2;
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--etch-primary);
+		outline-offset: 2px;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		transition: none;
+	}
+}
+
+.etk-pop {
+	/* Etch's builder injects `* { margin: 0 }`. It's placed by top and left. */
+	position: fixed;
+	inset: auto;
+	margin: 0;
+	box-sizing: border-box;
+	inline-size: 300px;
+	max-inline-size: calc(100vw - 32px);
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 14px;
+	background-color: var(--etch-panel-bg, var(--e-base));
+	border: 1px solid var(--etch-border-color);
+	border-radius: 12px;
+	color: var(--e-foreground-color);
+	/* Appended to <body>, outside Etch's UI container that sets the font. */
+	font-family: var(--etch-font-interface, var(--e-font-interface));
+	font-size: var(--etch-font-size-m);
+	box-shadow:
+		0 0 0 1px rgb(0 0 0 / 0.05),
+		0 1px 3px 0 rgb(0 0 0 / 0.15),
+		0 6px 12px 0 rgb(0 0 0 / 0.08),
+		0 18px 24px 0 rgb(0 0 0 / 0.1);
+
+	&:not([open]) {
+		display: none;
+	}
+
+	/* Nothing dims, so you can watch the canvas. */
+	&::backdrop {
+		background: transparent;
+	}
+
+	.etk-slider {
+		inline-size: auto;
+	}
+
+	select,
+	input:not([type='radio']) {
+		box-sizing: border-box;
+		inline-size: 100%;
+		min-inline-size: 0;
+		block-size: 32px;
+		padding-inline: 10px;
+		border: 1px solid var(--etch-border-color);
+		border-radius: var(--e-border-radius, 6px);
+		background-color: var(--e-base, #27272b);
+		color: var(--e-foreground-color);
+		font-family: var(--e-font-code);
+		font-size: var(--etch-font-size-m);
+
+		/* No ring, like Etch's fields. */
+		&:focus-visible {
+			outline: none;
+		}
+
+		&[aria-invalid='true'] {
+			border-color: var(--etch-danger);
+		}
+	}
+}
+
+.etk-pop__fields {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.etk-pop__row {
+	display: grid;
+	grid-template-columns: 44px 1fr;
+	align-items: center;
+	gap: 8px;
+
+	label {
+		color: color-mix(in srgb, var(--e-foreground-color, #e1e1e5) 60%, transparent);
+		font-size: var(--etch-font-size-s, 11px);
+	}
+}
+
+.etk-pop__input,
+.etk-pop__select {
+	position: relative;
+
+	/* Hugeicons arrow-down-01, masked so it takes the text color. */
+	&::after {
+		content: "";
+		position: absolute;
+		inset-inline-end: 10px;
+		inset-block-start: 50%;
+		inline-size: 14px;
+		block-size: 14px;
+		translate: 0 -50%;
+		background-color: color-mix(in srgb, var(--e-foreground-color, #e1e1e5) 60%, transparent);
+		mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 9s-4.419 6-6 6s-6-6-6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+		pointer-events: none;
+	}
+}
+
+/* Clear of the swatch. Beats the panel's field padding. */
+.etk-pop .etk-pop__input input {
+	padding-inline: 30px 8px;
+
+	/* Chrome's arrow for the suggestions, see-through under the chevron so a click there still opens them. */
+	&::-webkit-calendar-picker-indicator {
+		inline-size: 16px;
+		margin: 0;
+		opacity: 0;
+		cursor: pointer;
+	}
+}
+
+.etk-pop .etk-pop__select select {
+	appearance: none;
+	padding-inline-end: 30px;
+	cursor: pointer;
+}
+
+.etk-swatch--field {
+	position: absolute;
+	inline-size: 14px;
+	block-size: 14px;
+	margin: 0;
+	border-radius: 50%;
+	inset-inline-start: 9px;
+	inset-block-start: 50%;
+	translate: 0 -50%;
+	cursor: default;
+}
+
+.etk-pop__actions {
+	display: flex;
+	gap: 8px;
+	margin-block-start: 4px;
+
+	.etk-confirm__btn {
+		padding: 9px 12px;
+	}
+}
