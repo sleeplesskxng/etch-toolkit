@@ -21,7 +21,6 @@ require ETCH_TOOLKIT_DIR . 'includes/options.php';
 require ETCH_TOOLKIT_DIR . 'includes/helpers.php';
 require ETCH_TOOLKIT_DIR . 'features/settings/settings.php';
 require ETCH_TOOLKIT_DIR . 'features/style-usage/style-usage.php';
-require ETCH_TOOLKIT_DIR . 'features/delete-everywhere/delete-everywhere.php';
 require ETCH_TOOLKIT_DIR . 'features/bulk-select/bulk-select.php';
 require ETCH_TOOLKIT_DIR . 'features/fonts/fonts.php';
 require ETCH_TOOLKIT_DIR . 'features/recipes/recipes.php';
