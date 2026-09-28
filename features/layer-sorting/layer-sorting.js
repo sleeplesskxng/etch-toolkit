@@ -21,6 +21,8 @@
  * - Resting on a spot the canvas can't show scrolls the canvas to it.
  * - Esc cancels.
  *
+ * Selecting a layer on the canvas also scrolls its row to the middle of the panel.
+ *
  * Touch and Etch's keyboard dragging stay Etch's. Turned off in the
  * toolkit's settings (General), Etch's own drag comes back.
  */
@@ -497,6 +499,69 @@
 		const r = node.getBoundingClientRect();
 		if ( r.bottom < 0 || r.top > view.innerHeight ) node.scrollIntoView( { block: 'center', behavior: 'smooth' } );
 	};
+
+	/* ---- Following the selection ---- */
+
+	/*
+	 * Etch opens a layer's parents when you select it on the canvas, but
+	 * leaves the panel where it was. Once the layer's row is in, the panel
+	 * scrolls it to the middle, unless it's already in full view. A click
+	 * in the panel is on a row you can see, so it stays put.
+	 */
+	let followed = null; // The id the panel last scrolled to, or found in view.
+	let pressedPanel = 0; // When the panel was last pressed. The canvas's presses stay in its frame.
+	let following = 0;
+
+	document.addEventListener(
+		'pointerdown',
+		( event ) => {
+			if ( event.target.closest?.( WRAP ) ) pressedPanel = event.timeStamp;
+		},
+		true
+	);
+
+	const follow = () => {
+		following = 0;
+		if ( drag || ! enabled() ) return;
+		const wrap = document.querySelector( WRAP );
+		const selected = wrap?.querySelectorAll( `${ HEADER }[data-block-selected="true"]` );
+		if ( selected?.length !== 1 ) {
+			followed = null;
+			return;
+		}
+		const header = selected[ 0 ];
+		const id = header.dataset.blockid;
+		if ( id === followed ) return;
+		const row = header.getBoundingClientRect();
+		// Not shown yet, while its parents open.
+		if ( ! row.height ) return;
+		followed = id;
+		if ( performance.now() - pressedPanel < 1000 ) return;
+		const box = wrap.getBoundingClientRect();
+		// Etch's panel pads its end for a fade, which hides what's under it.
+		const bottom = box.bottom - ( parseFloat( getComputedStyle( wrap ).paddingBlockEnd ) || 0 );
+		if ( row.top >= box.top && row.bottom <= bottom ) return;
+		const top = wrap.scrollTop + row.top - box.top - ( wrap.clientHeight - row.height ) / 2;
+		const reduce = window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
+		wrap.scrollTo( { top: Math.max( 0, top ), behavior: reduce ? 'auto' : 'smooth' } );
+	};
+
+	// The panel re-renders as layers open and selections change. Checked once a frame at most.
+	let watched = null;
+	const observer = new MutationObserver( () => {
+		following ||= requestAnimationFrame( follow );
+	} );
+	const watch = () => {
+		const wrap = document.querySelector( WRAP );
+		if ( wrap === watched ) return;
+		observer.disconnect();
+		watched = wrap;
+		followed = null;
+		if ( wrap ) observer.observe( wrap, { subtree: true, childList: true, attributes: true, attributeFilter: [ 'data-block-selected' ] } );
+	};
+	// Etch mounts the panel again when you switch pages or panels.
+	window.etchToolkit?.onPageChange?.( watch );
+	watch();
 
 	/* ---- Letting go ---- */
 
