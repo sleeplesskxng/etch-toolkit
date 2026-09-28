@@ -462,7 +462,7 @@
 	 */
 	const iconButton = ( label, iconName, onclick, { variant = 'icon', title = label, attrs = {} } = {} ) => {
 		const { class: extra, ...rest } = attrs;
-		return el( 'button', { type: 'button', class: btnClass( variant, `etk-fonts__icon-btn${ extra ? ` ${ extra }` : '' }` ), 'aria-label': label, title, onclick, html: icon( iconName ), ...rest } );
+		return el( 'button', { type: 'button', class: btnClass( variant, `etk-fonts__icon-btn${ extra ? ` ${ extra }` : '' }` ), 'aria-label': label, 'data-etk-tooltip': title, onclick, html: icon( iconName ), ...rest } );
 	};
 
 	// A label over its control, or beside it in a 72px column with row: true.
@@ -601,7 +601,7 @@
 			options.map( ( option ) =>
 				el(
 					'label',
-					{ title: option.icon ? option.label : null },
+					{ 'data-etk-tooltip': option.icon ? option.label : null },
 					el( 'input', { type: 'radio', name: `etk-fonts-${ name }`, value: option.value, checked: option.value === value, onchange: () => onchange( option.value ) } ),
 					option.icon ? el( 'span', { class: 'etk-fonts__seg-icon', html: icon( option.icon, 14 ) } ) : null,
 					el( 'span', { class: option.icon ? 'etk-sr' : null, textContent: option.label } ),
@@ -742,7 +742,8 @@
 			{
 				type: 'button',
 				class: iconOnly ? btnClass( 'icon', 'etk-fonts__icon-btn etk-fonts__copy' ) : `etk-fonts__var etk-fonts__var--${ variant }`,
-				title: 'Copy CSS variable',
+				title: iconOnly ? null : 'Copy CSS variable',
+				'data-etk-tooltip': iconOnly ? 'Copy CSS variable' : null,
 				'aria-label': label,
 				onclick: async () => {
 					const value = current();
@@ -753,12 +754,14 @@
 					}
 					node.classList.add( 'is-copied' );
 					node.setAttribute( 'aria-label', 'Copied' );
+					if ( iconOnly ) node.dataset.etkTooltip = 'Copied';
 					glyph.innerHTML = icon( 'tick' );
 					announce( `Copied ${ value }` );
 					window.clearTimeout( timer );
 					timer = window.setTimeout( () => {
 						node.classList.remove( 'is-copied' );
 						node.setAttribute( 'aria-label', label );
+						if ( iconOnly ) node.dataset.etkTooltip = 'Copy CSS variable';
 						glyph.innerHTML = icon( 'copy' );
 					}, 1500 );
 				},

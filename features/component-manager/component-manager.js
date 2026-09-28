@@ -621,7 +621,7 @@
 	const componentRow = ( component ) => {
 		const used = usedOn ? isUsed( component ) : null;
 		const action = ( key, label, title, icon, onclick, extra = '' ) =>
-			button( '', onclick, { class: `etk-btn etk-btn--secondary etk-components__row-action${ extra }`, 'aria-label': label, title, html: icon, 'data-focus': `${ key }:${ component.id }` } );
+			button( '', onclick, { class: `etk-btn etk-btn--secondary etk-components__row-action${ extra }`, 'aria-label': label, 'data-etk-tooltip': title, html: icon, 'data-focus': `${ key }:${ component.id }` } );
 		return el(
 			'tr',
 			{ class: used === false ? 'is-unused' : null },
@@ -696,7 +696,7 @@
 			el(
 				'div',
 				{ class: 'etk-components__review-head' },
-				button( '', () => showList(), { class: 'etk-btn etk-btn--secondary etk-btn--icon', 'aria-label': 'Back to components', title: 'Back to components', html: icon( 'arrow-left' ), 'data-focus': 'back' } ),
+				button( '', () => showList(), { class: 'etk-btn etk-btn--secondary etk-btn--icon', 'aria-label': 'Back to components', 'data-etk-tooltip': 'Back to components', html: icon( 'arrow-left' ), 'data-focus': 'back' } ),
 				el( 'h2', { class: 'etk-manager__page-title', tabindex: '-1', textContent: `Update ${ target.name }` } )
 			),
 			el( 'p', { class: 'etk-components__help', textContent: `Drop or paste JSON for ${ target.name }. In Etch, select it and press Cmd+C. You’ll review changes before saving.` } ),
@@ -744,7 +744,7 @@
 				el(
 					'div',
 					{ class: 'etk-components__review-head' },
-					button( '', () => go( 'import' ), { class: 'etk-btn etk-btn--secondary etk-btn--icon', 'aria-label': 'Back to the JSON', title: 'Back to the JSON', html: icon( 'arrow-left' ), 'data-focus': 'back' } ),
+					button( '', () => go( 'import' ), { class: 'etk-btn etk-btn--secondary etk-btn--icon', 'aria-label': 'Back to the JSON', 'data-etk-tooltip': 'Back to the JSON', html: icon( 'arrow-left' ), 'data-focus': 'back' } ),
 					el(
 						'div',
 						{ class: 'etk-components__review-title' },
@@ -1838,7 +1838,7 @@
 			el(
 				'header',
 				{ class: 'etk-manager__header' },
-				el( 'button', { type: 'button', class: 'etk-btn etk-btn--secondary etk-btn--icon', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: icon( 'arrow-left' ), onclick: () => close() } ),
+				el( 'button', { type: 'button', class: 'etk-btn etk-btn--secondary etk-btn--icon', 'aria-label': 'Back to the builder', 'data-etk-tooltip': 'Back to the builder', html: icon( 'arrow-left' ), onclick: () => close() } ),
 				el( 'h1', { id: 'etk-components-title', class: 'etk-manager__title', textContent: 'Components' } )
 			),
 			el( 'div', { class: 'etk-manager__body' }, status, el( 'div', { class: 'etk-manager__content' }, main ) )

@@ -510,7 +510,7 @@
 		} );
 		const clear = barButton( null, 'close', onClear, { variant: 'icon', className: 'etk-bulk-bar__clear', size: 's', iconSize: 12 } );
 		clear.setAttribute( 'aria-label', 'Clear selection' );
-		clear.title = 'Clear selection';
+		clear.dataset.etkTooltip = 'Clear selection';
 		const bar = el(
 			'div',
 			{ class: `etk-bulk-bar ${ className }`, hidden: true, role: 'group', 'aria-label': label },

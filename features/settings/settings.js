@@ -243,7 +243,7 @@
 				el(
 					'header',
 					{ class: 'etk-manager__header' },
-					builder ? el( 'button', { type: 'button', class: 'etk-btn etk-btn--secondary etk-btn--icon', 'aria-label': 'Back to the builder', title: 'Back to the builder', html: icon( 'arrow-left' ), onclick: () => close() } ) : null,
+					builder ? el( 'button', { type: 'button', class: 'etk-btn etk-btn--secondary etk-btn--icon', 'aria-label': 'Back to the builder', 'data-etk-tooltip': 'Back to the builder', html: icon( 'arrow-left' ), onclick: () => close() } ) : null,
 					el( 'span', { class: 'etk-settings__logo', html: `<svg viewBox="0 0 88 88" width="18" height="18" aria-hidden="true" focusable="false">${ LOGO }</svg>` } ),
 					el( 'h1', { id: 'etk-settings-title', class: 'etk-manager__title', textContent: 'Etch Toolkit' } )
 				),

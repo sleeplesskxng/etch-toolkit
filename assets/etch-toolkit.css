@@ -234,6 +234,65 @@
 	}
 }
 
+/* ---- Tooltips ---- */
+
+/*
+ * data-etk-tooltip: an icon button's name, shown like Etch's tooltips on hover
+ * and keyboard focus. Fixed and anchored, so a scrolling pane doesn't clip
+ * it. It sits above, or below near the top, and stays in the window. It's
+ * for sight only: give the button an aria-label too.
+ */
+[data-etk-tooltip] {
+	anchor-name: --etk-tooltip;
+	anchor-scope: --etk-tooltip;
+
+	&::before {
+		content: attr(data-etk-tooltip);
+		position: fixed;
+		z-index: 102;
+		position-anchor: --etk-tooltip;
+		position-area: top;
+		position-try-fallbacks: flip-block;
+		max-inline-size: 40ch;
+		margin-block: 5px;
+		padding: 4px 8px;
+		border-radius: var(--e-border-radius, 6px);
+		background-color: var(--e-tooltip-bg, var(--e-base-dark, #1d1d20));
+		color: var(--e-foreground-color, #e1e1e5);
+		font: 400 var(--e-font-size-s, 11px) / 1.5 var(--e-font-interface, system-ui, sans-serif);
+		letter-spacing: normal;
+		text-align: center;
+		text-transform: none;
+		text-wrap: balance;
+		white-space: normal;
+		pointer-events: none;
+		opacity: 0;
+		transition: opacity 0.1s;
+	}
+
+	@media (hover: hover) {
+		&:hover::before {
+			opacity: 1;
+		}
+	}
+
+	&:is(:focus-visible, :has(:focus-visible))::before {
+		opacity: 1;
+	}
+}
+
+/* A picked .etk-track item anchors the track's highlight as well. */
+.etk-track > [data-etk-tooltip]:is([aria-selected="true"], [aria-current="page"], :has(> input:checked)) {
+	anchor-name: --etk-track-pick, --etk-tooltip;
+}
+
+/* Without anchor positioning, there's no tooltip. The aria-label still names the button. */
+@supports not (anchor-name: --etk-tooltip) {
+	[data-etk-tooltip]::before {
+		display: none;
+	}
+}
+
 /* ---- Form dialogs ---- */
 
 /* A text field in a dialog. No focus ring, like Etch's fields. */
@@ -684,6 +743,11 @@
 	block-size: 57px;
 	padding: 0 12px;
 	border-block-end: 1px solid var(--etk-line);
+
+	/* Centered, the back button's tooltip would slip under the settings bar. */
+	> [data-etk-tooltip]::before {
+		position-area: bottom span-right;
+	}
 }
 
 .etk-manager__title {
@@ -1300,8 +1364,10 @@ input.etk-switch {
 .etk-bulk-bar {
 	position: absolute;
 	bottom: var(--etch-space-xl);
-	left: 50%;
-	translate: -50% 0;
+	/* Centered by margins: a translate would trap its tooltips inside it. */
+	inset-inline: 0;
+	inline-size: fit-content;
+	margin-inline: auto;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
