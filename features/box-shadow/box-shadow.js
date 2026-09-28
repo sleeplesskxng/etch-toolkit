@@ -16,6 +16,11 @@
  * - A slider for each value but the direction, for the keyboard, or anyone
  *   who'd rather.
  *
+ * With Automatic.css and its box shadow variables on, the panel has two tabs.
+ * Presets picks one of its variables, which the shadow then uses as
+ * var(--box-shadow-…). Custom is the above, and can save its shadow over one
+ * of the variables, which Automatic.css writes at once, unlike the rest.
+ *
  * The layers follow the curves of the Beautiful Shadows Figma plugin, up to
  * the size you set, and add up to the opacity you set. A shadow it wrote opens
  * with its own values. Others open with what can be read from them, and are
@@ -26,7 +31,7 @@
  * Etch, so one Cmd+Z takes the whole change back.
  */
 ( () => {
-	const { el, slider, cssText, editorWidgets, editorEdit, editorPanel, colorField, resolveColor, isColor } = window.etchToolkit || {};
+	const { api, el, slider, cssText, confirmDialog, errorDialog, errorText, editorWidgets, editorEdit, editorPanel, colorField, resolveColor, isColor } = window.etchToolkit || {};
 	if ( ! editorWidgets ) return;
 	const { splitTop, declarations } = cssText;
 
@@ -116,9 +121,10 @@
 		} );
 	};
 
+	const list = ( shadow, color ) => layers( shadow ).map( ( l ) => `${ shadow.inset ? 'inset ' : '' }${ px( l.x ) } ${ px( l.y ) } ${ px( l.blur ) } color-mix(in srgb, ${ color } ${ l.alpha }%, transparent)` );
 	const compose = ( shadow, color, indent ) => {
-		const list = layers( shadow ).map( ( l ) => `${ shadow.inset ? 'inset ' : '' }${ px( l.x ) } ${ px( l.y ) } ${ px( l.blur ) } color-mix(in srgb, ${ color } ${ l.alpha }%, transparent)` );
-		return list.length === 1 ? ` ${ list[ 0 ] }` : list.map( ( layer ) => `\n${ indent }${ layer }` ).join( ',' );
+		const layered = list( shadow, color );
+		return layered.length === 1 ? ` ${ layered[ 0 ] }` : layered.map( ( layer ) => `\n${ indent }${ layer }` ).join( ',' );
 	};
 
 	const LENGTH = /^-?(?:\d+\.?\d*|\.\d+)(?:px)?$/i;
@@ -180,6 +186,73 @@
 		return found;
 	};
 
+	// ---- Automatic.css's box shadow variables ----
+
+	// { slot, name, value } for each, empty ones too since a shadow can be saved into them. Null when there are none to use.
+	let presets = window.etchToolkitBoxShadow?.presets ?? null;
+	const varOf = ( preset ) => `--box-shadow-${ preset.name }`;
+	const filled = () => ( presets || [] ).filter( ( preset ) => preset.value );
+	// The preset a value points at, when it's just var(--box-shadow-…).
+	const presetFor = ( value ) => {
+		const name = /^var\(\s*(--[\w-]+)\s*\)$/.exec( value.trim() )?.[ 1 ];
+		return name ? filled().find( ( preset ) => varOf( preset ) === name ) ?? null : null;
+	};
+
+	const canvas = () => document.querySelector( '#etch-iframe' )?.contentDocument || null;
+	let shadowProbe = null;
+	// A shadow as the canvas paints it, where the site's variables are, or null.
+	const paintedShadow = ( value ) => {
+		const doc = canvas();
+		if ( ! doc?.body ) return null;
+		if ( ! shadowProbe?.isConnected || shadowProbe.ownerDocument !== doc ) {
+			shadowProbe = doc.createElement( 'div' );
+			shadowProbe.setAttribute( 'aria-hidden', 'true' );
+			shadowProbe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none';
+			doc.body.append( shadowProbe );
+		}
+		shadowProbe.style.boxShadow = '';
+		shadowProbe.style.boxShadow = value;
+		const painted = doc.defaultView.getComputedStyle( shadowProbe ).boxShadow;
+		return painted === 'none' ? null : painted;
+	};
+
+	// A shadow for the tile, its lengths shrunk as the custom shadow's are, and whether its color is light.
+	const tileShadow = ( value ) => {
+		const painted = paintedShadow( value );
+		if ( ! painted ) return { css: '', light: false };
+		let color = null;
+		const css = splitTop( painted, /,/ )
+			.map( ( layer ) =>
+				splitTop( layer.trim(), /\s/ )
+					.map( ( word ) => {
+						if ( /^-?[\d.]+px$/.test( word ) ) return `${ round( parseFloat( word ) * TILE ) }px`;
+						if ( ! /^inset$/i.test( word ) ) color ??= word;
+						return word;
+					} )
+					.join( ' ' )
+			)
+			.join( ', ' );
+		return { css, light: color ? isLight( color ) : false };
+	};
+
+	// The canvas has Automatic.css's old files. Load them again, and drop the old ones once the new are in, so nothing flashes unstyled.
+	const reloadAutomaticCss = () => {
+		for ( const old of canvas()?.querySelectorAll( 'link[rel="stylesheet"][href*="/automatic-css/"]' ) ?? [] ) {
+			const url = new URL( old.href );
+			url.searchParams.set( 'etk', Date.now() );
+			const next = old.cloneNode();
+			next.href = url.href;
+			next.addEventListener( 'load', () => old.remove() );
+			old.after( next );
+		}
+	};
+
+	// Automatic.css writes it and rebuilds its CSS at once, not with Etch's Save.
+	const saveToPreset = async ( slot, value ) => {
+		presets = ( await api( `box-shadows/${ slot }`, 'PUT', { value } ) ).presets;
+		reloadAutomaticCss();
+	};
+
 	// ---- Buttons ----
 
 	// The box-shadow declarations in a document, as { from, to }: from right after the colon. Once per version of it.
@@ -215,7 +288,10 @@
 		const line = view.state.doc.lineAt( from );
 		const indent = `${ /^\s*/.exec( line.text )[ 0 ] }  `;
 
-		const shadow = parse( original );
+		// The preset on the element now, if it's one. Its var() isn't a shadow to read.
+		let applied = presetFor( original );
+		let mode = applied ? 'presets' : 'custom';
+		const shadow = parse( applied ? '' : original );
 		let { color } = shadow;
 		delete shadow.color;
 		const edit = editorEdit( view, from, original );
@@ -293,8 +369,15 @@
 
 		// The stage shows the real color, which lives on the canvas, and goes dark for a light one.
 		let shown = resolveColor( color.trim() ) || 'transparent';
-		const theme = () => ( stage.dataset.theme = isLight( shown ) ? 'dark' : 'light' );
+		let shownLight = isLight( shown );
 		const paint = () => {
+			// A preset's shadow, on a tile that keeps still.
+			const preset = mode === 'presets' && applied ? tileShadow( applied.value ) : null;
+			stage.dataset.theme = ( preset ? preset.light : shownLight ) ? 'dark' : 'light';
+			if ( preset ) {
+				tile.style.boxShadow = preset.css;
+				return;
+			}
 			const rad = ( shadow.angle * Math.PI ) / 180;
 			const out = reachFor( shadow.size );
 			// From the middle, as a share of the way to the edge.
@@ -310,7 +393,10 @@
 		// Written once a frame at most, since each write redraws the canvas.
 		let writing = 0;
 		const update = () => {
+			// Whatever it was, it's this now.
+			applied = null;
 			paint();
+			saveable();
 			if ( ! isColor( color ) ) return;
 			writing ||= requestAnimationFrame( () => {
 				writing = 0;
@@ -455,7 +541,7 @@
 			oninput: ( value ) => {
 				color = value;
 				shown = resolveColor( color.trim() ) || 'transparent';
-				theme();
+				shownLight = isLight( shown );
 				update();
 			},
 		} );
@@ -467,14 +553,144 @@
 		} );
 		const insetRow = el( 'div', { className: 'etk-pop__row' }, [ el( 'label', { htmlFor: 'etk-shadow-inset', textContent: 'Inset' } ), inset ] );
 
-		theme();
-		paint();
-		editorPanel( {
+		// ---- Save to a preset ----
+
+		const targets = el( 'select', { id: 'etk-shadow-target' } );
+		const save = el( 'button', { type: 'button', className: 'etk-confirm__btn etk-confirm__btn--cancel etk-shadow__save', textContent: 'Save', disabled: true } );
+		const status = el( 'p', { className: 'etk-sr', role: 'status' } );
+		let saving = false;
+		const saveable = () => ( save.disabled = saving || ! target() || ! isColor( color ) );
+		const target = () => presets?.find( ( preset ) => String( preset.slot ) === targets.value ) ?? null;
+		const fillTargets = () => {
+			const chosen = targets.value;
+			targets.replaceChildren(
+				el( 'option', { value: '', textContent: 'Choose a preset', disabled: true } ),
+				...( presets || [] ).map( ( preset ) => el( 'option', { value: String( preset.slot ), textContent: `${ varOf( preset ) }${ preset.value ? '' : ' (empty)' }` } ) )
+			);
+			targets.value = chosen;
+			saveable();
+		};
+		targets.addEventListener( 'change', saveable );
+
+		save.addEventListener( 'click', async () => {
+			const preset = target();
+			if ( saving || ! preset || ! isColor( color ) ) return;
+			saving = true;
+			saveable();
+			const name = varOf( preset );
+			// One line, since Automatic.css keeps it in a field.
+			const value = list( shadow, color.trim() ).join( ', ' );
+			let dialog = null;
+			try {
+				// Filling an empty one takes nothing away.
+				if ( preset.value ) {
+					dialog = confirmDialog( {
+						title: `Replace ${ name }?`,
+						message: [ el( 'p', { textContent: 'Everything on the site that uses it changes too. Automatic.css saves it now, so Cancel on the shadow panel won\'t take it back.' } ) ],
+						confirmLabel: 'Replace',
+						busyLabel: 'Saving…',
+						variant: 'primary',
+					} );
+					if ( ! ( await dialog.result ) ) return;
+				}
+				await saveToPreset( preset.slot, value );
+				dialog?.close();
+				fillTargets();
+				// It's a variable now, so the element uses it, on the Presets tab, and Done keeps it.
+				applied = presets.find( ( item ) => item.slot === preset.slot );
+				cancelAnimationFrame( writing );
+				writing = 0;
+				edit.set( ` var(${ name })` );
+				tabs.querySelector( 'input[value="presets"]' ).checked = true;
+				switchTo( 'presets' );
+				status.textContent = `Saved to ${ name }. The element uses it now.`;
+				setTimeout( () => ( status.textContent = '' ), 4000 );
+			} catch ( error ) {
+				if ( dialog ) dialog.fail( errorText( error ) );
+				else errorDialog( 'Couldn\'t save the preset', errorText( error ) );
+			} finally {
+				saving = false;
+				saveable();
+			}
+		} );
+
+		const saveRow = presets
+			? el( 'div', { className: 'etk-pop__row etk-shadow__saveto' }, [
+					el( 'label', { htmlFor: 'etk-shadow-target', textContent: 'Save to ACSS' } ),
+					el( 'div', { className: 'etk-shadow__target' }, [ el( 'div', { className: 'etk-pop__select' }, [ targets ] ), save ] ),
+			  ] )
+			: null;
+
+		// ---- Presets: Automatic.css's variables, one to pick ----
+
+		const picker = el( 'select', { id: 'etk-shadow-preset' } );
+		const pickerRow = el( 'div', { className: 'etk-pop__row' }, [ el( 'label', { htmlFor: 'etk-shadow-preset', textContent: 'Preset' } ), el( 'div', { className: 'etk-pop__select' }, [ picker ] ) ] );
+		const pickerValue = el( 'code', { className: 'etk-shadow__value' } );
+		const pickerEmpty = el( 'p', { className: 'etk-shadow__none', textContent: 'None of Automatic.css\'s box shadows have a value yet. Make one in Custom, then save it to a preset.' } );
+		const fillPresets = () => {
+			const options = filled();
+			picker.replaceChildren(
+				el( 'option', { value: '', textContent: 'Choose a preset', disabled: true } ),
+				...options.map( ( preset ) => el( 'option', { value: String( preset.slot ), textContent: varOf( preset ) } ) )
+			);
+			// A preset saved over shows its new shadow.
+			applied &&= options.find( ( preset ) => preset.slot === applied.slot ) ?? null;
+			picker.value = applied ? String( applied.slot ) : '';
+			pickerValue.textContent = applied?.value ?? '';
+			pickerRow.hidden = pickerValue.hidden = ! options.length;
+			pickerEmpty.hidden = options.length > 0;
+			paint();
+		};
+		picker.addEventListener( 'change', () => {
+			const preset = filled().find( ( item ) => String( item.slot ) === picker.value );
+			if ( ! preset ) return;
+			applied = preset;
+			// A change from Custom still waiting on its frame would land over it.
+			cancelAnimationFrame( writing );
+			writing = 0;
+			edit.set( ` var(${ varOf( preset ) })` );
+			pickerValue.textContent = preset.value;
+			paint();
+		} );
+
+		const customPane = el( 'div', { className: 'etk-pop__fields' }, [ colorRow, insetRow, ...fields, saveRow ] );
+		const presetsPane = el( 'div', { className: 'etk-pop__fields' }, [ pickerRow, pickerValue, pickerEmpty ] );
+
+		// ---- Tabs ----
+
+		let panel = null;
+		const switchTo = ( next ) => {
+			mode = next;
+			stage.classList.toggle( 'is-presets', mode === 'presets' );
+			customPane.hidden = mode !== 'custom';
+			presetsPane.hidden = mode !== 'presets';
+			if ( mode === 'presets' ) fillPresets();
+			else paint();
+			// The two panes are different heights.
+			panel?.place();
+		};
+		const tabs = presets
+			? el( 'fieldset', { className: 'etk-shadow__tabs etk-seg etk-seg--fill etk-track' }, [
+					el( 'legend', { className: 'etk-sr', textContent: 'Shadow from' } ),
+					...[
+						[ 'presets', 'Presets' ],
+						[ 'custom', 'Custom' ],
+					].map( ( [ value, label ] ) => el( 'label', {}, [ el( 'input', { type: 'radio', name: 'etk-shadow-mode', value, checked: value === mode } ), el( 'span', { textContent: label } ) ] ) ),
+			  ] )
+			: null;
+		tabs?.addEventListener( 'change', ( event ) => switchTo( event.target.value ) );
+
+		if ( presets ) {
+			fillTargets();
+			fillPresets();
+		}
+		switchTo( mode );
+		panel = editorPanel( {
 			anchor: button,
 			label: 'Box shadow',
 			className: 'etk-shadow',
-			content: [ stage, el( 'div', { className: 'etk-pop__fields' }, [ colorRow, insetRow, ...fields ] ) ],
-			focus: inputOf( 'size' ),
+			content: [ tabs, stage, customPane, presets ? presetsPane : null, status ],
+			focus: mode === 'presets' ? picker : inputOf( 'size' ),
 			onclose: ( keep ) => {
 				cancelAnimationFrame( writing );
 				clearTimeout( hiding );

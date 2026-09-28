@@ -190,6 +190,57 @@
 	}
 }
 
+/* The panes and tabs take turns, and a preset's tile keeps still, with no light to drag. */
+.etk-shadow [hidden] {
+	display: none;
+}
+
+.etk-shadow__stage.is-presets .etk-shadow__handle {
+	display: none;
+}
+
+.etk-shadow__value {
+	display: block;
+	padding: 8px 10px;
+	border-radius: var(--e-border-radius, 6px);
+	background: var(--e-base-dark, #1d1d20);
+	color: color-mix(in srgb, var(--e-foreground-color, #e1e1e5) 70%, transparent);
+	font-family: var(--e-font-code);
+	font-size: var(--etch-font-size-s, 11px);
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+
+.etk-shadow__none {
+	margin: 0;
+	color: color-mix(in srgb, var(--e-foreground-color, #e1e1e5) 60%, transparent);
+	font-size: var(--etch-font-size-s, 11px);
+	line-height: 1.5;
+}
+
+/* Saving to a preset is its own step, apart from the shadow's values. */
+.etk-shadow__saveto {
+	grid-template-columns: auto 1fr;
+	margin-block-start: 2px;
+	padding-block-start: 12px;
+	border-block-start: 1px solid var(--etch-border-color);
+}
+
+.etk-shadow__target {
+	display: flex;
+	gap: 6px;
+
+	.etk-pop__select {
+		flex: 1;
+		min-inline-size: 0;
+	}
+
+	.etk-shadow__save {
+		flex: none;
+		padding: 0 12px;
+	}
+}
+
 .etk-shadow:has(.etk-shadow__for-light input:focus-visible) .etk-shadow__light {
 	outline: 2px solid var(--etch-primary, #6ce0d4);
 	outline-offset: 2px;

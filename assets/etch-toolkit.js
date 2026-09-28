@@ -1424,6 +1424,7 @@
 	 * content, then Cancel and Done. Esc or Cancel runs onclose( false ), Done,
 	 * Enter in a field or a click outside onclose( true ). One at a time:
 	 * returns null while another is open. focus is the element to focus first.
+	 * place() puts it under the anchor again, for content that changes height.
 	 */
 	let panelOpen = null;
 	const editorPanel = ( { anchor, label, className = '', content, focus, onclose } ) => {
@@ -1466,23 +1467,26 @@
 			} );
 		}
 
-		const at = anchor.getBoundingClientRect();
 		panelOpen = dialog;
 		document.body.append( dialog );
 		dialog.showModal();
 
 		// Below the anchor, or above it where there's no room, left edges lined up.
-		const gap = 8;
-		const edge = 16;
-		const { offsetWidth: width, offsetHeight: height } = dialog;
-		const left = Math.min( Math.max( edge, at.left ), window.innerWidth - width - edge );
-		const below = at.bottom + gap;
-		const top = below + height <= window.innerHeight - edge ? below : Math.max( edge, at.top - gap - height );
-		dialog.style.left = `${ left }px`;
-		dialog.style.top = `${ top }px`;
+		const place = () => {
+			const at = anchor.getBoundingClientRect();
+			const gap = 8;
+			const edge = 16;
+			const { offsetWidth: width, offsetHeight: height } = dialog;
+			const left = Math.min( Math.max( edge, at.left ), window.innerWidth - width - edge );
+			const below = at.bottom + gap;
+			const top = below + height <= window.innerHeight - edge ? below : Math.max( edge, at.top - gap - height );
+			dialog.style.left = `${ left }px`;
+			dialog.style.top = `${ top }px`;
+		};
+		place();
 		focus?.focus();
 		if ( focus?.select ) focus.select();
-		return { dialog, close };
+		return { dialog, close, place };
 	};
 
 	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, onMenu, menuItem, findMenuItem, settingsBarButton, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorEdit, editorPanel, colorField, resolveColor, siteColors, isColor } );
