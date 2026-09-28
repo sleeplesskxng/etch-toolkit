@@ -64,15 +64,15 @@
 	// ---- Writing and reading a shadow ----
 
 	/*
-	 * The layers, smallest first. Offsets grow as a square, so there are more
-	 * close, tight layers than far, soft ones. Together, layer over layer,
-	 * they reach the opacity.
+	 * The layers, smallest first. Each is twice as far as the one before, up
+	 * to the size, so each adds its own step from tight to wide. Together,
+	 * layer over layer, they reach the opacity.
 	 */
 	const layers = ( { angle, size, count, opacity, softness } ) => {
 		const rad = ( angle * Math.PI ) / 180;
 		const alpha = round( 100 * ( 1 - ( 1 - opacity / 100 ) ** ( 1 / count ) ) );
 		return Array.from( { length: count }, ( _, i ) => {
-			const offset = size * ( ( i + 1 ) / count ) ** 2;
+			const offset = size / 2 ** ( count - 1 - i );
 			// Away from the light.
 			return { x: half( -Math.sin( rad ) * offset ), y: half( Math.cos( rad ) * offset ), blur: half( offset * softness ), alpha };
 		} );
