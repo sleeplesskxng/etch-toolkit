@@ -15,8 +15,8 @@
  * - A slider for each value but the direction, for the keyboard, or anyone
  *   who'd rather.
  *
- * Each layer's blur is its offset times the softness, growing to the size
- * you set, and they add up to the opacity you set. A shadow it wrote opens
+ * The layers follow the curves of the Beautiful Shadows Figma plugin, up to
+ * the size you set, and add up to the opacity you set. A shadow it wrote opens
  * with its own values. Others open with what can be read from them, and are
  * only replaced once you change something.
  *
@@ -32,7 +32,7 @@
 	const PROPERTY = /^box-shadow$/i;
 	const LAYERS = { min: 1, max: 8, start: 5 };
 	const SIZE = { min: 1, max: 64, start: 24 }; // The biggest layer's offset, in pixels.
-	const SOFTNESS = { min: 1, max: 3.5, start: 2 }; // Blur, as times the offset.
+	const SOFTNESS = { min: 1, max: 3.5, start: 2 }; // 2 blurs as the plugin does.
 	const OPACITY = 20; // Percent, to start.
 
 	// The stage, in pixels: how close to its edge the light goes, and how much smaller the tile's shadow is than the real one.
@@ -64,17 +64,46 @@
 	// ---- Writing and reading a shadow ----
 
 	/*
-	 * The layers, smallest first. Each is twice as far as the one before, up
-	 * to the size, so each adds its own step from tight to wide. Together,
-	 * layer over layer, they reach the opacity.
+	 * The layers, closest first, on the curves of the Beautiful Shadows Figma
+	 * plugin (github.com/alexwidua/figma-beautiful-shadows). Offsets start
+	 * slow and grow fast, up to the size. Blur grows fast and levels off, so
+	 * close layers are soft and far ones barely blurrier. Close layers are
+	 * the darkest and far ones fade out, and layer over layer they reach the
+	 * opacity.
 	 */
+	const easeIn = ( t ) => t * t;
+	const easeOut = ( t ) => 1 - ( 1 - t ) ** 2;
+	const fade = ( t ) => 1 - ( t < 0.5 ? 4 * t ** 3 : 1 - ( 2 - 2 * t ) ** 3 / 2 );
+	const BLUR = 0.1; // Times the softness.
+	// Where each layer sits along the curves, 0 to 1. The plugin's first, at 0, would be nothing.
+	const steps = ( count ) => Array.from( { length: count }, ( _, i ) => ( i + 1 ) / ( count + 1 ) );
+	// Each layer's opacity, faded, and scaled until together they reach the whole.
+	const shares = ( count, opacity ) => {
+		const weights = steps( count ).map( fade );
+		const reach = ( scale ) => 1 - weights.reduce( ( left, weight ) => left * ( 1 - scale * weight ), 1 );
+		let low = 0;
+		let high = 1 / Math.max( ...weights );
+		for ( let i = 0; i < 30; i++ ) {
+			const mid = ( low + high ) / 2;
+			if ( reach( mid ) < opacity / 100 ) low = mid;
+			else high = mid;
+		}
+		return weights.map( ( weight ) => weight * low );
+	};
 	const layers = ( { angle, size, count, opacity, softness } ) => {
 		const rad = ( angle * Math.PI ) / 180;
-		const alpha = round( 100 * ( 1 - ( 1 - opacity / 100 ) ** ( 1 / count ) ) );
-		return Array.from( { length: count }, ( _, i ) => {
-			const offset = size / 2 ** ( count - 1 - i );
+		const at = steps( count );
+		const far = easeIn( at.at( -1 ) );
+		const alphas = shares( count, opacity );
+		return at.map( ( t, i ) => {
+			const offset = ( size * easeIn( t ) ) / far;
 			// Away from the light.
-			return { x: half( -Math.sin( rad ) * offset ), y: half( Math.cos( rad ) * offset ), blur: half( offset * softness ), alpha };
+			return {
+				x: half( -Math.sin( rad ) * offset ),
+				y: half( Math.cos( rad ) * offset ),
+				blur: half( ( size * softness * BLUR * easeOut( t ) ) / far ),
+				alpha: round( 100 * alphas[ i ] ),
+			};
 		} );
 	};
 
@@ -85,22 +114,32 @@
 
 	const LENGTH = /^-?(?:\d+\.?\d*|\.\d+)(?:px)?$/i;
 
+	// A color-mix() with transparent: a color, at an opacity if it has one.
+	const seeThrough = ( word ) => {
+		const mix = /^color-mix\(\s*in\s+[\w-]+\s*,([^]*)\)$/i.exec( word || '' );
+		const parts = mix && splitTop( mix[ 1 ], /,/ );
+		if ( parts?.length !== 2 || ! /^transparent$/i.test( parts[ 1 ] ) ) return null;
+		const words = splitTop( parts[ 0 ], /\s/ );
+		const pct = words.findIndex( ( w ) => /^[\d.]+%$/.test( w ) );
+		const alpha = pct >= 0 ? parseFloat( words.splice( pct, 1 )[ 0 ] ) / 100 : null;
+		return { color: words.join( ' ' ), alpha };
+	};
+
 	/*
 	 * A shadow's values, best read: its number of layers, the biggest one's
-	 * direction, offset and blur, and the color. A color-mix() with
-	 * transparent is a color at an opacity, one layer's, from which the
-	 * whole's follows.
+	 * direction, offset and blur, and the color. Layers of color-mix()es with
+	 * transparent are a color at opacities, which together are the whole's.
 	 */
 	const parse = ( value ) => {
 		const found = { angle: 0, size: SIZE.start, count: LAYERS.start, opacity: OPACITY, softness: SOFTNESS.start, color: 'black' };
 		const list = splitTop( value.trim(), /,/ ).filter( Boolean );
 		if ( ! list.length || /^none$/i.test( value.trim() ) ) return found;
 		let far = null;
-		let color = null;
+		const colors = [];
 		for ( const layer of list ) {
 			const words = splitTop( layer, /\s/ );
 			const lengths = words.filter( ( word ) => LENGTH.test( word ) ).map( parseFloat );
-			color ??= words.find( ( word ) => ! LENGTH.test( word ) && ! /^inset$/i.test( word ) ) ?? null;
+			colors.push( words.find( ( word ) => ! LENGTH.test( word ) && ! /^inset$/i.test( word ) ) ?? null );
 			if ( lengths.length < 2 ) continue;
 			const [ x, y, blur = 0 ] = lengths;
 			if ( ! far || Math.hypot( x, y ) > Math.hypot( far.x, far.y ) ) far = { x, y, blur };
@@ -110,18 +149,18 @@
 			const offset = Math.hypot( far.x, far.y );
 			found.size = clamp( Math.round( offset ), SIZE.min, SIZE.max );
 			found.angle = Math.round( ( ( Math.atan2( -far.x, far.y ) * 180 ) / Math.PI + 360 ) % 360 );
-			found.softness = clamp( round( far.blur / offset ), SOFTNESS.min, SOFTNESS.max );
+			// The far layer's blur for its offset, as the curves give it.
+			const t = found.count / ( found.count + 1 );
+			found.softness = clamp( round( ( far.blur / offset ) * ( easeIn( t ) / ( BLUR * easeOut( t ) ) ) ), SOFTNESS.min, SOFTNESS.max );
 		}
-		const mix = color && /^color-mix\(\s*in\s+[\w-]+\s*,([^]*)\)$/i.exec( color );
-		const parts = mix && splitTop( mix[ 1 ], /,/ );
-		if ( parts?.length === 2 && /^transparent$/i.test( parts[ 1 ] ) ) {
-			const words = splitTop( parts[ 0 ], /\s/ );
-			const pct = words.findIndex( ( word ) => /^[\d.]+%$/.test( word ) );
-			if ( pct >= 0 ) {
-				const alpha = parseFloat( words.splice( pct, 1 )[ 0 ] ) / 100;
-				found.opacity = clamp( Math.round( 100 * ( 1 - ( 1 - alpha ) ** found.count ) ), 0, 100 );
+		const [ color ] = colors;
+		const mixes = colors.map( seeThrough );
+		if ( mixes[ 0 ] ) {
+			found.color = mixes[ 0 ].color;
+			if ( mixes.every( ( mix ) => mix?.alpha !== null && mix?.alpha !== undefined ) ) {
+				const left = mixes.reduce( ( rest, mix ) => rest * ( 1 - mix.alpha ), 1 );
+				found.opacity = clamp( Math.round( 100 * ( 1 - left ) ), 0, 100 );
 			}
-			found.color = words.join( ' ' );
 		} else if ( color && isColor( color ) ) {
 			found.color = color;
 			// A see-through color is the shadow's strength already.
@@ -284,7 +323,7 @@
 		const fields = [
 			field( 'size', { name: 'Size', label: 'Shadow size', min: SIZE.min, max: SIZE.max, text: ( v ) => `${ v }px` }, 'etk-shadow__for-light' ),
 			field( 'opacity', { name: 'Opacity', min: 0, max: 100, text: ( v ) => `${ v }%` }, 'etk-shadow__for-beam' ),
-			field( 'softness', { name: 'Softness', label: 'Shadow softness', min: SOFTNESS.min, max: SOFTNESS.max, step: 0.1, text: ( v ) => `${ round( v ) }×`, spoken: ( v ) => `Blur ${ round( v ) } times the offset` }, 'etk-shadow__for-beam' ),
+			field( 'softness', { name: 'Softness', label: 'Shadow softness', min: SOFTNESS.min, max: SOFTNESS.max, step: 0.1, text: ( v ) => `${ round( v ) }×`, spoken: ( v ) => `Softness ${ round( v ) }` }, 'etk-shadow__for-beam' ),
 			field( 'count', { name: 'Layers', label: 'Shadow layers', min: LAYERS.min, max: LAYERS.max, text: String, spoken: ( v ) => `${ v } ${ v === 1 ? 'layer' : 'layers' }` }, 'etk-shadow__for-edge' ),
 		];
 		const inputOf = ( key ) => sliders[ key ].querySelector( 'input' );
