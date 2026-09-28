@@ -116,9 +116,9 @@
 		inline-size: 96px;
 	}
 
-	/* Three 28px buttons 4px apart, and the cell's padding. */
+	/* Four 28px buttons 4px apart, and the cell's padding. */
 	thead th:last-child {
-		inline-size: calc(3 * 28px + 2 * 4px + 8px + 12px);
+		inline-size: calc(4 * 28px + 3 * 4px + 8px + 12px);
 	}
 }
 
@@ -203,7 +203,7 @@
 	color: var(--etk-text-60);
 }
 
-/* Edit, Update and Delete: 28px squares, bordered like the content hub's row actions. */
+/* Edit, Update, Delete and More: 28px squares, bordered like the content hub's row actions. */
 .etk-components__row-actions {
 	display: inline-flex;
 	gap: 4px;

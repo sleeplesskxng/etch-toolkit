@@ -5,7 +5,8 @@
  * Style Manager. It lists the site's components and where they're used, in
  * a table like the Fonts manager's files. Each row's buttons edit one in
  * Etch's component editor, update it from a JSON file or pasted JSON after
- * reviewing the changes, or delete it.
+ * reviewing the changes, or delete it. Its More menu copies or downloads it
+ * as Etch's copy JSON, to paste into Etch on any site.
  *
  * It reads three shapes:
  * - Etch's copy (Cmd+C on a layer): { version, gutenbergBlock, styles,
@@ -24,7 +25,7 @@
 	if ( ! toolkit.api ) return;
 
 	const CONTROL_ID = 'etch-toolkit-component-manager';
-	const { el, plural, errorText, settingsBarButton, managerKeys, openManager, downloadJson, jsonDropzone, searchBox } = toolkit;
+	const { el, plural, errorText, settingsBarButton, managerKeys, openManager, downloadJson, jsonDropzone, searchBox, menu } = toolkit;
 	const icon = ( name, size ) => toolkit.icon( name, { size, className: 'etk-components__icon' } );
 
 	const enabled = () => window.etchToolkitSettings?.settings?.componentManager === true && typeof window.etch?.components?.updateAsync === 'function';
@@ -618,6 +619,41 @@
 		);
 	};
 
+	// Copy JSON and Download JSON, on a More button that shows a tick for a moment after a copy.
+	const moreMenu = ( component, action ) => {
+		const trigger = action( 'more', `More actions for ${ component.name }`, 'More', icon( 'more', 14 ) );
+		const copy = async () => {
+			try {
+				await navigator.clipboard.writeText( JSON.stringify( copyOf( component ) ) );
+			} catch ( error ) {
+				warn( `Couldn’t copy ${ component.name }: ${ errorText( error ) }` );
+				return;
+			}
+			trigger.innerHTML = icon( 'tick', 14 );
+			trigger.dataset.etkTooltip = 'Copied';
+			announce( `Copied ${ component.name }. Paste it into Etch on any site.` );
+			window.setTimeout( () => {
+				trigger.innerHTML = icon( 'more', 14 );
+				trigger.dataset.etkTooltip = 'More';
+			}, 1500 );
+		};
+		const download = () => {
+			try {
+				downloadJson( JSON.stringify( copyOf( component ), null, 2 ), `${ component.key || 'component' }.json` );
+			} catch ( error ) {
+				warn( `Couldn’t download ${ component.name }: ${ errorText( error ) }` );
+			}
+		};
+		return menu(
+			trigger,
+			[
+				{ label: 'Copy JSON', icon: 'copy', onselect: copy },
+				{ label: 'Download JSON', icon: 'download', onselect: download },
+			],
+			{ label: `More actions for ${ component.name }` }
+		);
+	};
+
 	const componentRow = ( component ) => {
 		const used = usedOn ? isUsed( component ) : null;
 		const action = ( key, label, title, icon, onclick, extra = '' ) =>
@@ -637,7 +673,8 @@
 					{ class: 'etk-components__row-actions' },
 					action( 'edit', `Edit ${ component.name } in Etch`, 'Edit in Etch', icon( 'edit', 14 ), () => editInEtch( component ) ),
 					action( 'update', `Update ${ component.name } from JSON`, 'Update from JSON', icon( 'upload', 14 ), () => updateOne( component ) ),
-					action( 'delete', `Delete ${ component.name }`, 'Delete', icon( 'delete', 14 ), () => remove( component ), ' etk-components__row-delete' )
+					action( 'delete', `Delete ${ component.name }`, 'Delete', icon( 'delete', 14 ), () => remove( component ), ' etk-components__row-delete' ),
+					moreMenu( component, action )
 				)
 			)
 		);
@@ -1794,6 +1831,24 @@
 		} catch ( error ) {
 			if ( editing ) tidy( stopEditing().saved );
 			warn( `Couldn’t open ${ component.name }: ${ errorText( error ) }` );
+		}
+	};
+
+	/**
+	 * A component as Etch's copy (Cmd+C) gives it, with its classes, loops and
+	 * nested components. Etch copies from the page, so this copies an instance
+	 * added at the top and taken straight off again, with its props at their
+	 * defaults. Unmarked, or the mark would go with it into every paste.
+	 */
+	const copyOf = ( component ) => {
+		if ( window.etch.blocks.isInComponentEditMode() ) throw new Error( 'Finish editing the open component first.' );
+		// Etch's copy needs the component loaded.
+		window.etch.components.getJson( component.id );
+		const blockId = window.etch.blocks.create( { type: 'etch/component', version: 1, context: {}, options: {}, children: [], componentId: component.id, attributes: {} }, null, 0 );
+		try {
+			return window.etch.blocks.copy( blockId );
+		} finally {
+			window.etch.blocks.delete( blockId );
 		}
 	};
 
