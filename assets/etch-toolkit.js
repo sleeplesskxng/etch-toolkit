@@ -696,7 +696,8 @@
 		const boot = () => {
 			let tries = 0;
 			const timer = window.setInterval( () => {
-				if ( ! enabled() || add() || ++tries > 120 ) {
+				// enabled() can wait on Etch, which a big site loads well after the page. Keep trying until it's ready.
+				if ( added || ( enabled() && add() ) || ++tries > 120 ) {
 					window.clearInterval( timer );
 					ready();
 				}
