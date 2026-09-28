@@ -12,6 +12,7 @@
  *   in for fewer. It draws a ring for each.
  * - The shadow's color. A light color puts it all on a dark stage, so it
  *   shows.
+ * - Inset, for a shadow inside the element, as if pressed in.
  * - A slider for each value but the direction, for the keyboard, or anyone
  *   who'd rather.
  *
@@ -116,7 +117,7 @@
 	};
 
 	const compose = ( shadow, color, indent ) => {
-		const list = layers( shadow ).map( ( l ) => `${ px( l.x ) } ${ px( l.y ) } ${ px( l.blur ) } color-mix(in srgb, ${ color } ${ l.alpha }%, transparent)` );
+		const list = layers( shadow ).map( ( l ) => `${ shadow.inset ? 'inset ' : '' }${ px( l.x ) } ${ px( l.y ) } ${ px( l.blur ) } color-mix(in srgb, ${ color } ${ l.alpha }%, transparent)` );
 		return list.length === 1 ? ` ${ list[ 0 ] }` : list.map( ( layer ) => `\n${ indent }${ layer }` ).join( ',' );
 	};
 
@@ -139,7 +140,7 @@
 	 * transparent are a color at opacities, which together are the whole's.
 	 */
 	const parse = ( value ) => {
-		const found = { angle: 0, size: SIZE.start, count: LAYERS.start, opacity: OPACITY, softness: SOFTNESS.start, color: 'black' };
+		const found = { angle: 0, size: SIZE.start, count: LAYERS.start, opacity: OPACITY, softness: SOFTNESS.start, inset: false, color: 'black' };
 		const list = splitTop( value.trim(), /,/ ).filter( Boolean );
 		if ( ! list.length || /^none$/i.test( value.trim() ) ) return found;
 		let far = null;
@@ -147,6 +148,7 @@
 		for ( const layer of list ) {
 			const words = splitTop( layer, /\s/ );
 			const lengths = words.filter( ( word ) => LENGTH.test( word ) ).map( parseFloat );
+			if ( words.some( ( word ) => /^inset$/i.test( word ) ) ) found.inset = true;
 			colors.push( words.find( ( word ) => ! LENGTH.test( word ) && ! /^inset$/i.test( word ) ) ?? null );
 			if ( lengths.length < 2 ) continue;
 			const [ x, y, blur = 0 ] = lengths;
@@ -301,7 +303,7 @@
 			aim.style.rotate = `${ shadow.angle + 180 }deg`;
 			drawBeam();
 			tile.style.boxShadow = layers( { ...shadow, size: shadow.size * TILE } )
-				.map( ( l ) => `${ l.x }px ${ l.y }px ${ l.blur }px color-mix(in srgb, ${ shown } ${ l.alpha }%, transparent)` )
+				.map( ( l ) => `${ shadow.inset ? 'inset ' : '' }${ l.x }px ${ l.y }px ${ l.blur }px color-mix(in srgb, ${ shown } ${ l.alpha }%, transparent)` )
 				.join( ', ' );
 		};
 
@@ -458,13 +460,20 @@
 			},
 		} );
 
+		const inset = el( 'input', { type: 'checkbox', id: 'etk-shadow-inset', className: 'etk-checkbox', checked: shadow.inset } );
+		inset.addEventListener( 'change', () => {
+			shadow.inset = inset.checked;
+			update();
+		} );
+		const insetRow = el( 'div', { className: 'etk-pop__row' }, [ el( 'label', { htmlFor: 'etk-shadow-inset', textContent: 'Inset' } ), inset ] );
+
 		theme();
 		paint();
 		editorPanel( {
 			anchor: button,
 			label: 'Box shadow',
 			className: 'etk-shadow',
-			content: [ stage, el( 'div', { className: 'etk-pop__fields' }, [ colorRow, ...fields ] ) ],
+			content: [ stage, el( 'div', { className: 'etk-pop__fields' }, [ colorRow, insetRow, ...fields ] ) ],
 			focus: inputOf( 'size' ),
 			onclose: ( keep ) => {
 				cancelAnimationFrame( writing );

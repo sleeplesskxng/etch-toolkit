@@ -1647,7 +1647,7 @@ input.etk-switch {
 	}
 
 	select,
-	input:not([type='radio']) {
+	input:not([type='radio'], [type='checkbox']) {
 		box-sizing: border-box;
 		inline-size: 100%;
 		min-inline-size: 0;
