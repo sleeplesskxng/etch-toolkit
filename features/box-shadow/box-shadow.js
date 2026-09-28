@@ -12,7 +12,8 @@
  *   in for fewer. It draws a ring for each.
  * - The shadow's color. A light color puts it all on a dark stage, so it
  *   shows.
- * - A slider for each value, for the keyboard, or anyone who'd rather.
+ * - A slider for each value but the direction, for the keyboard, or anyone
+ *   who'd rather.
  *
  * Each layer's blur is its offset times the softness, growing to the size
  * you set, and they add up to the opacity you set. A shadow it wrote opens
@@ -42,10 +43,6 @@
 	const half = ( n ) => Math.round( n * 2 ) / 2 + 0; // + 0 turns -0 into 0.
 	const clamp = ( n, min, max ) => Math.min( max, Math.max( min, n ) );
 	const px = ( n ) => ( n === 0 ? '0' : `${ n }px` );
-
-	// Where the light is, as a compass point: 0 is the top, going clockwise.
-	const SIDES = [ 'top', 'top right', 'right', 'bottom right', 'bottom', 'bottom left', 'left', 'top left' ];
-	const side = ( angle ) => SIDES[ Math.round( ( ( angle % 360 ) + 360 ) % 360 / 45 ) % 8 ];
 
 	// Whether a color is nearer white than black, by its luminance. Painted on a pixel, which reads any color syntax.
 	let pixel = null;
@@ -285,7 +282,6 @@
 			return sliders[ key ];
 		};
 		const fields = [
-			field( 'angle', { name: 'Direction', label: 'Light direction', min: 0, max: 359, text: ( v ) => `${ v }°`, spoken: ( v ) => `From the ${ side( v ) }, ${ v } degrees` }, 'etk-shadow__for-light' ),
 			field( 'size', { name: 'Size', label: 'Shadow size', min: SIZE.min, max: SIZE.max, text: ( v ) => `${ v }px` }, 'etk-shadow__for-light' ),
 			field( 'opacity', { name: 'Opacity', min: 0, max: 100, text: ( v ) => `${ v }%` }, 'etk-shadow__for-beam' ),
 			field( 'softness', { name: 'Softness', label: 'Shadow softness', min: SOFTNESS.min, max: SOFTNESS.max, step: 0.1, text: ( v ) => `${ round( v ) }×`, spoken: ( v ) => `Blur ${ round( v ) } times the offset` }, 'etk-shadow__for-beam' ),
@@ -394,7 +390,7 @@
 			node.addEventListener( 'pointerup', release );
 			node.addEventListener( 'pointercancel', release );
 		};
-		grab( light, 'light', inputOf( 'angle' ) );
+		grab( light, 'light', inputOf( 'size' ) );
 		grab( hit, 'beam', inputOf( 'opacity' ) );
 		grab( edgeHit, 'edge', inputOf( 'count' ) );
 		edgeHit.addEventListener( 'pointerenter', () => stage.classList.add( 'is-on-edge' ) );
@@ -421,7 +417,7 @@
 			label: 'Box shadow',
 			className: 'etk-shadow',
 			content: [ stage, el( 'div', { className: 'etk-pop__fields' }, [ colorRow, ...fields ] ) ],
-			focus: inputOf( 'angle' ),
+			focus: inputOf( 'size' ),
 			onclose: ( keep ) => {
 				cancelAnimationFrame( writing );
 				clearTimeout( hiding );
