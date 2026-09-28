@@ -4,16 +4,19 @@
  * In CSS editors, every box-shadow gets a button right after its colon. It
  * opens a small panel that writes a layered shadow, soft and natural:
  *
- * - A card, and a light around it. Drag the light around the card to change
- *   where the shadow falls, further out for a bigger shadow. A press
- *   anywhere around the card moves the light there.
- * - A handle on a line above the card sets the number of layers. Up for more.
- * - The shadow's color, and its opacity.
+ * - A tile, and a light around it. Drag the light around the tile to change
+ *   where the shadow falls, further out for a bigger shadow.
+ * - The light's beam, which shows while the pointer is on the light, or after
+ *   a touch on it. Drag the beam along its length for a stronger shadow, and
+ *   across it for a softer one. Pull its edge out for more layers, push it
+ *   in for fewer. It draws a ring for each.
+ * - The shadow's color, and its opacity. A light color puts it all on a
+ *   dark stage, so it shows.
  *
- * Each layer is twice as blurry as it is far, growing to the size you set,
- * and they add up to the opacity you set. A shadow it wrote opens with its
- * own values. Others open with what can be read from them, and are only
- * replaced once you change something.
+ * Each layer's blur is its offset times the softness, growing to the size
+ * you set, and they add up to the opacity you set. A shadow it wrote opens
+ * with its own values. Others open with what can be read from them, and are
+ * only replaced once you change something.
  *
  * As with color mix, changes show in the code and on the canvas as you make
  * them, Esc or Cancel puts the shadow back, and Cmd+Z in the editor takes the
@@ -27,13 +30,12 @@
 	const PROPERTY = /^box-shadow$/i;
 	const LAYERS = { min: 1, max: 8, start: 5 };
 	const SIZE = { min: 1, max: 64, start: 24 }; // The biggest layer's offset, in pixels.
+	const SOFTNESS = { min: 1, max: 3.5, start: 2 }; // Blur, as times the offset.
 	const OPACITY = 20; // Percent, to start.
 
-	// The stage, in pixels: how far from the card's middle the light goes, and the layers line.
-	const NEAR = 84; // Clear of the layers line.
-	const FAR = 146;
-	const CARD_TOP = 28; // The card's half height.
-	const TRACK = { from: CARD_TOP + 8, length: 40 };
+	// The stage, in pixels: how close to its edge the light goes, and how much smaller the tile's shadow is than the real one.
+	const EDGE = 18;
+	const TILE = 0.35;
 
 	const round = ( n ) => Math.round( n * 10 ) / 10;
 	const half = ( n ) => Math.round( n * 2 ) / 2 + 0; // + 0 turns -0 into 0.
@@ -44,6 +46,23 @@
 	const SIDES = [ 'top', 'top right', 'right', 'bottom right', 'bottom', 'bottom left', 'left', 'top left' ];
 	const side = ( angle ) => SIDES[ Math.round( ( ( angle % 360 ) + 360 ) % 360 / 45 ) % 8 ];
 
+	// Whether a color is nearer white than black, by its luminance. Painted on a pixel, which reads any color syntax.
+	let pixel = null;
+	const isLight = ( color ) => {
+		if ( ! pixel ) {
+			const canvas = el( 'canvas', { width: 1, height: 1 } );
+			pixel = canvas.getContext( '2d', { willReadFrequently: true } );
+		}
+		pixel.clearRect( 0, 0, 1, 1 );
+		pixel.fillStyle = '#000';
+		pixel.fillStyle = color;
+		pixel.fillRect( 0, 0, 1, 1 );
+		const linear = ( c ) => ( ( c /= 255 ) <= 0.04045 ? c / 12.92 : ( ( c + 0.055 ) / 1.055 ) ** 2.4 );
+		const [ r, g, b ] = pixel.getImageData( 0, 0, 1, 1 ).data;
+		// Mid grey, as the eye sees it.
+		return 0.2126 * linear( r ) + 0.7152 * linear( g ) + 0.0722 * linear( b ) > 0.18;
+	};
+
 	// ---- Writing and reading a shadow ----
 
 	/*
@@ -51,13 +70,13 @@
 	 * close, tight layers than far, soft ones. Together, layer over layer,
 	 * they reach the opacity.
 	 */
-	const layers = ( { angle, size, count, opacity } ) => {
+	const layers = ( { angle, size, count, opacity, softness } ) => {
 		const rad = ( angle * Math.PI ) / 180;
 		const alpha = round( 100 * ( 1 - ( 1 - opacity / 100 ) ** ( 1 / count ) ) );
 		return Array.from( { length: count }, ( _, i ) => {
 			const offset = size * ( ( i + 1 ) / count ) ** 2;
 			// Away from the light.
-			return { x: half( -Math.sin( rad ) * offset ), y: half( Math.cos( rad ) * offset ), blur: half( offset * 2 ), alpha };
+			return { x: half( -Math.sin( rad ) * offset ), y: half( Math.cos( rad ) * offset ), blur: half( offset * softness ), alpha };
 		} );
 	};
 
@@ -70,11 +89,12 @@
 
 	/*
 	 * A shadow's values, best read: its number of layers, the biggest one's
-	 * direction and offset, and the color. A color-mix() with transparent is
-	 * a color at an opacity, one layer's, from which the whole's follows.
+	 * direction, offset and blur, and the color. A color-mix() with
+	 * transparent is a color at an opacity, one layer's, from which the
+	 * whole's follows.
 	 */
 	const parse = ( value ) => {
-		const found = { angle: 0, size: SIZE.start, count: LAYERS.start, opacity: OPACITY, color: 'black' };
+		const found = { angle: 0, size: SIZE.start, count: LAYERS.start, opacity: OPACITY, softness: SOFTNESS.start, color: 'black' };
 		const list = splitTop( value.trim(), /,/ ).filter( Boolean );
 		if ( ! list.length || /^none$/i.test( value.trim() ) ) return found;
 		let far = null;
@@ -84,13 +104,15 @@
 			const lengths = words.filter( ( word ) => LENGTH.test( word ) ).map( parseFloat );
 			color ??= words.find( ( word ) => ! LENGTH.test( word ) && ! /^inset$/i.test( word ) ) ?? null;
 			if ( lengths.length < 2 ) continue;
-			const [ x, y ] = lengths;
-			if ( ! far || Math.hypot( x, y ) > Math.hypot( far.x, far.y ) ) far = { x, y };
+			const [ x, y, blur = 0 ] = lengths;
+			if ( ! far || Math.hypot( x, y ) > Math.hypot( far.x, far.y ) ) far = { x, y, blur };
 		}
 		found.count = clamp( list.length, LAYERS.min, LAYERS.max );
 		if ( far && Math.hypot( far.x, far.y ) ) {
-			found.size = clamp( Math.round( Math.hypot( far.x, far.y ) ), SIZE.min, SIZE.max );
+			const offset = Math.hypot( far.x, far.y );
+			found.size = clamp( Math.round( offset ), SIZE.min, SIZE.max );
 			found.angle = Math.round( ( ( Math.atan2( -far.x, far.y ) * 180 ) / Math.PI + 360 ) % 360 );
+			found.softness = clamp( round( far.blur / offset ), SOFTNESS.min, SOFTNESS.max );
 		}
 		const mix = color && /^color-mix\(\s*in\s+[\w-]+\s*,([^]*)\)$/i.exec( color );
 		const parts = mix && splitTop( mix[ 1 ], /,/ );
@@ -150,52 +172,109 @@
 		delete shadow.color;
 		const edit = editorEdit( view, from, original );
 
-		// ---- The stage: the card, the light and the layers line ----
+		// ---- The stage: the tile, the light and its beam ----
 
-		const card = el( 'div', { className: 'etk-shadow__card' } );
-		const ray = el( 'div', { className: 'etk-shadow__ray' } );
+		const tile = el( 'div', { className: 'etk-shadow__tile' } );
+		// Drawn pointing up from the light. Its aim turns it to the tile.
+		const beam = el( 'div', {
+			className: 'etk-shadow__beam',
+			html: `<svg width="120" height="80" viewBox="-60 -76 120 80">
+				<defs>
+					<radialGradient id="etk-shadow-beam" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse">
+						<stop offset="0" stop-color="currentColor" stop-opacity="0.9"/>
+						<stop offset="0.6" stop-color="currentColor" stop-opacity="0.35"/>
+						<stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+					</radialGradient>
+				</defs>
+				<path class="etk-shadow__cone" fill="url(#etk-shadow-beam)"/>
+				<g class="etk-shadow__rings"></g>
+				<path class="etk-shadow__edge"/>
+				<path class="etk-shadow__hit"/>
+				<path class="etk-shadow__edge-hit"/>
+			</svg>`,
+		} );
+		const part = ( name ) => beam.querySelector( `.etk-shadow__${ name }` );
+		const [ cone, rings, edge, hit, edgeHit ] = [ 'cone', 'rings', 'edge', 'hit', 'edge-hit' ].map( part );
+		const gradient = beam.querySelector( 'radialGradient' );
 		const light = el( 'div', { className: 'etk-shadow__light' } );
-		const track = el( 'div', { className: 'etk-shadow__track' } );
-		const knob = el( 'div', { className: 'etk-shadow__knob' } );
+		const aim = el( 'div', { className: 'etk-shadow__aim' }, [ beam ] );
+		const handle = el( 'div', { className: 'etk-shadow__handle' }, [ aim, light ] );
 		const readout = el( 'div', { className: 'etk-shadow__readout' } );
-		[ card, ray, light, track, knob, readout ].forEach( ( node ) => node.setAttribute( 'aria-hidden', 'true' ) );
-		track.style.setProperty( '--etk-shadow-track-from', `${ TRACK.from }px` );
-		track.style.setProperty( '--etk-shadow-track-length', `${ TRACK.length }px` );
+		[ tile, handle, readout ].forEach( ( node ) => node.setAttribute( 'aria-hidden', 'true' ) );
 
-		// The keyboard and screen readers get a slider for each, hidden, and the handle they move shows focus.
+		// The keyboard and screen readers get a slider for each, hidden, and what they move shows focus.
 		const range = ( label, min, max, step, value, valuetext ) => {
 			const input = el( 'input', { type: 'range', className: 'etk-sr', min, max, step, value, 'aria-label': label } );
 			input.setAttribute( 'aria-valuetext', valuetext( value ) );
 			input.addEventListener( 'input', () => input.setAttribute( 'aria-valuetext', valuetext( Number( input.value ) ) ) );
 			return input;
 		};
-		const direction = range( 'Light direction', 0, 355, 5, Math.round( shadow.angle / 5 ) * 5 % 360, ( v ) => `From the ${ side( v ) }, ${ v } degrees` );
+		const direction = range( 'Light direction', 0, 359, 1, shadow.angle % 360, ( v ) => `From the ${ side( v ) }, ${ v } degrees` );
 		const size = range( 'Shadow size', SIZE.min, SIZE.max, 1, shadow.size, ( v ) => `${ v } pixels` );
+		const softness = range( 'Shadow softness', SOFTNESS.min, SOFTNESS.max, 0.1, shadow.softness, ( v ) => `Blur ${ v } times the offset` );
 		const count = range( 'Shadow layers', LAYERS.min, LAYERS.max, 1, shadow.count, ( v ) => `${ v } ${ v === 1 ? 'layer' : 'layers' }` );
 		direction.classList.add( 'etk-shadow__for-light' );
 		size.classList.add( 'etk-shadow__for-light' );
-		count.classList.add( 'etk-shadow__for-knob' );
+		softness.classList.add( 'etk-shadow__for-beam' );
+		count.classList.add( 'etk-shadow__for-beam', 'etk-shadow__for-edge' );
 
-		const stage = el( 'div', { className: 'etk-shadow__stage' }, [ ray, track, card, light, knob, readout, direction, size, count ] );
+		const stage = el( 'div', { className: 'etk-shadow__stage' }, [ tile, handle, readout, direction, size, softness, count ] );
+		stage.style.setProperty( '--etk-shadow-edge', `${ EDGE }px` );
 
-		// Where each handle sits, from the stage's middle.
-		const at = ( node, x, y ) => ( node.style.translate = `${ x }px ${ y }px` );
-		const radius = () => NEAR + ( ( shadow.size - SIZE.min ) / ( SIZE.max - SIZE.min ) ) * ( FAR - NEAR );
-		const knobY = () => -TRACK.from - ( ( shadow.count - LAYERS.min ) / ( LAYERS.max - LAYERS.min ) ) * TRACK.length;
+		// The beam: as long as the shadow is strong, as wide as it's soft, a ring for each layer.
+		const drawBeam = () => {
+			const spread = 0.42 + ( ( shadow.softness - SOFTNESS.min ) / ( SOFTNESS.max - SOFTNESS.min ) ) * 0.75;
+			const length = 34 + ( shadow.opacity / 100 ) * 36;
+			const a0 = -Math.PI / 2 - spread;
+			const a1 = -Math.PI / 2 + spread;
+			const pt = ( a, r ) => `${ round( Math.cos( a ) * r ) } ${ round( Math.sin( a ) * r ) }`;
+			// Inset at both ends by a length along the arc.
+			const arc = ( r, inset = 0 ) => `M ${ pt( a0 + inset / r, r ) } A ${ r } ${ r } 0 0 1 ${ pt( a1 - inset / r, r ) }`;
+			cone.setAttribute( 'd', `M 0 0 L ${ pt( a0, length ) } A ${ length } ${ length } 0 0 1 ${ pt( a1, length ) } Z` );
+			gradient.setAttribute( 'r', length );
+			edge.setAttribute( 'd', arc( length ) );
 
-		// The stage shows the real color, which lives on the canvas.
+			// A new ring shows bold for a moment.
+			const had = rings.children.length;
+			if ( had !== shadow.count ) {
+				rings.replaceChildren( ...Array.from( { length: shadow.count }, () => document.createElementNS( 'http://www.w3.org/2000/svg', 'path' ) ) );
+				if ( had && shadow.count > had ) {
+					const ring = rings.lastElementChild;
+					ring.classList.add( 'is-new' );
+					setTimeout( () => ring.classList.remove( 'is-new' ), 140 );
+				}
+			}
+			// From near the light out to the edge, fainter as they go.
+			[ ...rings.children ].forEach( ( ring, i ) => {
+				const out = ( i + 1 ) / shadow.count;
+				ring.setAttribute( 'd', arc( 10 + ( length - 10 ) * out, 2 ) );
+				ring.setAttribute( 'stroke-opacity', round( 0.34 - out * 0.2 ) );
+			} );
+
+			// Where it's caught: its edge for layers, its body for strength and softness.
+			const inner = Math.max( 12, length - 12 );
+			const outer = length + 10;
+			const c0 = a0 - 0.12;
+			const c1 = a1 + 0.12;
+			edgeHit.setAttribute( 'd', `M ${ pt( c0, inner ) } L ${ pt( c0, outer ) } A ${ outer } ${ outer } 0 0 1 ${ pt( c1, outer ) } L ${ pt( c1, inner ) } A ${ inner } ${ inner } 0 0 0 ${ pt( c0, inner ) } Z` );
+			hit.setAttribute( 'd', `M ${ pt( c0, 4 ) } L ${ pt( c0, inner ) } A ${ inner } ${ inner } 0 0 1 ${ pt( c1, inner ) } L ${ pt( c1, 4 ) } Z` );
+		};
+
+		// The stage shows the real color, which lives on the canvas, and goes dark for a light one.
 		let shown = resolveColor( color.trim() ) || 'transparent';
+		const theme = () => ( stage.dataset.theme = isLight( shown ) ? 'dark' : 'light' );
 		const paint = () => {
 			const rad = ( shadow.angle * Math.PI ) / 180;
-			const r = radius();
-			at( light, Math.sin( rad ) * r, -Math.cos( rad ) * r );
-			ray.style.rotate = `${ shadow.angle }deg`;
-			ray.style.setProperty( '--etk-shadow-ray', `${ r }px` );
-			at( knob, 0, knobY() );
-			card.style.boxShadow = layers( shadow )
+			const out = shadow.size / SIZE.max;
+			// From the middle, as a share of the way to the edge.
+			stage.style.setProperty( '--etk-shadow-x', round( Math.sin( rad ) * out * 1000 ) / 1000 );
+			stage.style.setProperty( '--etk-shadow-y', round( -Math.cos( rad ) * out * 1000 ) / 1000 );
+			aim.style.rotate = `${ shadow.angle + 180 }deg`;
+			drawBeam();
+			tile.style.boxShadow = layers( { ...shadow, size: shadow.size * TILE } )
 				.map( ( l ) => `${ l.x }px ${ l.y }px ${ l.blur }px color-mix(in srgb, ${ shown } ${ l.alpha }%, transparent)` )
 				.join( ', ' );
-			readout.textContent = `${ shadow.size }px · ${ shadow.count } ${ shadow.count === 1 ? 'layer' : 'layers' }`;
+			readout.textContent = `${ shadow.size }px · ${ shadow.softness }× blur · ${ shadow.count } ${ shadow.count === 1 ? 'layer' : 'layers' }`;
 		};
 
 		// Written once a frame at most, since each write redraws the canvas.
@@ -209,59 +288,117 @@
 			} );
 		};
 
+		const inputs = { angle: direction, size, softness, count };
 		const set = ( changes ) => {
 			Object.assign( shadow, changes );
-			direction.value = shadow.angle;
-			size.value = shadow.size;
-			count.value = shadow.count;
-			for ( const input of [ direction, size, count ] ) input.dispatchEvent( new Event( 'input' ) );
+			for ( const [ key, input ] of Object.entries( inputs ) ) {
+				input.value = shadow[ key ];
+				input.dispatchEvent( new Event( 'input' ) );
+			}
+			const opacityInput = opacity.querySelector( 'input' );
+			if ( Number( opacityInput.value ) !== shadow.opacity ) {
+				opacityInput.value = shadow.opacity;
+				opacityInput.dispatchEvent( new Event( 'input' ) );
+			}
 			update();
 		};
-		direction.addEventListener( 'change', () => set( { angle: Number( direction.value ) } ) );
-		size.addEventListener( 'change', () => set( { size: Number( size.value ) } ) );
-		count.addEventListener( 'change', () => set( { count: Number( count.value ) } ) );
+		for ( const [ key, input ] of Object.entries( inputs ) ) input.addEventListener( 'change', () => set( { [ key ]: Number( input.value ) } ) );
 
 		/*
-		 * A press on the layers handle drags it up and down the line. A press
-		 * anywhere else moves the light there and drags it: its angle round
-		 * the card is the direction, its distance the size.
+		 * The beam shows while the pointer is on the light or the beam, and a
+		 * moment after it leaves. A touch has no pointer to follow, so after one
+		 * on the light the beam stays until a press elsewhere.
 		 */
-		let press = null;
-		const middle = () => {
-			const r = stage.getBoundingClientRect();
-			return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+		let drag = null;
+		let hiding = 0;
+		const show = () => {
+			if ( drag?.what === 'light' ) return;
+			clearTimeout( hiding );
+			stage.classList.add( 'shows-beam' );
 		};
+		const hide = ( event ) => {
+			if ( event.pointerType !== 'mouse' || drag ) return;
+			clearTimeout( hiding );
+			hiding = setTimeout( () => stage.classList.remove( 'shows-beam' ), 280 );
+		};
+		light.addEventListener( 'pointerenter', show );
+		light.addEventListener( 'pointermove', show );
+		light.addEventListener( 'pointerleave', hide );
+		beam.addEventListener( 'pointerenter', show );
+		beam.addEventListener( 'pointerleave', hide );
+		stage.addEventListener( 'pointerdown', ( event ) => {
+			if ( beam.contains( event.target ) ) return;
+			clearTimeout( hiding );
+			stage.classList.remove( 'shows-beam' );
+		} );
+
+		/*
+		 * The light drags where the pointer takes it: its angle round the tile
+		 * is the direction, its distance the size. The beam drags along itself
+		 * for opacity and across for softness, and its edge for layers.
+		 */
 		const move = ( event ) => {
-			const m = middle();
-			const dx = event.clientX - m.x;
-			const dy = event.clientY - m.y;
-			if ( press.knob ) {
-				const along = ( -dy - TRACK.from ) / TRACK.length;
-				set( { count: clamp( Math.round( LAYERS.min + along * ( LAYERS.max - LAYERS.min ) ), LAYERS.min, LAYERS.max ) } );
+			if ( drag.what === 'light' ) {
+				const r = stage.getBoundingClientRect();
+				const x = event.clientX - drag.ox - ( r.left + r.width / 2 );
+				const y = event.clientY - drag.oy - ( r.top + r.height / 2 );
+				const angle = Math.round( ( Math.atan2( x, -y ) * 180 ) / Math.PI + 360 ) % 360;
+				const reach = r.width / 2 - EDGE;
+				set( { angle, size: clamp( Math.round( ( Math.hypot( x, y ) / reach ) * SIZE.max ), SIZE.min, SIZE.max ) } );
 				return;
 			}
-			// In the keyboard's steps.
-			const angle = ( Math.round( ( ( Math.atan2( dx, -dy ) * 180 ) / Math.PI + 360 ) / 5 ) * 5 ) % 360;
-			const out = ( clamp( Math.hypot( dx, dy ), NEAR, FAR ) - NEAR ) / ( FAR - NEAR );
-			set( { angle, size: Math.round( SIZE.min + out * ( SIZE.max - SIZE.min ) ) } );
+			const rot = ( ( shadow.angle + 180 ) * Math.PI ) / 180;
+			const dx = event.clientX - drag.x;
+			const dy = event.clientY - drag.y;
+			const along = dx * Math.sin( rot ) - dy * Math.cos( rot );
+			const across = dx * Math.cos( rot ) + dy * Math.sin( rot );
+			if ( drag.what === 'edge' ) {
+				const next = clamp( drag.from.count + Math.round( along / 9 ), LAYERS.min, LAYERS.max );
+				if ( next === shadow.count ) return;
+				navigator.vibrate?.( 3 );
+				set( { count: next } );
+				return;
+			}
+			set( {
+				opacity: clamp( Math.round( drag.from.opacity + along * 0.8 ), 0, 100 ),
+				softness: clamp( round( drag.from.softness + across * 0.03 ), SOFTNESS.min, SOFTNESS.max ),
+			} );
 		};
-		stage.addEventListener( 'pointerdown', ( event ) => {
-			if ( event.button !== 0 ) return;
-			event.preventDefault();
-			stage.setPointerCapture( event.pointerId );
-			press = { id: event.pointerId, knob: event.target === knob };
-			stage.classList.add( press.knob ? 'is-layering' : 'is-lighting' );
-			( press.knob ? count : direction ).focus( { preventScroll: true } );
-			move( event );
-		} );
-		stage.addEventListener( 'pointermove', ( event ) => event.pointerId === press?.id && move( event ) );
-		const release = ( event ) => {
-			if ( event.pointerId !== press?.id ) return;
-			press = null;
-			stage.classList.remove( 'is-layering', 'is-lighting' );
+		const grab = ( node, what, input ) => {
+			node.addEventListener( 'pointerdown', ( event ) => {
+				if ( event.button !== 0 ) return;
+				event.preventDefault();
+				node.setPointerCapture( event.pointerId );
+				const at = light.getBoundingClientRect();
+				drag = {
+					what,
+					id: event.pointerId,
+					x: event.clientX,
+					y: event.clientY,
+					// Where on the light it was caught, so it doesn't jump.
+					ox: event.clientX - ( at.left + at.width / 2 ),
+					oy: event.clientY - ( at.top + at.height / 2 ),
+					from: { ...shadow },
+				};
+				stage.classList.add( `is-dragging-${ what }` );
+				input.focus( { preventScroll: true } );
+			} );
+			node.addEventListener( 'pointermove', ( event ) => event.pointerId === drag?.id && move( event ) );
+			const release = ( event ) => {
+				if ( event.pointerId !== drag?.id ) return;
+				drag = null;
+				stage.classList.remove( `is-dragging-${ what }` );
+				if ( event.pointerType !== 'mouse' || light.matches( ':hover' ) || beam.matches( ':hover' ) ) show();
+				else hide( event );
+			};
+			node.addEventListener( 'pointerup', release );
+			node.addEventListener( 'pointercancel', release );
 		};
-		stage.addEventListener( 'pointerup', release );
-		stage.addEventListener( 'pointercancel', release );
+		grab( light, 'light', direction );
+		grab( hit, 'beam', softness );
+		grab( edgeHit, 'edge', count );
+		edgeHit.addEventListener( 'pointerenter', () => stage.classList.add( 'is-on-edge' ) );
+		edgeHit.addEventListener( 'pointerleave', () => stage.classList.remove( 'is-on-edge' ) );
 
 		// ---- Color ----
 
@@ -272,6 +409,7 @@
 			oninput: ( value ) => {
 				color = value;
 				shown = resolveColor( color.trim() ) || 'transparent';
+				theme();
 				update();
 			},
 		} );
@@ -281,12 +419,10 @@
 			max: 100,
 			value: shadow.opacity,
 			text: ( v ) => `${ v }%`,
-			onchange: ( v ) => {
-				shadow.opacity = v;
-				update();
-			},
+			onchange: ( v ) => v !== shadow.opacity && set( { opacity: v } ),
 		} );
 
+		theme();
 		paint();
 		editorPanel( {
 			anchor: button,
@@ -296,6 +432,7 @@
 			focus: direction,
 			onclose: ( keep ) => {
 				cancelAnimationFrame( writing );
+				clearTimeout( hiding );
 				// A change still waiting on its frame.
 				if ( writing && keep && isColor( color ) ) edit.set( compose( shadow, color.trim(), indent ) );
 				writing = 0;

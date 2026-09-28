@@ -33,23 +33,42 @@
 	inline-size: 340px;
 }
 
-/* A light page, so the shadow reads as it will on the site. Everything is placed from its middle. */
+/*
+ * A page for the shadow: light for a dark shadow, dark for a light one, so it
+ * shows. Only the colors change between the two.
+ */
 .etk-shadow__stage {
-	--etk-shadow-handle: #27272b;
+	--etk-shadow-ease: cubic-bezier(0.23, 1, 0.32, 1);
+	--etk-shadow-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+	--etk-shadow-pad: #e8e8ed;
+	--etk-shadow-dot: rgb(0 0 0 / 0.12);
+	--etk-shadow-line: rgb(0 0 0 / 0.07);
+	--etk-shadow-tile: #fff;
+	--etk-shadow-light-edge: rgb(0 0 0 / 0.14);
+	--etk-shadow-beam: rgb(0 0 0 / 0.28);
+	--etk-shadow-muted: rgb(0 0 0 / 0.45);
+
+	&[data-theme='dark'] {
+		--etk-shadow-pad: #1c1c1e;
+		--etk-shadow-dot: rgb(255 255 255 / 0.1);
+		--etk-shadow-line: rgb(255 255 255 / 0.07);
+		--etk-shadow-tile: #3a3a3c;
+		--etk-shadow-light-edge: rgb(0 0 0 / 0.5);
+		--etk-shadow-beam: #fff;
+		--etk-shadow-muted: rgb(255 255 255 / 0.45);
+	}
 
 	position: relative;
 	aspect-ratio: 1;
 	overflow: hidden;
-	border-radius: 8px;
-	background: #ededf0;
+	border-radius: 12px;
+	background:
+		radial-gradient(circle at center, var(--etk-shadow-dot) 0 1.1px, transparent 1.6px) 0 0 / 20px 20px,
+		var(--etk-shadow-pad);
+	box-shadow: inset 0 0 0 1px var(--etk-shadow-line);
 	touch-action: none;
-	cursor: crosshair;
-
-	> :not(.etk-sr, .etk-shadow__readout) {
-		position: absolute;
-		top: 50%;
-		left: 50%;
-	}
+	user-select: none;
+	transition: background-color 0.2s var(--etk-shadow-ease);
 
 	/* The hidden sliders stay 1px, whatever the panel does to fields. */
 	.etk-sr {
@@ -60,70 +79,124 @@
 	}
 }
 
-.etk-shadow__card {
-	inline-size: 96px;
-	block-size: 56px;
-	margin: -28px 0 0 -48px;
-	border-radius: 8px;
-	background: #fff;
+.etk-shadow__tile {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	inline-size: 44px;
+	block-size: 44px;
+	translate: -50% -50%;
+	border-radius: 11px;
+	background: var(--etk-shadow-tile);
+	transition: background-color 0.2s var(--etk-shadow-ease);
 }
 
-/* From the middle out to the light. */
-.etk-shadow__ray {
+/* Where the light is, from the middle out to its reach. */
+.etk-shadow__handle {
+	position: absolute;
+	z-index: 2;
+	top: calc(50% + var(--etk-shadow-y, 0) * (50% - var(--etk-shadow-edge)));
+	left: calc(50% + var(--etk-shadow-x, 0) * (50% - var(--etk-shadow-edge)));
 	inline-size: 0;
-	block-size: var(--etk-shadow-ray, 80px);
-	translate: 0 -100%;
-	transform-origin: 50% 100%;
-	border-inline-start: 1px dashed rgb(0 0 0 / 0.2);
+	block-size: 0;
 }
 
 .etk-shadow__light {
-	z-index: 1;
-	inline-size: 20px;
-	block-size: 20px;
-	margin: -10px 0 0 -10px;
-	box-sizing: border-box;
-	border: 2px solid var(--etk-shadow-handle);
+	position: absolute;
+	top: -14px;
+	left: -14px;
+	inline-size: 28px;
+	block-size: 28px;
 	border-radius: 50%;
 	background: #fff;
-	box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+	box-shadow: 0 0 0 0.5px var(--etk-shadow-light-edge), 0 2px 8px rgb(0 0 0 / 0.18);
 	cursor: grab;
+	touch-action: none;
+	transition: scale 0.16s var(--etk-shadow-ease);
+
+	.is-dragging-light & {
+		scale: 0.9;
+		cursor: grabbing;
+		transition-duration: 0.1s;
+	}
 }
 
-.etk-shadow__track {
-	inline-size: 2px;
-	block-size: var(--etk-shadow-track-length);
-	margin-inline-start: -1px;
-	translate: 0 calc(-1 * (var(--etk-shadow-track-from) + var(--etk-shadow-track-length)));
-	border-radius: 1px;
-	background: rgb(0 0 0 / 0.15);
+.etk-shadow__aim {
+	position: absolute;
+	top: 0;
+	left: 0;
 }
 
-/* Over the light, which it's smaller than, so it can still be caught. */
-.etk-shadow__knob {
-	z-index: 2;
-	inline-size: 12px;
-	block-size: 12px;
-	margin: -6px 0 0 -6px;
-	box-sizing: border-box;
-	border: 2px solid var(--etk-shadow-handle);
-	border-radius: 50%;
-	background: #ededf0;
-	cursor: ns-resize;
+/* Out from the light's edge, turning round its middle. */
+.etk-shadow__beam {
+	position: absolute;
+	bottom: 14px;
+	left: 0;
+	translate: -50% 0;
+	transform-origin: 50% calc(100% + 14px);
+	scale: 0.6;
+	opacity: 0;
+	color: var(--etk-shadow-beam);
+	pointer-events: none;
+	transition: opacity 0.16s var(--etk-shadow-ease), scale 0.2s var(--etk-shadow-ease);
+
+	:is(.shows-beam, .is-dragging-beam, .is-dragging-edge, :has(.etk-shadow__for-beam:focus-visible)) > .etk-shadow__handle & {
+		scale: 1;
+		opacity: 1;
+		pointer-events: auto;
+		transition: opacity 0.18s var(--etk-shadow-ease), scale 0.32s var(--etk-shadow-spring);
+	}
+
+	/* The builder caps an svg at its box's width, which here is none. */
+	svg {
+		display: block;
+		max-inline-size: none;
+		overflow: visible;
+	}
 }
 
-.etk-shadow__stage.is-lighting,
-.etk-shadow__stage.is-lighting * {
-	cursor: grabbing;
+.etk-shadow__cone {
+	pointer-events: none;
 }
 
-.etk-shadow__stage.is-layering,
-.etk-shadow__stage.is-layering * {
-	cursor: ns-resize;
+.etk-shadow__rings path {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1;
+	stroke-linecap: round;
+	pointer-events: none;
+	transition: stroke-opacity 0.2s var(--etk-shadow-ease), stroke-width 0.2s var(--etk-shadow-ease);
+
+	&.is-new {
+		stroke-width: 2;
+	}
 }
 
-.etk-shadow__stage:has(.etk-shadow__for-light:focus-visible) .etk-shadow__light,
-.etk-shadow__stage:has(.etk-shadow__for-knob:focus-visible) .etk-shadow__knob {
+.etk-shadow__edge {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-opacity: 0;
+	pointer-events: none;
+	transition: stroke-opacity 0.16s var(--etk-shadow-ease);
+
+	:is(.is-on-edge, .is-dragging-edge, :has(.etk-shadow__for-edge:focus-visible)) & {
+		stroke-opacity: 0.55;
+	}
+}
+
+.etk-shadow__hit,
+.etk-shadow__edge-hit {
+	fill: transparent;
+	cursor: grab;
+
+	:is(.is-dragging-beam, .is-dragging-edge) & {
+		cursor: grabbing;
+	}
+}
+
+.etk-shadow__stage:has(.etk-shadow__for-light:focus-visible) .etk-shadow__light {
 	outline: 2px solid var(--etch-primary, #6ce0d4);
 	outline-offset: 2px;
 }
@@ -132,8 +205,16 @@
 	position: absolute;
 	right: 10px;
 	bottom: 8px;
-	color: rgb(0 0 0 / 0.5);
+	color: var(--etk-shadow-muted);
 	font-family: var(--e-font-code);
 	font-size: var(--etch-font-size-s, 11px);
 	pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.etk-shadow__beam,
+	:is(.shows-beam, .is-dragging-beam, .is-dragging-edge, :has(.etk-shadow__for-beam:focus-visible)) > .etk-shadow__handle .etk-shadow__beam {
+		scale: 1;
+		transition: opacity 0.12s linear;
+	}
 }
