@@ -1,0 +1,139 @@
+/* Box shadow: the button in the CSS editor, and the panel's stage. The panel and its fields are the core's (.etk-pop). */
+
+/* A small card with a shadow. */
+.etk-shadow-button {
+	all: unset;
+	box-sizing: border-box;
+	display: inline-block;
+	inline-size: 10px;
+	block-size: 10px;
+	margin-inline: 4px 2px;
+	vertical-align: -1px;
+	border: 1px solid rgb(255 255 255 / 0.6);
+	border-radius: 2px;
+	box-shadow: 1.5px 2px 0 rgb(255 255 255 / 0.25);
+	cursor: pointer;
+	transition: scale 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+
+	&:hover {
+		scale: 1.2;
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--etch-primary);
+		outline-offset: 2px;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		transition: none;
+	}
+}
+
+.etk-pop.etk-shadow {
+	inline-size: 340px;
+}
+
+/* A light page, so the shadow reads as it will on the site. Everything is placed from its middle. */
+.etk-shadow__stage {
+	--etk-shadow-handle: #27272b;
+
+	position: relative;
+	aspect-ratio: 1;
+	overflow: hidden;
+	border-radius: 8px;
+	background: #ededf0;
+	touch-action: none;
+	cursor: crosshair;
+
+	> :not(.etk-sr, .etk-shadow__readout) {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+	}
+
+	/* The hidden sliders stay 1px, whatever the panel does to fields. */
+	.etk-sr {
+		inline-size: 1px;
+		block-size: 1px;
+		padding: 0;
+		border: 0;
+	}
+}
+
+.etk-shadow__card {
+	inline-size: 96px;
+	block-size: 56px;
+	margin: -28px 0 0 -48px;
+	border-radius: 8px;
+	background: #fff;
+}
+
+/* From the middle out to the light. */
+.etk-shadow__ray {
+	inline-size: 0;
+	block-size: var(--etk-shadow-ray, 80px);
+	translate: 0 -100%;
+	transform-origin: 50% 100%;
+	border-inline-start: 1px dashed rgb(0 0 0 / 0.2);
+}
+
+.etk-shadow__light {
+	z-index: 1;
+	inline-size: 20px;
+	block-size: 20px;
+	margin: -10px 0 0 -10px;
+	box-sizing: border-box;
+	border: 2px solid var(--etk-shadow-handle);
+	border-radius: 50%;
+	background: #fff;
+	box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+	cursor: grab;
+}
+
+.etk-shadow__track {
+	inline-size: 2px;
+	block-size: var(--etk-shadow-track-length);
+	margin-inline-start: -1px;
+	translate: 0 calc(-1 * (var(--etk-shadow-track-from) + var(--etk-shadow-track-length)));
+	border-radius: 1px;
+	background: rgb(0 0 0 / 0.15);
+}
+
+/* Over the light, which it's smaller than, so it can still be caught. */
+.etk-shadow__knob {
+	z-index: 2;
+	inline-size: 12px;
+	block-size: 12px;
+	margin: -6px 0 0 -6px;
+	box-sizing: border-box;
+	border: 2px solid var(--etk-shadow-handle);
+	border-radius: 50%;
+	background: #ededf0;
+	cursor: ns-resize;
+}
+
+.etk-shadow__stage.is-lighting,
+.etk-shadow__stage.is-lighting * {
+	cursor: grabbing;
+}
+
+.etk-shadow__stage.is-layering,
+.etk-shadow__stage.is-layering * {
+	cursor: ns-resize;
+}
+
+.etk-shadow__stage:has(.etk-shadow__for-light:focus-visible) .etk-shadow__light,
+.etk-shadow__stage:has(.etk-shadow__for-knob:focus-visible) .etk-shadow__knob {
+	outline: 2px solid var(--etch-primary, #6ce0d4);
+	outline-offset: 2px;
+}
+
+.etk-shadow__readout {
+	position: absolute;
+	right: 10px;
+	bottom: 8px;
+	color: rgb(0 0 0 / 0.5);
+	font-family: var(--e-font-code);
+	font-size: var(--etch-font-size-s, 11px);
+	pointer-events: none;
+}
