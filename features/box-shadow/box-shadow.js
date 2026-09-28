@@ -31,13 +31,21 @@
 
 	const PROPERTY = /^box-shadow$/i;
 	const LAYERS = { min: 1, max: 8, start: 6 };
-	const SIZE = { min: 1, max: 64, start: 24 }; // The biggest layer's offset, in pixels.
+	const SIZE = { min: 1, max: 192, start: 24 }; // The biggest layer's offset, in pixels.
 	const SOFTNESS = { min: 1, max: 3.5, start: 2 }; // 2 blurs as the plugin does.
 	const OPACITY = 20; // Percent, to start.
 
 	// The stage, in pixels: how close to its edge the light goes, and how much smaller the tile's shadow is than the real one.
 	const EDGE = 18;
 	const TILE = 0.35;
+
+	/*
+	 * How far out the light is, 0 to 1, for a size, and back. On a curve, so
+	 * small shadows, the most used, get room around the tile, and the big
+	 * ones share the edge.
+	 */
+	const reachFor = ( size ) => Math.sqrt( size / SIZE.max );
+	const sizeFor = ( out ) => Math.round( Math.min( out, 1 ) ** 2 * SIZE.max );
 
 	const round = ( n ) => Math.round( n * 10 ) / 10;
 	const half = ( n ) => Math.round( n * 2 ) / 2 + 0; // + 0 turns -0 into 0.
@@ -285,7 +293,7 @@
 		const theme = () => ( stage.dataset.theme = isLight( shown ) ? 'dark' : 'light' );
 		const paint = () => {
 			const rad = ( shadow.angle * Math.PI ) / 180;
-			const out = shadow.size / SIZE.max;
+			const out = reachFor( shadow.size );
 			// From the middle, as a share of the way to the edge.
 			stage.style.setProperty( '--etk-shadow-x', round( Math.sin( rad ) * out * 1000 ) / 1000 );
 			stage.style.setProperty( '--etk-shadow-y', round( -Math.cos( rad ) * out * 1000 ) / 1000 );
@@ -379,7 +387,7 @@
 				const y = event.clientY - drag.oy - ( r.top + r.height / 2 );
 				const angle = Math.round( ( Math.atan2( x, -y ) * 180 ) / Math.PI + 360 ) % 360;
 				const reach = r.width / 2 - EDGE;
-				set( { angle, size: clamp( Math.round( ( Math.hypot( x, y ) / reach ) * SIZE.max ), SIZE.min, SIZE.max ) } );
+				set( { angle, size: clamp( sizeFor( Math.hypot( x, y ) / reach ), SIZE.min, SIZE.max ) } );
 				return;
 			}
 			const rot = ( ( shadow.angle + 180 ) * Math.PI ) / 180;
