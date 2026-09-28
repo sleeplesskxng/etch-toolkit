@@ -31,7 +31,7 @@
 
 	const PROPERTY = /^box-shadow$/i;
 	const LAYERS = { min: 1, max: 8, start: 6 };
-	const SIZE = { min: 1, max: 192, start: 24 }; // The biggest layer's offset, in pixels.
+	const SIZE = { min: 1, max: 288, start: 24 }; // The biggest layer's offset, in pixels.
 	const SOFTNESS = { min: 1, max: 3.5, start: 2 }; // 2 blurs as the plugin does.
 	const OPACITY = 20; // Percent, to start.
 
@@ -152,7 +152,8 @@
 			const [ x, y, blur = 0 ] = lengths;
 			if ( ! far || Math.hypot( x, y ) > Math.hypot( far.x, far.y ) ) far = { x, y, blur };
 		}
-		found.count = clamp( list.length, LAYERS.min, LAYERS.max );
+		// A single shadow is one to layer, not one layer to keep.
+		if ( list.length > 1 ) found.count = clamp( list.length, LAYERS.min, LAYERS.max );
 		if ( far && Math.hypot( far.x, far.y ) ) {
 			const offset = Math.hypot( far.x, far.y );
 			found.size = clamp( Math.round( offset ), SIZE.min, SIZE.max );
