@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Etch Toolkit
- * Plugin URI:        https://github.com/sleeplesskxng/etch-toolkit
+ * Plugin URI:        https://nickarce.com/etch-toolkit/
  * Description:       Quality of life additions for the Etch builder.
  * Version:           0.5.6.1
  * Requires at least: 6.5
@@ -33,9 +33,20 @@ require ETCH_TOOLKIT_DIR . 'features/component-manager/component-manager.php';
 // Updates come from GitHub releases. Skipped in a git checkout so it never overwrites a dev copy.
 if ( ! is_dir( ETCH_TOOLKIT_DIR . '.git' ) ) {
 	require ETCH_TOOLKIT_DIR . 'lib/plugin-update-checker/plugin-update-checker.php';
-	YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
+	$etch_toolkit_updates = YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
 		'https://github.com/sleeplesskxng/etch-toolkit/',
 		__FILE__,
 		'etch-toolkit'
-	)->setBranch( 'main' );
+	);
+	$etch_toolkit_updates->setBranch( 'main' );
+	// The update details link to the full changelog on the plugin's page.
+	$etch_toolkit_updates->addResultFilter(
+		function ( $info ) {
+			if ( $info ) {
+				$info->homepage              = 'https://nickarce.com/etch-toolkit/';
+				$info->sections['changelog'] = ( $info->sections['changelog'] ?? '' ) . '<p><a href="https://nickarce.com/etch-toolkit/#changelog" target="_blank" rel="noopener">See every release on nickarce.com</a></p>';
+			}
+			return $info;
+		}
+	);
 }
