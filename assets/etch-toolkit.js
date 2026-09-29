@@ -561,6 +561,41 @@
 	};
 
 	/*
+	 * Etch's styles, for code that runs as the page changes, like each frame the
+	 * Style Manager's list scrolls. Etch's styles.list() copies every style, which
+	 * adds up on a big site, so this keeps one copy until the next click or key,
+	 * which can delete a style or undo. styleBySelector( selector ) finds the
+	 * first style the Style Manager lists with a selector, reading them again for
+	 * one it hasn't seen yet, like a new or renamed style. Code that changes
+	 * styles reads window.etch.styles.list().
+	 */
+	let stylesRead = null; // { list, bySelector, missing }
+	for ( const type of [ 'click', 'keydown' ] ) document.addEventListener( type, () => ( stylesRead = null ), true );
+	const readStyles = () => {
+		let list = [];
+		try {
+			list = window.etch.styles.list();
+		} catch {}
+		const bySelector = new Map();
+		for ( const style of list ) {
+			const selector = style.selector.trim();
+			if ( selector !== ':root' && style.type !== 'element' && ! bySelector.has( selector ) ) bySelector.set( selector, style );
+		}
+		return ( stylesRead = { list, bySelector, missing: new Set() } );
+	};
+	const recentStyles = () => stylesRead || readStyles();
+	const etchStyles = () => recentStyles().list;
+	const styleBySelector = ( selector ) => {
+		let read = recentStyles();
+		if ( ! read.bySelector.has( selector ) && ! read.missing.has( selector ) ) {
+			read = readStyles();
+			// Not a style at all: don't read them all again for it every frame.
+			if ( ! read.bySelector.has( selector ) ) read.missing.add( selector );
+		}
+		return read.bySelector.get( selector );
+	};
+
+	/*
 	 * Etch's right-click menus take no outside items, so features clone rows
 	 * from them. onMenu( from, className, add ): when a menu opens from an
 	 * element in `from` (a selector), add( menu, element ) runs, until the menu
@@ -1508,6 +1543,6 @@
 		return { dialog, close, place };
 	};
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, onMenu, menuItem, findMenuItem, settingsBarButton, selectAllKey, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorEdit, editorPanel, colorField, resolveColor, siteColors, isColor } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, etchStyles, styleBySelector, onMenu, menuItem, findMenuItem, settingsBarButton, selectAllKey, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorEdit, editorPanel, colorField, resolveColor, siteColors, isColor } );
 	window.etchToolkit = toolkit;
 } )();

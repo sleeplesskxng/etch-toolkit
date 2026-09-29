@@ -12,7 +12,7 @@
  * clicking the matching row, since the selected style isn't exposed.
  */
 ( () => {
-	const { api, el, onPageChange } = window.etchToolkit || {};
+	const { api, el, onPageChange, styleBySelector } = window.etchToolkit || {};
 	if ( ! api ) return;
 
 	const MODAL = '.style-overview-modal__inner';
@@ -79,6 +79,14 @@
 			else if ( request ) map.set( selector, null );
 		}
 		return map;
+	};
+
+	// One row's count, the same way, for each frame the list redraws.
+	const countFor = ( selector ) => {
+		const style = styleBySelector( selector );
+		if ( ! style || ! isCounted( style ) ) return undefined;
+		if ( counts && Object.hasOwn( counts, selector ) ) return counts[ selector ];
+		return request ? null : undefined;
 	};
 
 	const renderBadge = ( button, count ) => {
@@ -302,9 +310,8 @@
 		renderList( list ?? document.querySelector( `${ LEFT } .etch-css-selectors` ) );
 		if ( ! list ) return;
 
-		const bySelector = countsBySelector();
 		for ( const button of list.querySelectorAll( ROW_BUTTON ) ) {
-			renderBadge( button, bySelector.get( rowLabel( button ) ) );
+			renderBadge( button, countFor( rowLabel( button ) ) );
 		}
 	};
 

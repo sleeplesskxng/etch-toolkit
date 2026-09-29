@@ -26,7 +26,7 @@
  */
 ( () => {
 	const toolkit = window.etchToolkit || {};
-	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, errorDialog, barButton, bulkBar, selectAllKey, onPageChange, reload, classesIn, isClassSelector } = toolkit;
+	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, errorDialog, barButton, bulkBar, selectAllKey, onPageChange, etchStyles, styleBySelector, reload, classesIn, isClassSelector } = toolkit;
 	if ( ! confirmDialog ) return;
 
 	const MODAL = '.style-overview-modal__inner'; // Where every Style Manager tab renders.
@@ -84,30 +84,23 @@
 	};
 
 	// The list's full order as Etch computes it, including rows scrolled out of view.
-	// With the Unused tab on, what it lists instead.
-	const visibleOrder = ( root ) => {
+	// With the Unused tab on, what it lists instead. Per frame, styles is etchStyles().
+	const visibleOrder = ( root, styles = allStyles() ) => {
 		const unused = root.querySelector( UNUSED );
 		if ( unused ) {
 			const shown = new Set( [ ...unused.querySelectorAll( `${ UNUSED }__button` ) ].map( ( b ) => b.textContent ) );
-			return listable( allStyles() )
+			return listable( styles )
 				.filter( ( s ) => shown.has( s.selector.trim() ) )
 				.map( ( s ) => s.id );
 		}
 		const search = root.querySelector( SEARCH )?.value.toLowerCase() ?? '';
 		const tab = root.querySelector( ACTIVE_TAB )?.textContent.trim().toLowerCase() || 'all';
-		return listable( allStyles() )
+		return listable( styles )
 			.filter( ( s ) => ( search ? s.selector.toLowerCase().includes( search ) : tab === 'all' || s.type === tab ) )
 			.map( ( s ) => s.id );
 	};
 
 	const rowSelector = ( row ) => row.querySelector( `.main-button > span:not(.etk-usage), ${ UNUSED }__button` )?.textContent.trim() ?? '';
-
-	// Selector => first style ID with it (the Style Manager lists all collections together).
-	const idsBySelector = () => {
-		const map = new Map();
-		for ( const s of listable( allStyles() ) ) if ( ! map.has( s.selector.trim() ) ) map.set( s.selector.trim(), s.id );
-		return map;
-	};
 
 	const toggle = ( id ) => {
 		if ( selected.has( id ) ) selected.delete( id );
@@ -959,9 +952,9 @@
 
 	/* ---- Rendering ---- */
 
-	const renderCheckbox = ( row, ids ) => {
+	const renderCheckbox = ( row ) => {
 		const selector = rowSelector( row );
-		const id = ids.get( selector );
+		const id = styleBySelector( selector )?.id;
 		let box = row.querySelector( `:scope > .${ CHECK }` );
 
 		if ( ! id ) {
@@ -1017,12 +1010,12 @@
 		bulk ||= buildBar();
 		if ( show && bulk.bar.parentElement !== screen ) screen.append( bulk.scrim, bulk.bar );
 
-		bulk.update( show ? selected.size : 0, show && visibleOrder( root ).every( ( id ) => selected.has( id ) ) );
+		bulk.update( show ? selected.size : 0, show && visibleOrder( root, etchStyles() ).every( ( id ) => selected.has( id ) ) );
 		if ( ! show ) return;
 
 		// Rename works on class names, which a selection of only #id styles doesn't have.
 		const rename = bulk.bar.querySelector( '.etk-bulk-bar__rename' );
-		const renamable = allStyles().some( ( s ) => selected.has( s.id ) && classesIn( s.selector ).length );
+		const renamable = etchStyles().some( ( s ) => selected.has( s.id ) && classesIn( s.selector ).length );
 		if ( rename.disabled === renamable ) {
 			rename.disabled = ! renamable;
 			rename.title = renamable ? '' : 'Only class names can be renamed';
@@ -1045,12 +1038,13 @@
 		}
 
 		// Forget styles that no longer exist.
-		const existing = new Set( allStyles().map( ( s ) => s.id ) );
-		[ ...selected ].forEach( ( id ) => existing.has( id ) || selected.delete( id ) );
+		if ( selected.size ) {
+			const existing = new Set( etchStyles().map( ( s ) => s.id ) );
+			[ ...selected ].forEach( ( id ) => existing.has( id ) || selected.delete( id ) );
+		}
 
 		root.classList.toggle( 'etk-selecting', selected.size > 0 );
-		const ids = idsBySelector();
-		root.querySelectorAll( ROWS ).forEach( ( row ) => renderCheckbox( row, ids ) );
+		root.querySelectorAll( ROWS ).forEach( renderCheckbox );
 		renderBar( root );
 	};
 
@@ -1069,7 +1063,8 @@
 			const button = root && event.target.closest?.( ROW_BUTTON );
 			if ( ! button || ! root.contains( button ) ) return;
 
-			const id = idsBySelector().get( rowSelector( button.parentElement ) );
+			// The first style with the row's selector: the Style Manager lists all collections together.
+			const id = styleBySelector( rowSelector( button.parentElement ) )?.id;
 			if ( ! id ) return;
 
 			if ( event.metaKey || event.ctrlKey || ( event.shiftKey && anchor ) ) {
