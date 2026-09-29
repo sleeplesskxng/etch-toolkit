@@ -12,7 +12,8 @@
  * icon, render, open } ). icon names one of the core's icons (etchToolkit.ICONS)
  * for the nav. render( ui ) returns the section's nodes, built with ui's
  * helpers. open(), if given, runs each time the section shows, to load what
- * it needs. ui.refresh() renders the section again.
+ * it needs. hidden(), if given, leaves it out of the nav while it's true,
+ * checked again when settings change. ui.refresh() renders the section again.
  */
 ( () => {
 	const toolkit = window.etchToolkit || {};
@@ -151,9 +152,11 @@
 		}
 	};
 
+	const shown = () => sections.filter( ( s ) => ! s.hidden?.() );
+
 	const renderNav = () => {
 		if ( ! nav ) return;
-		nav.replaceChildren( ...sections.map( ( s ) => el( 'button', { type: 'button', class: 'etk-manager__nav-item', 'data-id': s.id, html: s.icon ? icon( s.icon ) : null, 'aria-current': s === current ? 'page' : null, onclick: () => show( s ) }, s.title ) ) );
+		nav.replaceChildren( ...shown().map( ( s ) => el( 'button', { type: 'button', class: 'etk-manager__nav-item', 'data-id': s.id, html: s.icon ? icon( s.icon ) : null, 'aria-current': s === current ? 'page' : null, onclick: () => show( s ) }, s.title ) ) );
 	};
 
 	const ui = { button, group, row, value, toggle, check, dropzone, download, announce, warn, refresh, builder };
@@ -170,12 +173,13 @@
 	/* General                                                             */
 	/* ------------------------------------------------------------------ */
 
-	let settings = config.settings || { deleteData: false, layerSorting: true, componentManager: false };
+	let settings = config.settings || { deleteData: false, layerSorting: true, fonts: true, componentManager: false };
 	const save = async ( changes, message ) => {
 		try {
 			// Kept on window.etchToolkitSettings too, where features read it as it changes.
 			settings = config.settings = await api( 'settings', 'POST', changes );
 			window.dispatchEvent( new CustomEvent( 'etch-toolkit-settings', { detail: settings } ) );
+			renderNav();
 			announce( message );
 		} catch ( error ) {
 			warn( errorText( error ) );
@@ -196,6 +200,15 @@
 					settings.layerSorting,
 					( on ) => save( { layerSorting: on }, on ? 'Enhanced layer sorting is on.' : 'Enhanced layer sorting is off.' ),
 					'Smoother dragging, with a drop line in the panel and on the canvas. Shift-click to select a range, and drag several layers at once.'
+				)
+			),
+			group(
+				'Fonts',
+				toggle(
+					'Font manager',
+					settings.fonts,
+					( on ) => save( { fonts: on }, on ? 'The font manager is on.' : 'The font manager is off.' ),
+					'Upload fonts or add them from Google Fonts, then use them for headings and body text. Opens from the Settings Bar. Your fonts keep working when it’s off.'
 				)
 			),
 			group(
@@ -258,7 +271,7 @@
 	// The section you had open last, this session.
 	const lastSection = () => {
 		try {
-			return sections.find( ( s ) => s.id === sessionStorage.getItem( 'etk-settings-section' ) );
+			return shown().find( ( s ) => s.id === sessionStorage.getItem( 'etk-settings-section' ) );
 		} catch {
 			return undefined;
 		}

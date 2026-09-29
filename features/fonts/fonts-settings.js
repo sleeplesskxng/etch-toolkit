@@ -177,6 +177,7 @@
 		title: 'Fonts',
 		icon: 'text-font',
 		order: 10,
+		hidden: () => window.etchToolkitSettings?.settings?.fonts === false,
 		open: async () => {
 			state = await api( 'fonts' );
 		},

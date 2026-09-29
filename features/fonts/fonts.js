@@ -28,6 +28,7 @@
 	if ( ! confirmDialog ) return;
 
 	const CONTROL_ID = 'etch-toolkit-fonts';
+	const enabled = () => window.etchToolkitSettings?.settings?.fonts !== false;
 	const SAMPLE = 'The quick brown fox jumps over the lazy dog';
 	const WEIGHTS = [ '100', '200', '300', '400', '500', '600', '700', '800', '900' ];
 	const WEIGHT_NAMES = { 100: 'Thin', 200: 'Extra Light', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'Semi Bold', 700: 'Bold', 800: 'Extra Bold', 900: 'Black' };
@@ -2542,6 +2543,14 @@
 		onclick: togglePanel,
 		onother: () => close( { focus: false } ),
 		// Repair the stylesheet if it was edited or deleted since the last change.
-		ready: () => etchStylesheets() && load(),
+		ready: () => enabled() && etchStylesheets() && load(),
+		enabled,
+	} );
+
+	// Turned on or off in the toolkit's settings.
+	window.addEventListener( 'etch-toolkit-settings', () => {
+		if ( enabled() ) return control.add();
+		close( { focus: false } );
+		control.remove();
 	} );
 } )();

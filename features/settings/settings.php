@@ -28,7 +28,7 @@ etch_toolkit_routes(
 );
 
 /**
- * @return array{deleteData: bool, layerSorting: bool, componentManager: bool}
+ * @return array{deleteData: bool, layerSorting: bool, fonts: bool, componentManager: bool}
  */
 function etch_toolkit_settings(): array {
 	$settings = (array) get_option( ETCH_TOOLKIT_SETTINGS_OPTION, array() );
@@ -36,13 +36,14 @@ function etch_toolkit_settings(): array {
 		'deleteData'       => ! empty( $settings['deleteData'] ),
 		// On until turned off.
 		'layerSorting'     => ! array_key_exists( 'layerSorting', $settings ) || ! empty( $settings['layerSorting'] ),
+		'fonts'            => ! array_key_exists( 'fonts', $settings ) || ! empty( $settings['fonts'] ),
 		'componentManager' => ! empty( $settings['componentManager'] ),
 	);
 }
 
 function etch_toolkit_save_settings( array $input ): void {
 	$settings = etch_toolkit_settings();
-	foreach ( array( 'deleteData', 'layerSorting', 'componentManager' ) as $key ) {
+	foreach ( array( 'deleteData', 'layerSorting', 'fonts', 'componentManager' ) as $key ) {
 		if ( array_key_exists( $key, $input ) ) {
 			$settings[ $key ] = (bool) $input[ $key ];
 		}

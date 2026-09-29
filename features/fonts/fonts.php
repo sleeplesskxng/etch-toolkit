@@ -9,6 +9,7 @@
  * builder panel keeps in sync through window.etch.stylesheets. Etch prints it,
  * not this plugin, so fonts keep working if the toolkit is deactivated or
  * deleted. Only the extras stop: preload hints and blocking Google Fonts.
+ * Turning the font manager off in the toolkit's settings (General) is the same.
  *
  * Trimmed port of Etch Font Manager by Don Kanishka (GPL-2.0),
  * https://github.com/donkanishka/etch-font-manager.
@@ -81,7 +82,7 @@ etch_toolkit_builder_feature(
 add_action(
 	'wp_head',
 	function () {
-		if ( etch_toolkit_is_builder() ) {
+		if ( etch_toolkit_is_builder() || ! etch_toolkit_settings()['fonts'] ) {
 			return;
 		}
 		foreach ( etch_toolkit_fonts_preloads() as $url ) {
@@ -95,7 +96,7 @@ add_action(
 add_filter(
 	'style_loader_tag',
 	function ( $tag, $handle, $href ) {
-		if ( etch_toolkit_fonts_settings()['blockGoogle'] && ! is_admin() && ! etch_toolkit_is_builder() && str_contains( (string) $href, 'fonts.googleapis.com' ) ) {
+		if ( etch_toolkit_settings()['fonts'] && etch_toolkit_fonts_settings()['blockGoogle'] && ! is_admin() && ! etch_toolkit_is_builder() && str_contains( (string) $href, 'fonts.googleapis.com' ) ) {
 			return '';
 		}
 		return $tag;
@@ -106,7 +107,7 @@ add_filter(
 add_filter(
 	'wp_resource_hints',
 	function ( $urls ) {
-		if ( ! etch_toolkit_fonts_settings()['blockGoogle'] || is_admin() ) {
+		if ( ! etch_toolkit_settings()['fonts'] || ! etch_toolkit_fonts_settings()['blockGoogle'] || is_admin() ) {
 			return $urls;
 		}
 		return array_values(
