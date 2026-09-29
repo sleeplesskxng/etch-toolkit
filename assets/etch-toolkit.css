@@ -961,6 +961,24 @@
 	padding: 0;
 }
 
+/* A button and, split off by a line, a chevron for its menu of other ways to do the same. */
+.etk-split {
+	display: inline-flex;
+
+	.etk-btn:first-child {
+		border-start-end-radius: 0;
+		border-end-end-radius: 0;
+	}
+
+	.etk-btn:last-child {
+		inline-size: 28px;
+		padding: 0;
+		border-inline-start-color: color-mix(in srgb, currentColor 30%, transparent);
+		border-start-start-radius: 0;
+		border-end-start-radius: 0;
+	}
+}
+
 /* A visually hidden file input inside a label styled as a button. */
 .etk-btn--file {
 	position: relative;

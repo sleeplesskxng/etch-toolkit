@@ -914,23 +914,28 @@
 			),
 		],
 
-		done: () =>
-			previous
-				? [
-						el( 'h2', { class: 'etk-manager__page-title', tabindex: '-1', textContent: `${ previous.name } is updated` } ),
-						el( 'p', { class: 'etk-components__help', textContent: previous.update.length || previous.made.length ? 'The component is saved. Save in Etch to keep the class changes too.' : 'The component is saved.' } ),
-						el(
-							'div',
-							{ class: 'etk-components__done-actions' },
-							button( 'Put back the previous version', ( e ) => restore( e.currentTarget ), { 'data-focus': 'restore' } ),
-							button( 'Download the previous version', download, { 'data-focus': 'download' } ),
-							button( 'Back to components', showList, { 'data-focus': 'another' } )
-						),
-				  ]
-				: [
-						el( 'h2', { class: 'etk-manager__page-title', tabindex: '-1', textContent: 'The previous version is back' } ),
-						el( 'div', { class: 'etk-components__done-actions' }, button( 'Back to components', showList, { 'data-focus': 'another' } ) ),
-				  ],
+		// A tick, what happened, and what's next, centred.
+		done: () => {
+			const withIcon = ( name, label ) => [ el( 'span', { class: 'etk-components__done-icon', html: icon( name, 14 ) } ), label ];
+			const page = ( title, text, actions ) =>
+				el(
+					'div',
+					{ class: 'etk-components__done' },
+					el( 'span', { class: 'etk-components__done-tick', html: icon( 'tick', 20 ) } ),
+					el( 'h2', { class: 'etk-manager__page-title', tabindex: '-1', textContent: title } ),
+					el( 'p', { class: 'etk-components__help', textContent: text } ),
+					el( 'div', { class: 'etk-components__done-actions' }, ...actions )
+				);
+			return [
+				previous
+					? page( `${ previous.name } is updated`, `${ previous.update.length || previous.made.length ? 'The component is saved. Save in Etch to keep the class changes too.' : 'The component is saved.' } You can put back or download the previous version until you leave this page.`, [
+							button( 'Back to components', showList, { variant: 'primary', 'data-focus': 'another' } ),
+							button( withIcon( 'download', 'Download previous version' ), () => download(), { 'data-focus': 'download' } ),
+							button( 'Put back previous version', ( e ) => restore( e.currentTarget ), { 'data-focus': 'restore' } ),
+					  ] )
+					: page( 'The previous version is back', 'The component is saved as it was before the update.', [ button( 'Back to components', showList, { variant: 'primary', 'data-focus': 'another' } ) ] ),
+			];
+		},
 
 		// Layers and props on the left, the picked one's code on the right.
 		review: () => {
@@ -960,7 +965,14 @@
 									el( 'span', { class: 'etk-components__lines-removed', 'aria-hidden': 'true', textContent: `−${ lines.removed }` } ),
 									el( 'span', { class: 'etk-sr', textContent: `${ plural( lines.added, 'line', 'lines' ) } added, ${ lines.removed } removed` } )
 								),
-								button( 'Update component', apply, { variant: 'primary', disabled: ! approved, 'data-focus': 'apply' } )
+								el(
+									'div',
+									{ class: 'etk-split' },
+									button( 'Update component', () => apply(), { variant: 'primary', disabled: ! approved, 'data-focus': 'apply' } ),
+									menu( button( '', null, { variant: 'primary', disabled: ! approved, 'aria-label': 'More ways to update', html: icon( 'chevron-down', 14 ) } ), [
+										{ label: 'Update and download backup', onselect: () => apply( { backup: true } ) },
+									] )
+								)
 						  )
 						: null
 				),
@@ -1179,9 +1191,10 @@
 	/**
 	 * Save the ticked changes. The component is written at once, the way
 	 * Etch's paste writes it. Class changes are made in the builder, like
-	 * Etch's own, and saved with Etch's Save.
+	 * Etch's own, and saved with Etch's Save. With backup, the site's version
+	 * downloads first, once you've confirmed.
 	 */
-	const apply = async () => {
+	const apply = async ( { backup = false } = {} ) => {
 		const { current, now } = reviewing;
 		let result;
 		try {
@@ -1202,7 +1215,7 @@
 			message: [
 				el( 'p', { textContent: `Saves ${ approved } of ${ plural( total, 'change', 'changes' ) } now.` } ),
 				classes ? el( 'p', { textContent: classes === 1 ? '1 class changes in the builder too. Save to keep it.' : `${ classes } classes change in the builder too. Save to keep them.` } ) : null,
-				el( 'p', { textContent: 'You can restore the previous version later.' } ),
+				el( 'p', { textContent: backup ? 'The current version downloads first. You can also put it back on the next page, until you leave it.' : 'You can put the previous version back on the next page, until you leave it.' } ),
 			].filter( Boolean ),
 			confirmLabel: 'Update component',
 			busyLabel: 'Updating…',
@@ -1210,6 +1223,7 @@
 			failTitle: 'The component wasn’t updated',
 		} );
 		if ( ! ( await dialog.result ) ) return;
+		if ( backup ) download( snapshot( now ) );
 
 		// Class changes first, so the blocks can point to the new ones.
 		const made = new Map();
@@ -1258,7 +1272,7 @@
 		}
 	};
 
-	const download = () => downloadJson( JSON.stringify( previous.json, null, 2 ), `${ previous.json.key || 'component' }-before-update.json` );
+	const download = ( json = previous.json ) => downloadJson( JSON.stringify( json, null, 2 ), `${ json.key || 'component' }-before-update.json` );
 
 	/* ---- Class usage, for how far a CSS change reaches ---- */
 
@@ -1895,6 +1909,7 @@
 
 	const showList = () => {
 		target = null;
+		previous = null;
 		loadUsedOn();
 		go( 'list' );
 	};
@@ -2075,6 +2090,11 @@
 	const close = ( { focus = true } = {} ) => {
 		if ( ! panel || panel.hidden ) return;
 		panel.hidden = true;
+		// An update's done page is for then. Next time it opens on the list.
+		if ( view === 'done' ) {
+			previous = null;
+			view = 'list';
+		}
 		control.expanded( false );
 		if ( focus ) control.focus();
 	};

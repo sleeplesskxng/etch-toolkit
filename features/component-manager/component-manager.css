@@ -337,10 +337,41 @@
 	background: var(--etk-view);
 }
 
+/* After an update: centred, a little way down the view. */
+.etk-components__done {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	margin-block-start: 12vh;
+	text-align: center;
+
+	.etk-components__help {
+		max-inline-size: 44ch;
+	}
+}
+
+.etk-components__done-tick {
+	display: grid;
+	place-items: center;
+	inline-size: 40px;
+	block-size: 40px;
+	margin-block-end: 8px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--etk-accent) 14%, transparent);
+	color: var(--etk-accent);
+}
+
 .etk-components__done-actions {
 	display: flex;
 	flex-wrap: wrap;
+	justify-content: center;
 	gap: 8px;
+	margin-block-start: 16px;
+}
+
+.etk-components__done-icon {
+	display: inline-flex;
 }
 
 /* Wide enough to keep the title on a line or two. When narrow, the actions go below. */
