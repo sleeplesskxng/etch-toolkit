@@ -725,22 +725,35 @@
 	 * shortcuts, Esc (outside a dialog) runs onescape, and Cmd/Ctrl+S saves
 	 * instead of opening the browser's Save Page. Etch only matches a shortcut
 	 * when it saw the Cmd or Ctrl press too, so this calls its save directly.
+	 * Cmd/Ctrl+Shift+letter goes on to the window, for Automatic.css's
+	 * shortcuts: Etch, never having seen the Cmd, takes it as the bare letter.
 	 */
-	const managerKeys = ( onescape ) => ( {
-		onkeydown: ( e ) => {
-			e.stopPropagation();
-			if ( e.key === 'Escape' && ! e.target.closest( 'dialog' ) ) {
-				// Or the Escape would also cancel a dialog onescape opens.
-				e.preventDefault();
-				onescape();
-			}
-			if ( ( e.metaKey || e.ctrlKey ) && ( e.code === 'KeyS' || e.key.toLowerCase() === 's' ) ) {
-				e.preventDefault();
-				window.etch?.saveAsync?.();
-			}
-		},
-		onkeyup: ( e ) => e.stopPropagation(),
-	} );
+	const managerKeys = ( onescape ) => {
+		// Their keyups go on too, or Etch would take the letter as still held.
+		const passed = new Set();
+		return {
+			onkeydown: ( e ) => {
+				if ( ( e.metaKey || e.ctrlKey ) && e.shiftKey && e.code.startsWith( 'Key' ) && e.code !== 'KeyS' ) {
+					passed.add( e.code );
+					return;
+				}
+				e.stopPropagation();
+				if ( e.key === 'Escape' && ! e.target.closest( 'dialog' ) ) {
+					// Or the Escape would also cancel a dialog onescape opens.
+					e.preventDefault();
+					onescape();
+				}
+				if ( ( e.metaKey || e.ctrlKey ) && ( e.code === 'KeyS' || e.key.toLowerCase() === 's' ) ) {
+					e.preventDefault();
+					window.etch?.saveAsync?.();
+				}
+			},
+			onkeyup: ( e ) => {
+				if ( passed.delete( e.code ) ) return;
+				e.stopPropagation();
+			},
+		};
+	};
 
 	// Show a manager's panel. One at a time, like Etch's own, so Back goes straight to the canvas.
 	const openManager = ( panel ) => {
