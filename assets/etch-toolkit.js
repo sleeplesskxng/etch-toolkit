@@ -1518,6 +1518,65 @@
 		return el( 'div', { className: 'etk-pop__row' }, [ el( 'label', { htmlFor: id, textContent: label } ), el( 'div', { className: 'etk-pop__input' }, [ swatch, input ] ) ] );
 	};
 
+	// ---- Dragging ----
+
+	/**
+	 * draggable( box ): drags box, a dialog or any fixed box, out of the way by
+	 * anything in it that isn't a control or a part with a drag of its own (a
+	 * pointerdown that's defaultPrevented). It stays inside the window, and the
+	 * click that ends a drag doesn't count as one outside. Returns moveTo( left,
+	 * top ), which places it there, inside the window, and moved(), whether
+	 * it's been dragged.
+	 */
+	const DRAG_EDGE = 16;
+	const draggable = ( box ) => {
+		box.classList.add( 'etk-draggable' );
+		// By left and top, from wherever it was, however it was placed.
+		const moveTo = ( left, top ) => {
+			const { offsetWidth: width, offsetHeight: height } = box;
+			box.style.inset = 'auto';
+			box.style.margin = '0';
+			box.style.left = `${ Math.max( DRAG_EDGE, Math.min( left, window.innerWidth - width - DRAG_EDGE ) ) }px`;
+			box.style.top = `${ Math.max( DRAG_EDGE, Math.min( top, window.innerHeight - height - DRAG_EDGE ) ) }px`;
+		};
+		let moved = false;
+		let press = null;
+		box.addEventListener( 'pointerdown', ( event ) => {
+			if ( event.button !== 0 || event.defaultPrevented || event.target.closest( 'input, select, textarea, button, label, a, [contenteditable]' ) ) return;
+			// A modal dialog gets the presses on its backdrop too.
+			const r = box.getBoundingClientRect();
+			if ( event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom ) return;
+			press = { id: event.pointerId, x: event.clientX, y: event.clientY, left: r.left, top: r.top, moving: false };
+		} );
+		box.addEventListener( 'pointermove', ( event ) => {
+			if ( event.pointerId !== press?.id ) return;
+			const dx = event.clientX - press.x;
+			const dy = event.clientY - press.y;
+			if ( ! press.moving ) {
+				if ( Math.hypot( dx, dy ) < 3 ) return;
+				press.moving = true;
+				box.setPointerCapture( event.pointerId );
+				box.classList.add( 'is-moving' );
+			}
+			moveTo( press.left + dx, press.top + dy );
+		} );
+		const drop = ( event ) => {
+			if ( event.pointerId !== press?.id ) return;
+			if ( press.moving ) {
+				moved = true;
+				// The click comes in the same task as the pointerup, if at all.
+				const swallow = ( click ) => click.stopPropagation();
+				window.addEventListener( 'click', swallow, { capture: true, once: true } );
+				setTimeout( () => window.removeEventListener( 'click', swallow, { capture: true } ) );
+			}
+			press = null;
+			box.classList.remove( 'is-moving' );
+		};
+		box.addEventListener( 'pointerup', drop );
+		box.addEventListener( 'pointercancel', drop );
+		return { moveTo, moved: () => moved };
+	};
+
 	// ---- The panel ----
 
 	/**
@@ -1526,7 +1585,8 @@
 	 * content, then Cancel and Done. Esc or Cancel runs onclose( false ), Done,
 	 * Enter in a field or a click outside onclose( true ). One at a time:
 	 * returns null while another is open. focus is the element to focus first.
-	 * place() puts it under the anchor again, for content that changes height.
+	 * It's draggable(). place() puts it under the anchor again, or keeps it in
+	 * the window once dragged, for content that changes height.
 	 */
 	let panelOpen = null;
 	const editorPanel = ( { anchor, label, className = '', content, focus, onclose } ) => {
@@ -1573,17 +1633,18 @@
 		document.body.append( dialog );
 		dialog.showModal();
 
-		// Below the anchor, or above it where there's no room, left edges lined up.
+		// Below the anchor, or above it where there's no room, left edges lined up. Once dragged, where you put it.
+		const mover = draggable( dialog );
 		const place = () => {
+			if ( mover.moved() ) {
+				const r = dialog.getBoundingClientRect();
+				mover.moveTo( r.left, r.top );
+				return;
+			}
 			const at = anchor.getBoundingClientRect();
 			const gap = 8;
-			const edge = 16;
-			const { offsetWidth: width, offsetHeight: height } = dialog;
-			const left = Math.min( Math.max( edge, at.left ), window.innerWidth - width - edge );
 			const below = at.bottom + gap;
-			const top = below + height <= window.innerHeight - edge ? below : Math.max( edge, at.top - gap - height );
-			dialog.style.left = `${ left }px`;
-			dialog.style.top = `${ top }px`;
+			mover.moveTo( at.left, below + dialog.offsetHeight <= window.innerHeight - DRAG_EDGE ? below : at.top - gap - dialog.offsetHeight );
 		};
 		place();
 		focus?.focus();
@@ -1591,6 +1652,6 @@
 		return { dialog, close, place };
 	};
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, etchStyles, styleBySelector, onMenu, menuItem, findMenuItem, settingsBarButton, selectAllKey, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorEdit, editorPanel, colorField, styleDoc, resolveColor, siteColors, isColor } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, etchStyles, styleBySelector, onMenu, menuItem, findMenuItem, settingsBarButton, selectAllKey, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorEdit, editorPanel, draggable, colorField, styleDoc, resolveColor, siteColors, isColor } );
 	window.etchToolkit = toolkit;
 } )();

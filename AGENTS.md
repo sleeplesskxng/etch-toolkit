@@ -12,7 +12,7 @@ Quality of life additions for the Etch builder. Vanilla PHP, JS and CSS, no buil
 
 - `etch-toolkit.php` loads `includes/options.php` (option names, shared with `uninstall.php`), `includes/helpers.php` and each feature.
 - `features/<name>/<name>.{php,js,css}` is one self-contained feature. `etch_toolkit_builder_feature( '<name>' )` loads its assets in the builder, `etch_toolkit_routes()` registers its REST routes and `etch_toolkit_settings_section( '<name>' )` adds its `<name>-settings.js` to the settings screen.
-- `assets/etch-toolkit.{js,css}` is the shared core (`window.etchToolkit`): `el()`, `icon()`, dialogs, sliders, CSS editor widgets and their panels (`editorWidgets()`, `editorPanel()`, `colorField()`), and the `.etk-manager` screen, switches, checkboxes, drop zones and segmented controls. Build on these before writing a feature's own.
+- `assets/etch-toolkit.{js,css}` is the shared core (`window.etchToolkit`): `el()`, `icon()`, dialogs, dragging (`draggable()`), sliders, CSS editor widgets and their panels (`editorWidgets()`, `editorPanel()`, `colorField()`), and the `.etk-manager` screen, switches, checkboxes, drop zones and segmented controls. Build on these before writing a feature's own.
 
 ## Skills
 

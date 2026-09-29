@@ -1608,6 +1608,21 @@ input.etk-switch {
 	}
 }
 
+/* draggable(): it drags by anything that isn't a control. */
+.etk-draggable {
+	cursor: grab;
+
+	&.is-moving {
+		cursor: grabbing;
+		user-select: none;
+	}
+
+	/* Under any label that sets its own. */
+	:where(label) {
+		cursor: default;
+	}
+}
+
 .etk-pop {
 	/* Etch's builder injects `* { margin: 0 }`. It's placed by top and left. */
 	position: fixed;
