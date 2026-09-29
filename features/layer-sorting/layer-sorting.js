@@ -20,6 +20,16 @@
  * - Resting on a closed layer opens it. Near the panel's top or bottom, it scrolls.
  * - Resting on a spot the canvas can't show scrolls the canvas to it.
  * - Esc cancels.
+ * - Dragging a selected layer takes every selected one, in panel order, to
+ *   the same spot. A layer inside another selected one goes with it.
+ *
+ * Selecting several, as in Finder and Figma (Etch has Cmd, Ctrl and Shift
+ * clicks all toggle a layer):
+ * - Cmd or Ctrl click adds or removes a layer, as in Etch.
+ * - Shift click selects every row shown from the last one clicked, on top of
+ *   what was selected then. Shift+Up and Shift+Down grow or shrink it a row.
+ * - Cmd+A selects the selected layer and everything beside it, or every
+ *   top-level layer when none is selected.
  *
  * Selecting a layer on the canvas also scrolls its row to the middle of the panel.
  *
@@ -102,10 +112,151 @@
 	const clip = ( node, rect ) => Object.assign( node.style, { left: `${ rect.left }px`, top: `${ rect.top }px`, width: `${ rect.width }px`, height: `${ rect.height }px` } );
 
 	const announce = ( message ) => {
+		if ( ! status ) build();
 		status.textContent = '';
 		// Cleared first so the same message is read again.
 		window.setTimeout( () => ( status.textContent = message ), 50 );
 	};
+
+	/* ---- Selecting several ---- */
+
+	const layers = ( n ) => `${ n } ${ n === 1 ? 'layer' : 'layers' }`;
+	const key = ( ids ) => [ ...ids ].sort().join( ' ' );
+
+	const headerOf = ( wrap, id ) => wrap.querySelector( `${ HEADER }[data-blockid="${ CSS.escape( id ) }"]` );
+	const selectedHeads = ( wrap ) => [ ...wrap.querySelectorAll( `${ HEADER }[data-block-selected="true"]` ) ];
+	const selectedIds = ( wrap ) => selectedHeads( wrap ).map( ( head ) => head.dataset.blockid );
+	// The rows shown that can be selected, top to bottom.
+	const shownIds = ( wrap ) =>
+		[ ...wrap.querySelectorAll( HEADER ) ].filter( ( head ) => head.dataset.blockReadonly !== 'true' && head.getBoundingClientRect().height ).map( ( head ) => head.dataset.blockid );
+
+	let anchor = null; // Where a range starts: the row last clicked.
+	let end = null; // Where it reaches, which Shift+Up and Shift+Down move.
+	let base = []; // What was selected when the anchor was clicked. A range goes on top.
+	let known = ''; // The selection as this last left it. Any other was made elsewhere.
+	let applying = false;
+
+	// Selected since on the canvas, or by Etch: ranges start from the layer Etch selected last.
+	const sync = ( wrap ) => {
+		const ids = selectedIds( wrap );
+		if ( key( ids ) === known ) return;
+		base = ids;
+		anchor = end = window.etch.blocks.getSelectedId();
+		known = key( ids );
+	};
+
+	// Etch's own Cmd-click, which adds or removes a layer. Its API only selects one.
+	const toggle = ( head ) => {
+		applying = true;
+		try {
+			head.dispatchEvent( new MouseEvent( 'click', { bubbles: true, cancelable: true, metaKey: true } ) );
+		} finally {
+			applying = false;
+		}
+	};
+
+	// Selects just these. Etch shows the settings of the last one added, so last goes in last.
+	const setSelection = ( wrap, want, last = want.at( -1 ) ) => {
+		const have = new Set( selectedIds( wrap ) );
+		const wanted = new Set( want );
+		const heads = ( ids ) => ids.map( ( id ) => headerOf( wrap, id ) ).filter( Boolean );
+		// Added before any go, so it's never empty in between.
+		heads( want.filter( ( id ) => ! have.has( id ) && id !== last ) ).forEach( toggle );
+		heads( [ ...have ].filter( ( id ) => ! wanted.has( id ) ) ).forEach( toggle );
+		const head = headerOf( wrap, last );
+		if ( head && last !== window.etch.blocks.getSelectedId() ) {
+			if ( have.has( last ) ) toggle( head );
+			toggle( head );
+		}
+		known = key( want );
+	};
+
+	// From the anchor to this row, on top of what was selected then.
+	const extend = ( wrap, id ) => {
+		sync( wrap );
+		const rows = shownIds( wrap );
+		const to = rows.indexOf( id );
+		if ( to === -1 ) return;
+		let from = rows.indexOf( anchor );
+		// Folded away, or none yet.
+		if ( from === -1 ) {
+			anchor = id;
+			from = to;
+		}
+		end = id;
+		const want = [ ...new Set( [ ...base, ...rows.slice( Math.min( from, to ), Math.max( from, to ) + 1 ) ] ) ];
+		setSelection( wrap, want, id );
+		announce( `${ layers( want.length ) } selected.` );
+	};
+
+	document.addEventListener(
+		'click',
+		( event ) => {
+			if ( applying || ! enabled() || event.button !== 0 ) return;
+			const wrap = event.target.closest?.( WRAP );
+			const head = wrap && event.target.closest( HEADER );
+			if ( ! head || event.target.closest( INTERACTIVE ) ) return;
+			const id = head.dataset.blockid;
+			if ( event.shiftKey ) {
+				// Not Etch's Shift-click, which adds or removes the one layer.
+				event.preventDefault();
+				event.stopPropagation();
+				window.getSelection()?.removeAllRanges();
+				if ( head.dataset.blockReadonly !== 'true' ) extend( wrap, id );
+				return;
+			}
+			// Once Etch has selected it, or added or removed it.
+			window.setTimeout( () => {
+				anchor = end = id;
+				base = selectedIds( wrap );
+				known = key( base );
+			} );
+		},
+		true
+	);
+
+	const EDITABLE = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), .cm-editor';
+
+	document.addEventListener(
+		'keydown',
+		( event ) => {
+			if ( drag || ! enabled() || event.defaultPrevented || event.altKey || event.isComposing || event.target.closest?.( EDITABLE ) ) return;
+			const wrap = document.querySelector( WRAP );
+			// Not while Etch's keyboard drag has a layer.
+			if ( ! wrap || wrap.querySelector( `${ ITEM }[aria-pressed="true"]` ) ) return;
+			const mod = event.metaKey || event.ctrlKey;
+			const down = event.key === 'ArrowDown';
+
+			if ( event.shiftKey && ! mod && ( down || event.key === 'ArrowUp' ) ) {
+				sync( wrap );
+				const rows = shownIds( wrap );
+				const at = rows.includes( end ) ? rows.indexOf( end ) : rows.indexOf( anchor );
+				if ( at === -1 ) return;
+				event.preventDefault();
+				const next = rows[ at + ( down ? 1 : -1 ) ];
+				if ( ! next ) return;
+				extend( wrap, next );
+				headerOf( wrap, next )?.scrollIntoView( { block: 'nearest' } );
+			} else if ( mod && ! event.shiftKey && event.key.toLowerCase() === 'a' ) {
+				// The selected layer's level, or the top one.
+				sync( wrap );
+				const selected = anchor && headerOf( wrap, anchor );
+				const level = ( selected || wrap.querySelector( HEADER ) )?.closest( ITEM ).parentElement;
+				if ( ! level ) return;
+				const want = [ ...level.children ]
+					.map( ( item ) => item.matches( ITEM ) && item.querySelector( `:scope > ${ HEADER }` ) )
+					.filter( ( head ) => head && head.dataset.blockReadonly !== 'true' )
+					.map( ( head ) => head.dataset.blockid );
+				if ( ! want.length ) return;
+				event.preventDefault();
+				setSelection( wrap, want, selected ? anchor : want.at( -1 ) );
+				anchor = end = window.etch.blocks.getSelectedId() ?? want.at( -1 );
+				base = want;
+				announce( `${ layers( want.length ) } selected.` );
+			}
+		},
+		true
+	);
 
 	/* ---- Pressing ---- */
 
@@ -132,8 +283,8 @@
 			const item = wrap && event.target.closest( ITEM );
 			if ( ! item || event.target.closest( INTERACTIVE ) ) return;
 			const header = event.target.closest( HEADER );
-			// Ones Etch won't drag either: read-only layers, and any while several are selected.
-			if ( header?.dataset.blockReadonly === 'true' || wrap.querySelectorAll( `${ HEADER }[data-block-selected="true"]` ).length > 1 ) return;
+			// Read-only layers, which Etch won't drag either.
+			if ( header?.dataset.blockReadonly === 'true' ) return;
 
 			// Etch's drag starts from this press, so it never gets it. Clicks, double-clicks
 			// and right-clicks still arrive, as their own events.
@@ -153,10 +304,15 @@
 	const start = ( event ) => {
 		const { wrap, item, header, pointerId, x } = press;
 		endPress();
-		const id = header.dataset.blockid;
-		let block = null;
+		// A selected layer takes the others with it. Only the outermost move: the rest are inside them.
+		const selected = header.dataset.blockSelected === 'true';
+		const heads = selected ? selectedHeads( wrap ).filter( ( head ) => head.dataset.blockReadonly !== 'true' ) : [ header ];
+		const outer = heads.map( ( head ) => head.closest( ITEM ) );
+		const sources = heads.filter( ( head, i ) => ! outer.some( ( other ) => other !== outer[ i ] && other.contains( outer[ i ] ) ) );
+		const ids = sources.map( ( head ) => head.dataset.blockid );
+		const tags = [];
 		try {
-			block = window.etch.blocks.getJson( id );
+			for ( const id of ids ) tags.push( htmlTag( window.etch.blocks.getJson( id ) ) );
 		} catch {
 			return;
 		}
@@ -164,21 +320,27 @@
 
 		window.getSelection()?.removeAllRanges();
 		document.documentElement.classList.add( 'etk-sorting' );
-		item.setAttribute( 'data-etk-sort-source', '' );
-		// Its own layers go with it, so they fold away while it moves, as in Etch.
-		const content = item.querySelector( CONTENT );
-		const folded = content?.closest( ITEM ) === item ? content : null;
-		folded?.setAttribute( 'data-etk-sort-folded', '' );
+		const items = new Set( sources.map( ( head ) => head.closest( ITEM ) ) );
+		// Their own layers go with them, so they fold away while they move, as in Etch.
+		const folded = [];
+		for ( const source of items ) {
+			source.setAttribute( 'data-etk-sort-source', '' );
+			const content = source.querySelector( CONTENT );
+			if ( content?.closest( ITEM ) !== source ) continue;
+			content.setAttribute( 'data-etk-sort-folded', '' );
+			folded.push( content );
+		}
 
-		drag = { wrap, item, folded, id, pointerId, name: nameOf( header ), tag: htmlTag( block ), startX: x, pointer: { x: event.clientX, y: event.clientY }, target: null, cleanup: [] };
+		const name = ids.length > 1 ? `${ ids.length } layers` : nameOf( sources[ 0 ] );
+		drag = { wrap, item, items, folded, ids, selected, pointerId, name, tags, startX: x, pointer: { x: event.clientX, y: event.clientY }, target: null, cleanup: [] };
 		wrap.setPointerCapture( pointerId );
 		measure();
 
 		const ghost = parts.ghost;
 		ghost.replaceChildren();
-		const icon = header.querySelector( '.etch-builder-accordion__header-block-icon svg' );
+		const icon = sources[ 0 ].querySelector( '.etch-builder-accordion__header-block-icon svg' );
 		if ( icon ) ghost.append( icon.cloneNode( true ) );
-		ghost.append( Object.assign( document.createElement( 'span' ), { textContent: drag.name } ) );
+		ghost.append( Object.assign( document.createElement( 'span' ), { textContent: name } ) );
 		const frame = document.querySelector( CANVAS );
 		if ( frame ) clip( parts.canvas, frame.getBoundingClientRect() );
 		overlay.hidden = false;
@@ -195,7 +357,8 @@
 		on( document, 'pointerup', ( e ) => e.pointerId === drag.pointerId && drop() );
 		on( document, 'pointercancel', ( e ) => e.pointerId === drag.pointerId && finish() );
 		on( wrap, 'lostpointercapture', () => finish() );
-		on( window, 'blur', () => finish() );
+		// The window's, not a row's as it folds away, which comes through here on its way down.
+		on( window, 'blur', ( e ) => e.target === window && finish() );
 		on( window, 'keydown', ( e ) => {
 			if ( e.key !== 'Escape' ) return;
 			// Not Etch's Esc, which would deselect the layer.
@@ -213,7 +376,7 @@
 	/**
 	 * Every row the panel shows, top to bottom, where it sits in the panel's
 	 * scrolled content, and where it sits among its siblings once the dragged
-	 * layer is out.
+	 * layers are out.
 	 */
 	const measure = () => {
 		const { wrap } = drag;
@@ -225,7 +388,7 @@
 
 		for ( const header of wrap.querySelectorAll( HEADER ) ) {
 			const rect = header.getBoundingClientRect();
-			// In a closed layer, or the dragged one's.
+			// In a closed layer, or a dragged one's.
 			if ( ! rect.height ) continue;
 			const item = header.closest( ITEM );
 			const parent = byItem.get( item.parentElement.closest( ITEM ) ) ?? null;
@@ -243,10 +406,11 @@
 				open: trigger?.getAttribute( 'aria-expanded' ) === 'true',
 				readonly: header.dataset.blockReadonly === 'true',
 				tag: header.querySelector( '.etch-builder-accordion__header-tag' )?.textContent.trim().toLowerCase() || null,
-				source: item === drag.item,
+				item,
+				source: drag.items.has( item ),
 				children: 0,
 			};
-			// Its index once the dragged layer is out, as Etch's move() counts.
+			// Its index once the dragged layers are out, as Etch's move() counts.
 			row.index = parent ? parent.children : top;
 			if ( ! row.source ) parent ? parent.children++ : top++;
 			byItem.set( item, row );
@@ -256,7 +420,9 @@
 		const nested = rows.find( ( row ) => row.parent );
 		drag.rows = rows;
 		drag.box = box;
-		drag.src = rows.find( ( row ) => row.source );
+		drag.sources = rows.filter( ( row ) => row.source );
+		// The pressed one, or the one it's in. Its level is where moving left or right starts from.
+		drag.src = rows.find( ( row ) => row.item === drag.item ) ?? drag.sources.find( ( row ) => row.item.contains( drag.item ) );
 		drag.indent = nested ? nested.left - nested.parent.left || 12 : 12;
 		drag.base = rows.length ? rows[ 0 ].left - rows[ 0 ].depth * drag.indent : box.left;
 		drag.right = rows.length ? rows[ 0 ].right : box.right;
@@ -344,7 +510,7 @@
 
 	const allowed = ( { parent } ) => {
 		if ( parent?.readonly ) return false;
-		return ! ( parent && PHRASING_ONLY.has( parent.tag ) && drag.tag && ! PHRASING.has( drag.tag ) );
+		return ! ( parent && PHRASING_ONLY.has( parent.tag ) && drag.tags.some( ( tag ) => tag && ! PHRASING.has( tag ) ) );
 	};
 
 	let frame = 0;
@@ -375,15 +541,15 @@
 	};
 
 	const render = ( target ) => {
-		const { src, box, wrap, pointer } = drag;
+		const { sources, ids, box, wrap, pointer } = drag;
 		const last = drag.target;
 		const same = target && last ? target.parent === last.parent && target.index === last.index && target.depth === last.depth && target.inside === last.inside : target === last;
 		if ( same && target ) {
 			target = Object.assign( last, { y: target.y } );
 		} else if ( target ) {
 			target.ok = allowed( target );
-			// Right where it already is.
-			target.stays = target.parent === src.parent && target.index === src.index;
+			// Right where they already are, side by side.
+			target.stays = sources.length === ids.length && sources.every( ( row ) => row.parent === target.parent && row.index === target.index );
 		}
 		drag.target = target;
 
@@ -566,33 +732,54 @@
 	/* ---- Letting go ---- */
 
 	const drop = () => {
-		const { target, id, name } = drag;
-		const selected = drag.src?.header.dataset.blockSelected === 'true';
+		const { target, ids, name, selected, rows, wrap } = drag;
+		const pressed = drag.item.querySelector( HEADER )?.dataset.blockid;
 		finish();
 		swallowClick();
 		if ( ! target?.ok || target.stays ) return;
-		try {
-			window.etch.blocks.move( id, target.parent?.id ?? null, target.index );
-		} catch ( error ) {
-			console.warn( '[Etch Toolkit] Could not move the layer:', error );
-			return;
+
+		// Each goes in before the same sibling, or at the end, so they keep their order.
+		// The siblings of a closed layer aren't shown, so there it's always the end.
+		const parent = target.parent?.id ?? null;
+		let order = target.parent && ! target.parent.open ? null : rows.filter( ( row ) => row.parent === target.parent ).map( ( row ) => row.id );
+		const before = order?.filter( ( id ) => ! ids.includes( id ) )[ target.index ] ?? null;
+		const moved = [];
+		for ( const id of ids ) {
+			// As move() counts it: with the layer already out.
+			const rest = order?.filter( ( other ) => other !== id );
+			const index = rest ? ( before === null ? rest.length : rest.indexOf( before ) ) : null;
+			try {
+				window.etch.blocks.move( id, parent, index );
+			} catch ( error ) {
+				console.warn( '[Etch Toolkit] Could not move the layer:', error );
+				continue;
+			}
+			moved.push( id );
+			if ( rest ) order = rest.toSpliced( index, 0, id );
 		}
-		// Etch deselects a block it moves.
+		if ( ! moved.length ) return;
+
+		// Etch deselects a block it moves. Selecting the first opens its parents. The rest go back
+		// once Etch has drawn their rows, and before it snapshots for undo, so it's still one step.
 		if ( selected ) {
 			try {
-				window.etch.blocks.select( id );
+				window.etch.blocks.select( moved[ 0 ] );
+				if ( moved.length > 1 ) queueMicrotask( () => setSelection( wrap, moved, moved.includes( pressed ) ? pressed : moved.at( -1 ) ) );
 			} catch {}
 		}
-		announce( `Moved ${ name }.` );
+		announce( moved.length === ids.length ? `Moved ${ name }.` : `Moved ${ moved.length } of ${ ids.length } layers.` );
 	};
 
 	// The click that ends a drag isn't one.
 	const swallowClick = () => {
 		const swallow = ( event ) => {
+			// Not the Cmd-clicks that select the moved layers again.
+			if ( ! event.isTrusted ) return;
+			window.removeEventListener( 'click', swallow, { capture: true } );
 			event.preventDefault();
 			event.stopPropagation();
 		};
-		window.addEventListener( 'click', swallow, { capture: true, once: true } );
+		window.addEventListener( 'click', swallow, { capture: true } );
 		window.setTimeout( () => window.removeEventListener( 'click', swallow, { capture: true } ), 100 );
 	};
 
@@ -621,8 +808,8 @@
 				done.wrap.releasePointerCapture( done.pointerId );
 			} catch {}
 		}
-		done.item.removeAttribute( 'data-etk-sort-source' );
-		done.folded?.removeAttribute( 'data-etk-sort-folded' );
+		done.items.forEach( ( item ) => item.removeAttribute( 'data-etk-sort-source' ) );
+		done.folded.forEach( ( content ) => content.removeAttribute( 'data-etk-sort-folded' ) );
 		document.documentElement.classList.remove( 'etk-sorting' );
 		overlay.hidden = true;
 		overlay.classList.remove( 'is-blocked' );

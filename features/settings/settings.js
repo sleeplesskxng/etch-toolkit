@@ -195,7 +195,7 @@
 					'Enhanced layer sorting',
 					settings.layerSorting,
 					( on ) => save( { layerSorting: on }, on ? 'Enhanced layer sorting is on.' : 'Enhanced layer sorting is off.' ),
-					'Smoother dragging, with a drop line in the panel and on the canvas.'
+					'Smoother dragging, with a drop line in the panel and on the canvas. Shift-click to select a range, and drag several layers at once.'
 				)
 			),
 			group(

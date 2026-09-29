@@ -1,4 +1,4 @@
-/* Enhanced layer sorting: roomier layers, and the drop line and ghost drawn over the builder while a layer is dragged. */
+/* Enhanced layer sorting: roomier layers, and the drop line and ghost drawn over the builder while layers are dragged. */
 
 .etk-sorting,
 .etk-sorting * {
@@ -12,7 +12,7 @@
 	padding-block: 8px;
 }
 
-/* The dragged layer stays in place, dimmed, with its own layers folded away. */
+/* Dragged layers stay in place, dimmed, with their own layers folded away. */
 [data-etk-sort-source] [data-testid="accordion-header"] {
 	opacity: 0.4;
 
