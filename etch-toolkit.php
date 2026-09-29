@@ -3,7 +3,7 @@
  * Plugin Name:       Etch Toolkit
  * Plugin URI:        https://nickarce.com/etch-toolkit/
  * Description:       Quality of life additions for the Etch builder.
- * Version:           0.5.6.1
+ * Version:           0.6.0
  * Requires at least: 6.5
  * Requires PHP:      8.0
  * Requires Plugins:  etch
@@ -13,7 +13,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'ETCH_TOOLKIT_VERSION', '0.5.6.1' );
+define( 'ETCH_TOOLKIT_VERSION', '0.6.0' );
 define( 'ETCH_TOOLKIT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ETCH_TOOLKIT_URL', plugin_dir_url( __FILE__ ) );
 
