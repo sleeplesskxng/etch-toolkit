@@ -1395,6 +1395,54 @@
 	const ETCH_SHEET = 'etch-default-iframe-styles';
 	const COLOR_LIST = 'etk-colors';
 	const canvasDoc = () => document.querySelector( CANVAS_FRAME )?.contentDocument || null;
+
+	/*
+	 * styleDoc(): the document to read the site's styles in: the canvas, or
+	 * where Etch has none, as in the Style Manager, a hidden copy of its style
+	 * sheets as they were when it went. The copy loads the canvas's files
+	 * while the canvas is up, so they're ready by then, and takes its inline
+	 * styles, which Etch rewrites as you edit, once it's gone.
+	 */
+	let canvasSeen = null; // The last canvas, whose inline styles stay readable once it's gone.
+	let copyFrame = null;
+	let copied = false; // Whether the copy has the last canvas's inline styles.
+	const copyDoc = () => {
+		if ( ! copyFrame?.isConnected ) {
+			copyFrame = el( 'iframe', { tabindex: -1, 'aria-hidden': 'true' } );
+			copyFrame.style.cssText = 'position:fixed;inset:0 auto auto 0;inline-size:0;block-size:0;border:0;visibility:hidden;pointer-events:none';
+			document.body.append( copyFrame );
+			copied = false;
+		}
+		return copyFrame.contentDocument;
+	};
+	const seeCanvas = () => {
+		const doc = canvasDoc();
+		if ( ! doc?.head || doc.readyState !== 'complete' ) return doc;
+		canvasSeen = doc;
+		copied = false;
+		const copy = copyDoc();
+		const links = [ ...doc.querySelectorAll( 'link[rel="stylesheet"]' ) ];
+		const want = new Set( links.map( ( link ) => link.href ) );
+		const have = new Set();
+		for ( const link of copy.querySelectorAll( 'link' ) ) {
+			if ( want.has( link.href ) ) have.add( link.href );
+			else link.remove();
+		}
+		for ( const link of links ) if ( ! have.has( link.href ) ) copy.head.append( copy.importNode( link ) );
+		return doc;
+	};
+	onPageChange( seeCanvas );
+	const styleDoc = () => {
+		const doc = seeCanvas();
+		if ( doc || ! canvasSeen ) return doc;
+		const copy = copyDoc();
+		if ( ! copied ) {
+			copy.querySelectorAll( 'style' ).forEach( ( style ) => style.remove() );
+			for ( const style of canvasSeen.querySelectorAll( 'style' ) ) copy.head.append( copy.importNode( style, true ) );
+			copied = true;
+		}
+		return copy;
+	};
 	const isColor = ( value ) => value.trim() !== '' && CSS.supports( 'color', value.trim() );
 
 	/*
@@ -1406,7 +1454,7 @@
 	const SENTINEL = 'rgb(1, 2, 3)';
 	let probe = null;
 	const resolveColor = ( value ) => {
-		const doc = canvasDoc();
+		const doc = styleDoc();
 		if ( ! doc?.body || ! value ) return null;
 		if ( ! probe?.isConnected || probe.ownerDocument !== doc ) {
 			const box = doc.createElement( 'div' );
@@ -1429,7 +1477,7 @@
 
 	// Custom properties the site sets on :root, html or body that hold a color, as var()s.
 	const siteColors = () => {
-		const doc = canvasDoc();
+		const doc = styleDoc();
 		if ( ! doc ) return [];
 		const names = new Set();
 		const walk = ( rules ) => {
@@ -1543,6 +1591,6 @@
 		return { dialog, close, place };
 	};
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, etchStyles, styleBySelector, onMenu, menuItem, findMenuItem, settingsBarButton, selectAllKey, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorEdit, editorPanel, colorField, resolveColor, siteColors, isColor } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, etchStyles, styleBySelector, onMenu, menuItem, findMenuItem, settingsBarButton, selectAllKey, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorEdit, editorPanel, colorField, styleDoc, resolveColor, siteColors, isColor } );
 	window.etchToolkit = toolkit;
 } )();

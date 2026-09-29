@@ -31,7 +31,7 @@
  * Etch, so one Cmd+Z takes the whole change back.
  */
 ( () => {
-	const { api, el, slider, cssText, confirmDialog, errorDialog, errorText, editorWidgets, editorEdit, editorPanel, colorField, resolveColor, isColor } = window.etchToolkit || {};
+	const { api, el, slider, cssText, confirmDialog, errorDialog, errorText, editorWidgets, editorEdit, editorPanel, colorField, styleDoc, resolveColor, isColor } = window.etchToolkit || {};
 	if ( ! editorWidgets ) return;
 	const { splitTop, declarations } = cssText;
 
@@ -198,11 +198,10 @@
 		return name ? filled().find( ( preset ) => varOf( preset ) === name ) ?? null : null;
 	};
 
-	const canvas = () => document.querySelector( '#etch-iframe' )?.contentDocument || null;
 	let shadowProbe = null;
 	// A shadow as the canvas paints it, where the site's variables are, or null.
 	const paintedShadow = ( value ) => {
-		const doc = canvas();
+		const doc = styleDoc();
 		if ( ! doc?.body ) return null;
 		if ( ! shadowProbe?.isConnected || shadowProbe.ownerDocument !== doc ) {
 			shadowProbe = doc.createElement( 'div' );
@@ -235,9 +234,9 @@
 		return { css, light: color ? isLight( color ) : false };
 	};
 
-	// The canvas has Automatic.css's old files. Load them again, and drop the old ones once the new are in, so nothing flashes unstyled.
+	// The canvas, or styleDoc()'s copy of it, has Automatic.css's old files. Load them again, and drop the old ones once the new are in, so nothing flashes unstyled.
 	const reloadAutomaticCss = () => {
-		for ( const old of canvas()?.querySelectorAll( 'link[rel="stylesheet"][href*="/automatic-css/"]' ) ?? [] ) {
+		for ( const old of styleDoc()?.querySelectorAll( 'link[rel="stylesheet"][href*="/automatic-css/"]' ) ?? [] ) {
 			const url = new URL( old.href );
 			url.searchParams.set( 'etk', Date.now() );
 			const next = old.cloneNode();
