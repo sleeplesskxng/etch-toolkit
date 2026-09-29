@@ -707,6 +707,15 @@
 		syncPicks();
 	};
 
+	// Cmd/Ctrl+A in the list or its bulk bar: every component shown, or none once they all are.
+	const pickAllKey = ( target ) => {
+		if ( ! shownIds.length || ! target.closest( '.etk-components__table, .etk-components__bulk' ) ) return false;
+		const all = shownIds.every( ( id ) => picked.has( id ) );
+		shownIds.forEach( ( id ) => ( all ? picked.delete( id ) : picked.add( id ) ) );
+		syncPicks();
+		return true;
+	};
+
 	// One file each, the same as each row's Download JSON gives.
 	const downloadPicked = () => {
 		const components = pickedComponents();
@@ -2040,7 +2049,7 @@
 				hidden: true,
 				'aria-labelledby': 'etk-components-title',
 				// Esc clears the picked components first.
-				...managerKeys( () => ( picked.size ? clearPicks() : close() ) ),
+				...managerKeys( () => ( picked.size ? clearPicks() : close() ), pickAllKey ),
 			},
 			// Across the top, like Etch's Style Manager.
 			el(

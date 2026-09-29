@@ -956,6 +956,16 @@
 		syncPicks();
 	};
 
+	// Cmd/Ctrl+A in the files list or its bulk bar: every file shown, or none once they all are.
+	const pickAllKey = ( target ) => {
+		const files = pickable();
+		if ( ! files.length || ! target.closest( '.etk-fonts__files-table, .etk-fonts__bulk' ) ) return false;
+		const all = files.every( ( f ) => picked.has( f.name ) );
+		files.forEach( ( f ) => ( all ? picked.delete( f.name ) : picked.add( f.name ) ) );
+		syncPicks();
+		return true;
+	};
+
 	const renderBulkBar = ( shown ) => {
 		if ( ! bulk ) return;
 		bulk.update( picked.size, picked.size >= shown.length );
@@ -2449,7 +2459,7 @@
 				hidden: true,
 				'aria-labelledby': 'etk-fonts-title',
 				// Esc clears the picked files first.
-				...managerKeys( () => ( picked.size ? clearPicks() : close() ) ),
+				...managerKeys( () => ( picked.size ? clearPicks() : close() ), pickAllKey ),
 			},
 			// Laid out like Etch's Content Hub: a sidebar with the back button, title and views, then the view.
 			el(

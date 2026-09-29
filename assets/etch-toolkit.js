@@ -720,6 +720,10 @@
 		};
 	};
 
+	// Cmd/Ctrl+A anywhere but a text field, where it selects the text.
+	const selectAllKey = ( e ) =>
+		( e.metaKey || e.ctrlKey ) && ! e.shiftKey && ! e.altKey && e.code === 'KeyA' && ! e.target.closest?.( 'textarea, [contenteditable]:not([contenteditable="false"]), input:not([type="checkbox"], [type="radio"], [type="button"])' );
+
 	/**
 	 * A manager's key handlers, for its root: typing stays away from Etch's
 	 * shortcuts, Esc (outside a dialog) runs onescape, and Cmd/Ctrl+S saves
@@ -727,8 +731,9 @@
 	 * when it saw the Cmd or Ctrl press too, so this calls its save directly.
 	 * Cmd/Ctrl+Shift+letter goes on to the window, for Automatic.css's
 	 * shortcuts: Etch, never having seen the Cmd, takes it as the bare letter.
+	 * Cmd/Ctrl+A runs onselectall( target ), which returns true if it selected.
 	 */
-	const managerKeys = ( onescape ) => {
+	const managerKeys = ( onescape, onselectall = () => false ) => {
 		// Their keyups go on too, or Etch would take the letter as still held.
 		const passed = new Set();
 		return {
@@ -743,6 +748,7 @@
 					e.preventDefault();
 					onescape();
 				}
+				if ( selectAllKey( e ) && ! e.target.closest( 'dialog' ) && onselectall( e.target ) ) e.preventDefault();
 				if ( ( e.metaKey || e.ctrlKey ) && ( e.code === 'KeyS' || e.key.toLowerCase() === 's' ) ) {
 					e.preventDefault();
 					window.etch?.saveAsync?.();
@@ -1502,6 +1508,6 @@
 		return { dialog, close, place };
 	};
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, onMenu, menuItem, findMenuItem, settingsBarButton, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorEdit, editorPanel, colorField, resolveColor, siteColors, isColor } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, onMenu, menuItem, findMenuItem, settingsBarButton, selectAllKey, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorEdit, editorPanel, colorField, resolveColor, siteColors, isColor } );
 	window.etchToolkit = toolkit;
 } )();

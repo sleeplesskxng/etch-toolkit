@@ -3,6 +3,7 @@
  *
  * - A checkbox on each row (visible on hover, focus, or once anything is selected).
  * - Cmd/Ctrl-click a row to toggle it, Shift-click to select a range.
+ * - Cmd/Ctrl+A in the list selects every style listed, or none once they all are.
  * - A floating action bar, a copy of the Asset Manager's bulk bar: Clear,
  *   count, Select all, Rename, Delete.
  *
@@ -25,7 +26,7 @@
  */
 ( () => {
 	const toolkit = window.etchToolkit || {};
-	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, errorDialog, barButton, bulkBar, onPageChange, reload, classesIn, isClassSelector } = toolkit;
+	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, errorDialog, barButton, bulkBar, selectAllKey, onPageChange, reload, classesIn, isClassSelector } = toolkit;
 	if ( ! confirmDialog ) return;
 
 	const MODAL = '.style-overview-modal__inner'; // Where every Style Manager tab renders.
@@ -129,6 +130,14 @@
 	const clear = () => {
 		selected.clear();
 		anchor = null;
+		schedule();
+	};
+
+	// Every style listed, or none once they all are.
+	const selectAll = ( root, toggle = false ) => {
+		const order = visibleOrder( root );
+		const all = toggle && order.every( ( id ) => selected.has( id ) );
+		order.forEach( ( id ) => ( all ? selected.delete( id ) : selected.add( id ) ) );
 		schedule();
 	};
 
@@ -996,8 +1005,7 @@
 			onClear: clear,
 			onSelectAll: () => {
 				const r = getRoot();
-				if ( r ) visibleOrder( r ).forEach( ( id ) => selected.add( id ) );
-				schedule();
+				if ( r ) selectAll( r );
 			},
 			refocus: () => getRoot()?.querySelector( SEARCH ),
 		} );
@@ -1087,16 +1095,22 @@
 		true
 	);
 
-	// Esc clears the selection before it can close the Style Manager.
+	// Esc clears the selection before it can close the Style Manager. Cmd/Ctrl+A
+	// in the list or the bulk bar selects every style listed, or none once they all are.
 	document.addEventListener(
 		'keydown',
 		( event ) => {
 			const root = getRoot();
 			const focus = document.activeElement;
-			if ( event.key !== 'Escape' || ! selected.size || ! ( root?.contains( focus ) || focus?.closest( '.etk-bulk-bar--styles' ) ) ) return;
-			event.preventDefault();
-			event.stopPropagation();
-			clear();
+			if ( event.key === 'Escape' && selected.size && ( root?.contains( focus ) || focus?.closest( '.etk-bulk-bar--styles' ) ) ) {
+				event.preventDefault();
+				event.stopPropagation();
+				clear();
+			} else if ( root && ! renaming && selectAllKey( event ) && ( root.contains( focus?.closest( `${ LIST }, ${ UNUSED }` ) ) || focus?.closest( '.etk-bulk-bar--styles' ) ) ) {
+				event.preventDefault();
+				event.stopPropagation();
+				selectAll( root, true );
+			}
 		},
 		true
 	);
