@@ -28,6 +28,7 @@ require ETCH_TOOLKIT_DIR . 'features/copy-classes/copy-classes.php';
 require ETCH_TOOLKIT_DIR . 'features/layer-sorting/layer-sorting.php';
 require ETCH_TOOLKIT_DIR . 'features/color-mix/color-mix.php';
 require ETCH_TOOLKIT_DIR . 'features/box-shadow/box-shadow.php';
+require ETCH_TOOLKIT_DIR . 'features/to-rem/to-rem.php';
 require ETCH_TOOLKIT_DIR . 'features/component-manager/component-manager.php';
 
 // Updates come from GitHub releases. Skipped in a git checkout so it never overwrites a dev copy.

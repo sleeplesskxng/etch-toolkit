@@ -1,0 +1,36 @@
+/* The button before each px value in a CSS editor, in the shadow button's white. */
+.etk-rem-button {
+	all: unset;
+	box-sizing: border-box;
+	display: inline-flex;
+	vertical-align: -1px;
+	margin-inline-end: 3px;
+	border-radius: 2px;
+	color: rgb(255 255 255 / 0.6);
+	cursor: pointer;
+	transition: scale 0.15s var(--etk-ease-out);
+
+	svg {
+		display: block;
+		inline-size: 12px;
+		block-size: 12px;
+		/* 1px at this size, like the shadow button's border. */
+		stroke-width: 2;
+	}
+
+	/* Not on touch, where a tap leaves a hover behind. */
+	@media (hover: hover) and (pointer: fine) {
+		&:hover {
+			scale: 1.2;
+		}
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--etch-primary);
+		outline-offset: 2px;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		transition: none;
+	}
+}
