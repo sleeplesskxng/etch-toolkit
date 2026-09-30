@@ -1413,9 +1413,10 @@
 	 * where Etch has none, as in the Style Manager, a hidden copy of its style
 	 * sheets as they were when it went. The copy loads the canvas's files
 	 * while the canvas is up, so they're ready by then, and takes its inline
-	 * styles, which Etch rewrites as you edit, once it's gone.
+	 * styles, which Etch rewrites as you edit, as it goes. Then the old canvas
+	 * is let go, so its whole page doesn't stay in memory.
 	 */
-	let canvasSeen = null; // The last canvas, whose inline styles stay readable once it's gone.
+	let canvasSeen = null; // The canvas while it's up.
 	let copyFrame = null;
 	let copied = false; // Whether the copy has the last canvas's inline styles.
 	const copyDoc = () => {
@@ -1429,6 +1430,13 @@
 	};
 	const seeCanvas = () => {
 		const doc = canvasDoc();
+		if ( ! doc && canvasSeen ) {
+			const copy = copyDoc();
+			copy.querySelectorAll( 'style' ).forEach( ( style ) => style.remove() );
+			for ( const style of canvasSeen.querySelectorAll( 'style' ) ) copy.head.append( copy.importNode( style, true ) );
+			canvasSeen = null;
+			copied = true;
+		}
 		if ( ! doc?.head || doc.readyState !== 'complete' ) return doc;
 		canvasSeen = doc;
 		copied = false;
@@ -1444,17 +1452,7 @@
 		return doc;
 	};
 	onPageChange( seeCanvas );
-	const styleDoc = () => {
-		const doc = seeCanvas();
-		if ( doc || ! canvasSeen ) return doc;
-		const copy = copyDoc();
-		if ( ! copied ) {
-			copy.querySelectorAll( 'style' ).forEach( ( style ) => style.remove() );
-			for ( const style of canvasSeen.querySelectorAll( 'style' ) ) copy.head.append( copy.importNode( style, true ) );
-			copied = true;
-		}
-		return copy;
-	};
+	const styleDoc = () => seeCanvas() || ( copied && copyFrame?.isConnected ? copyFrame.contentDocument : null );
 	const isColor = ( value ) => value.trim() !== '' && CSS.supports( 'color', value.trim() );
 
 	/*
@@ -1464,17 +1462,19 @@
 	 * parent's color, reads as null.
 	 */
 	const SENTINEL = 'rgb(1, 2, 3)';
-	let probe = null;
+	const probes = new WeakMap(); // One per document, let go with it.
 	const resolveColor = ( value ) => {
 		const doc = styleDoc();
 		if ( ! doc?.body || ! value ) return null;
-		if ( ! probe?.isConnected || probe.ownerDocument !== doc ) {
+		let probe = probes.get( doc );
+		if ( ! probe?.isConnected ) {
 			const box = doc.createElement( 'div' );
 			box.setAttribute( 'aria-hidden', 'true' );
 			box.style.cssText = 'position:absolute;inset:0 auto auto 0;visibility:hidden;pointer-events:none';
 			probe = doc.createElement( 'span' );
 			box.append( probe );
 			doc.body.append( box );
+			probes.set( doc, probe );
 		}
 		const view = doc.defaultView;
 		// currentColor is the parent's color, so there it's the page's text color.
