@@ -1368,11 +1368,11 @@
 		transition: none;
 	}
 
-	.etk-fonts__upload.is-over &--front {
+	.etk-fonts__upload.is-over &.etk-fonts__glyph-card--front {
 		translate: 4px -8px;
 	}
 
-	.etk-fonts__upload.is-over &--back {
+	.etk-fonts__upload.is-over &.etk-fonts__glyph-card--back {
 		translate: -4px 2px;
 	}
 }
