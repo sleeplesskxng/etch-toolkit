@@ -74,7 +74,7 @@
 	editorWidgets( ( doc ) =>
 		pxInDoc( doc ).map( ( found ) => ( {
 			at: found.from,
-			key: 'rem',
+			key: `rem ${ found.text }`,
 			render: ( view ) => {
 				const button = el( 'button', { type: 'button', className: 'etk-rem-button', html: icon( 'magic-wand', { size: 12 } ), title: `Convert ${ found.text } to rem`, 'aria-label': `Convert ${ found.text } to rem` } );
 				// Keep the press from moving the editor's cursor.
