@@ -1114,6 +1114,8 @@
 
 	const CSS_EDITOR = '.etch-css-editor .cm-editor';
 	const viewOf = ( editor ) => editor?.querySelector( '.cm-content' )?.cmTile?.root?.view || null;
+	// The view of the CSS editor a node is in, like a key's target, or null.
+	const editorViewAt = ( node ) => viewOf( node?.closest?.( CSS_EDITOR ) );
 
 	/*
 	 * CodeMirror's classes, from Etch's copy, which it doesn't expose:
@@ -1667,6 +1669,6 @@
 		return { dialog, close, place };
 	};
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, etchStyles, styleBySelector, onMenu, menuItem, findMenuItem, settingsBarButton, selectAllKey, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorEdit, editorPanel, draggable, colorField, styleDoc, resolveColor, siteColors, isColor } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, etchStyles, styleBySelector, onMenu, menuItem, findMenuItem, settingsBarButton, selectAllKey, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorViewAt, editorEdit, editorPanel, draggable, colorField, styleDoc, resolveColor, siteColors, isColor } );
 	window.etchToolkit = toolkit;
 } )();

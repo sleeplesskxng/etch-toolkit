@@ -11,11 +11,14 @@
  *
  * The change reaches Etch as one step of its undo history and the editor's,
  * so one Cmd+Z takes it back.
+ *
+ * Typing it works too: tr80, then a space, `;`, `,`, `)`, Enter or Tab,
+ * becomes to-rem(80px).
  */
 ( () => {
-	const { el, icon, cssText, editorWidgets, editorEdit } = window.etchToolkit || {};
+	const { el, icon, cssText, editorWidgets, editorViewAt, editorEdit } = window.etchToolkit || {};
 	if ( ! editorWidgets ) return;
-	const { stringEnd, commentEnd, parenEnd } = cssText;
+	const { stringEnd, commentEnd, parenEnd, declarations } = cssText;
 
 	const IDENT = /(?:--|-?[a-zA-Z_])[\w-]*/y;
 	const NUMBER = /[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?[a-zA-Z%]*/iy;
@@ -93,4 +96,55 @@
 		edit.set( `to-rem(${ found.text })` );
 		edit.finish( true );
 	};
+
+	/*
+	 * tr and a number, like tr80 or tr-1.5, before the cursor in a
+	 * declaration's value, and not in a comment or a string. A px after the
+	 * number is fine too.
+	 */
+	const SHORTHAND = /(?<![\w\-.#@\\])tr(-?(?:\d+(?:\.\d+)?|\.\d+))(?:px)?$/;
+	// The keys that end one. Each still does what it would have, but Tab, which only expands.
+	const ENDS = new Set( [ ' ', ';', ',', ')', 'Enter', 'Tab' ] );
+
+	// Whether `at` is in a comment or a string, reading from `from`, where neither is open.
+	const quoted = ( text, from, at ) => {
+		for ( let i = from; i < at; i++ ) {
+			const c = text[ i ];
+			let end = -1;
+			if ( c === '"' || c === "'" ) end = stringEnd( text, i );
+			else if ( c === '/' && text[ i + 1 ] === '*' ) end = commentEnd( text, i );
+			if ( end >= at ) return true;
+			if ( end >= 0 ) i = end;
+		}
+		return false;
+	};
+
+	// Before the editor's own key handling, like CodeMirror's commit characters.
+	document.addEventListener(
+		'keydown',
+		( event ) => {
+			if ( ! ENDS.has( event.key ) || event.isComposing || event.metaKey || event.ctrlKey || event.altKey ) return;
+			if ( event.key === 'Tab' && event.shiftKey ) return;
+			const view = editorViewAt( event.target );
+			const { main, ranges } = view?.state.selection || {};
+			if ( ! main?.empty || ranges.length > 1 ) return;
+			// While the completions are open, Enter and Tab pick one.
+			if ( event.key.length > 1 && view.dom.querySelector( '.cm-tooltip-autocomplete' ) ) return;
+			const line = view.state.doc.lineAt( main.head );
+			const match = SHORTHAND.exec( line.text.slice( 0, main.head - line.from ) );
+			if ( ! match ) return;
+			const from = main.head - match[ 0 ].length;
+			const text = view.state.doc.toString();
+			const value = declarations( text ).find( ( d ) => d.from <= from && main.head <= d.to );
+			if ( ! value || quoted( text, value.from, from ) ) return;
+			const insert = `to-rem(${ match[ 1 ] }px)`;
+			// Its own step of the editor's history, so Cmd+Z brings back what was typed.
+			view.dispatch( { changes: { from, to: main.head, insert }, selection: { anchor: from + insert.length }, userEvent: 'input.complete', scrollIntoView: true } );
+			if ( event.key === 'Tab' ) {
+				event.preventDefault();
+				event.stopPropagation();
+			}
+		},
+		true
+	);
 } )();
