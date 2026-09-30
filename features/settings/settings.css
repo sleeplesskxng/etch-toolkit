@@ -96,8 +96,9 @@
 	}
 }
 
-/* Busy while its change saves. */
+/* Busy while its change saves. It keeps its look, or every flip would blink. */
 .etk-settings input.etk-switch:disabled {
+	opacity: 1;
 	cursor: progress;
 }
 

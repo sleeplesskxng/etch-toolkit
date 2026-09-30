@@ -861,12 +861,15 @@
 		return dropTarget( tabPanel( 'library', 'families', el( 'ul', { class: 'etk-fonts__tiles', role: 'list' }, state.families.map( familyTile ), el( 'li', { class: 'etk-fonts__family-add-item' }, add ) ) ), add );
 	};
 
+	// Where the spinner and progress bar are in their loop. The log is drawn again at each stage, so they carry on rather than start over.
+	const phase = () => `--etk-phase: -${ Math.round( performance.now() ) }ms`;
+
 	// Files: uploads in progress or failed first, then the fonts folder.
 	const iconCell = ( name ) =>
 		el(
 			'td',
 			{ class: 'etk-fonts__files-icon', 'aria-hidden': 'true' },
-			name === 'spinner' ? el( 'span', { class: 'etk-spinner etk-fonts__spinner' } ) : name ? el( 'span', { class: `etk-fonts__files-glyph etk-fonts__files-glyph--${ name }`, html: icon( name, 15 ) } ) : null
+			name === 'spinner' ? el( 'span', { class: 'etk-spinner etk-fonts__spinner', style: phase() } ) : name ? el( 'span', { class: `etk-fonts__files-glyph etk-fonts__files-glyph--${ name }`, html: icon( name, 15 ) } ) : null
 		);
 
 	const STAGES = { waiting: 'Waiting', converting: 'Converting', uploading: 'Uploading' };
@@ -884,7 +887,7 @@
 				{},
 				entry.error || entry.done
 					? el( 'span', { class: entry.error ? 'etk-fonts__files-error' : 'etk-manager__muted', textContent: entry.text } )
-					: el( 'span', { class: 'etk-fonts__files-progress' }, busy ? el( 'span', { class: 'etk-fonts__progress' } ) : null, el( 'span', { class: 'etk-manager__muted', textContent: STAGES[ entry.stage ] } ) )
+					: el( 'span', { class: 'etk-fonts__files-progress' }, busy ? el( 'span', { class: 'etk-fonts__progress', style: phase() } ) : null, el( 'span', { class: 'etk-manager__muted', textContent: STAGES[ entry.stage ] } ) )
 			),
 			el( 'td', { textContent: size( entry.size ) } ),
 			el( 'td', { class: entry.family ? null : 'etk-table__none', textContent: entry.family || '—' } ),
@@ -1820,17 +1823,54 @@
 		return weights.length ? weights.reduce( ( a, b ) => ( Math.abs( b - weight ) < Math.abs( a - weight ) ? b : a ) ) : null;
 	};
 
-	const useStylesheet = ( id, href ) => {
-		const link = document.getElementById( id );
-		if ( ! link ) document.head.append( el( 'link', { id, rel: 'stylesheet', href } ) );
-		else if ( link.href !== href ) link.href = href;
+	/**
+	 * Loads a stylesheet under a name, and resolves once it's in and faces,
+	 * font shorthands like `400 16px "Inter"`, have loaded for text. A new
+	 * href loads beside the old one, which goes only then, so text already
+	 * showing never drops back to its fallback while it changes.
+	 */
+	const useStylesheet = ( name, href, faces = [], text = '' ) => {
+		const latest = [ ...document.head.querySelectorAll( `link[data-sheet="${ name }"]` ) ].at( -1 );
+		if ( latest?.href === href ) return latest.ready;
+		const link = el( 'link', { rel: 'stylesheet', href, 'data-sheet': name } );
+		const settle = () => {
+			if ( ! link.isConnected ) return;
+			for ( const old of document.head.querySelectorAll( `link[data-sheet="${ name }"]` ) ) {
+				if ( old === link ) break;
+				old.remove();
+			}
+		};
+		link.ready = new Promise( ( resolve ) => {
+			link.addEventListener( 'load', () => Promise.all( faces.map( ( face ) => document.fonts.load( face, text ).catch( () => {} ) ) ).then( settle ).then( resolve ) );
+			link.addEventListener( 'error', () => resolve( settle() ) );
+		} );
+		document.head.append( link );
+		return link.ready;
 	};
+
+	/**
+	 * A Google preview stays hidden until its font is in, then fades in, so
+	 * it's never seen in the fallback first. Its data-preview names what it
+	 * waits for. Three seconds at most, so a font that fails still shows.
+	 */
+	const previewsReady = new Set();
+	const previewReady = ( key ) => {
+		previewsReady.add( key );
+		panel?.querySelectorAll( `[data-preview="${ CSS.escape( key ) }"]` ).forEach( ( node ) => node.classList.add( 'is-ready' ) );
+	};
+	const whenReady = ( key, loaded ) => {
+		if ( previewsReady.has( key ) ) return;
+		loaded.then( () => previewReady( key ) );
+		window.setTimeout( () => previewReady( key ), 3000 );
+	};
+	const readyClass = ( key ) => ( previewsReady.has( key ) ? ' is-ready' : '' );
 
 	const loadGooglePreviews = ( fonts ) => {
 		for ( const font of fonts ) {
 			const weight = nearestWeight( font, google.weight );
 			const spec = font.wght?.min ? `:wght@${ font.wght.min }..${ font.wght.max }` : weight ? `:wght@${ weight }` : '';
-			useStylesheet( `etk-gf-${ slugOf( font.family ) }`, googleCss( font, spec ) );
+			const loaded = useStylesheet( `etk-gf-${ slugOf( font.family ) }`, googleCss( font, spec ), [ `${ font.wght?.min ? google.weight : weight || 400 } 16px "${ font.family }"` ], sampleFor( scriptOf( font.script, font.subsets ) ) );
+			whenReady( font.family, loaded );
 		}
 	};
 
@@ -1847,7 +1887,8 @@
 		const range = font.wght?.min ? `${ font.wght.min }..${ font.wght.max }` : null;
 		const tuples = font.cuts.map( ( c ) => [ c.endsWith( 'i' ) ? 1 : 0, parseInt( c, 10 ) ] ).sort( ( a, b ) => a[ 0 ] - b[ 0 ] || a[ 1 ] - b[ 1 ] );
 		const spec = range ? ( italic ? `:ital,wght@0,${ range };1,${ range }` : `:wght@${ range }` ) : `:ital,wght@${ tuples.map( ( t ) => t.join( ',' ) ).join( ';' ) }`;
-		useStylesheet( 'etk-gf-detail', googleCss( font, spec ) );
+		const faces = tuples.map( ( [ ital, weight ] ) => `${ ital ? 'italic ' : '' }${ weight } 16px "${ font.family }"` );
+		whenReady( `detail:${ font.family }`, useStylesheet( 'etk-gf-detail', googleCss( font, spec ), faces, sampleFor( scriptOf( font.script, font.subsets ) ) ) );
 	};
 
 	const weightSlider = () =>
@@ -1927,9 +1968,12 @@
 	 * A font's weights, lightest first: roman, and italic beside it if it has
 	 * any. has( weight, style ) says whether a file covers that one.
 	 */
-	const weightSpecimen = ( { stack, script, weights, has } ) => {
+	const weightSpecimen = ( { stack, script, weights, has, preview } ) => {
 		const italic = weights.some( ( w ) => has( w, 'italic' ) );
-		const cell = ( weight, style ) => ( has( weight, style ) ? specimen( 'etk-fonts__gspec-cell', script, `font-family: ${ stack }; font-weight: ${ weight }; font-style: ${ style }` ) : el( 'span', { class: 'etk-fonts__gspec-cell' } ) );
+		const cell = ( weight, style ) =>
+			has( weight, style )
+				? specimen( `etk-fonts__gspec-cell${ preview ? readyClass( preview ) : '' }`, script, `font-family: ${ stack }; font-weight: ${ weight }; font-style: ${ style }`, preview ? { 'data-preview': preview } : {} )
+				: el( 'span', { class: 'etk-fonts__gspec-cell' } );
 		return el(
 			'div',
 			{ class: 'etk-fonts__gspec' },
@@ -2018,7 +2062,7 @@
 						'div',
 						{ class: 'etk-fonts__tile-canvas' },
 						el( 'div', { class: 'etk-fonts__tile-top' }, badge( categoryLabel( font.category ), 'tag' ), el( 'span', { class: 'etk-fonts__tile-note', textContent: styleNote( font ) } ) ),
-						specimen( 'etk-fonts__tile-specimen', scriptOf( font.script, font.subsets ), `font-family: "${ font.family }", ${ font.category === 'serif' ? 'serif' : 'sans-serif' }; font-weight: ${ google.weight }` )
+						specimen( `etk-fonts__tile-specimen${ readyClass( font.family ) }`, scriptOf( font.script, font.subsets ), `font-family: "${ font.family }", ${ font.category === 'serif' ? 'serif' : 'sans-serif' }; font-weight: ${ google.weight }`, { 'data-preview': font.family } )
 					),
 					el(
 						'div',
@@ -2308,7 +2352,7 @@
 						'div',
 						{ class: 'etk-fonts__gdetail' },
 						detailToolbar( reloadGooglePreviews ),
-						weightSpecimen( { stack, script, weights: weightsOf( font ), has: ( weight, style ) => font.cuts.includes( `${ weight }${ style === 'italic' ? 'i' : '' }` ) } )
+						weightSpecimen( { stack, script, weights: weightsOf( font ), has: ( weight, style ) => font.cuts.includes( `${ weight }${ style === 'italic' ? 'i' : '' }` ), preview: `detail:${ font.family }` } )
 					)
 				),
 				el(

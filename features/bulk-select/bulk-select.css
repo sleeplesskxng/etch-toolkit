@@ -69,6 +69,12 @@
 	font-size: var(--etch-font-size-m);
 	font-weight: 500;
 	line-height: 16px;
+	/* It fades in over the Style Manager it replaces, so the swap isn't a jump cut. Leaving is instant. */
+	transition: opacity 160ms var(--etk-ease-out);
+
+	@starting-style {
+		opacity: 0;
+	}
 
 	[hidden] {
 		display: none !important;
@@ -296,8 +302,9 @@
 		transition-duration: 0.18s;
 		transition-timing-function: ease;
 
+		/* The colors still fade. Only the shape snaps. */
 		@media (prefers-reduced-motion: reduce) {
-			transition: none;
+			transition-property: background-color, box-shadow;
 		}
 	}
 
@@ -428,6 +435,17 @@
 	border-radius: 4px;
 	color: var(--etk-rn-muted);
 	cursor: pointer;
+	transition:
+		background-color var(--e-transition, 0.15s ease-in-out),
+		color var(--e-transition, 0.15s ease-in-out),
+		scale 120ms var(--etk-ease-out);
+
+	/* Gives a little under your finger. */
+	@media (prefers-reduced-motion: no-preference) {
+		&:active {
+			scale: 0.92;
+		}
+	}
 
 	/* Heavier than the other icons, to read at 12px. */
 	svg {
@@ -609,10 +627,22 @@
 	max-inline-size: calc(100% - 48px);
 	padding: 8px 12px 8px 16px;
 	font-weight: 500;
+	/* It comes and goes as you type, so it fades in place rather than rising each time. */
+	transition:
+		opacity 200ms var(--etk-ease-out),
+		display 200ms allow-discrete;
 
 	.etk-bulk-bar__divider:has(+ [hidden]),
 	[hidden] + .etk-bulk-bar__divider {
 		display: none;
+	}
+
+	&[hidden] {
+		transform: none;
+	}
+
+	@starting-style {
+		transform: none;
 	}
 }
 
@@ -653,6 +683,20 @@
 	list-style: none;
 	font-weight: 400;
 	line-height: 18px;
+	/* It grows up out of its button. Closing is instant. */
+	transform-origin: 50% 100%;
+	transition:
+		opacity 150ms var(--etk-ease-out),
+		scale 150ms var(--etk-ease-out);
+
+	@starting-style {
+		opacity: 0;
+		scale: 0.97;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		transition-property: opacity;
+	}
 }
 
 .etk-rn__option {

@@ -659,11 +659,13 @@
 		}
 	};
 
+	const reduced = () => window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
+
 	const reveal = ( node ) => {
 		if ( ! drag ) return;
 		const view = node.ownerDocument.defaultView;
 		const r = node.getBoundingClientRect();
-		if ( r.bottom < 0 || r.top > view.innerHeight ) node.scrollIntoView( { block: 'center', behavior: 'smooth' } );
+		if ( r.bottom < 0 || r.top > view.innerHeight ) node.scrollIntoView( { block: 'center', behavior: reduced() ? 'auto' : 'smooth' } );
 	};
 
 	/* ---- Following the selection ---- */
@@ -708,8 +710,7 @@
 		const bottom = box.bottom - ( parseFloat( getComputedStyle( wrap ).paddingBlockEnd ) || 0 );
 		if ( row.top >= box.top && row.bottom <= bottom ) return;
 		const top = wrap.scrollTop + row.top - box.top - ( wrap.clientHeight - row.height ) / 2;
-		const reduce = window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
-		wrap.scrollTo( { top: Math.max( 0, top ), behavior: reduce ? 'auto' : 'smooth' } );
+		wrap.scrollTo( { top: Math.max( 0, top ), behavior: reduced() ? 'auto' : 'smooth' } );
 	};
 
 	// The panel re-renders as layers open and selections change. Checked once a frame at most.

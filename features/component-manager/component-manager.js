@@ -630,6 +630,8 @@
 				warn( `Couldn’t copy ${ component.name }: ${ errorText( error ) }` );
 				return;
 			}
+			// Each icon swapped in from here on comes into focus, but not when the row is drawn again.
+			trigger.dataset.swap = '';
 			trigger.innerHTML = icon( 'tick', 14 );
 			trigger.dataset.etkTooltip = 'Copied';
 			announce( `Copied ${ component.name }. Paste it into Etch on any site.` );

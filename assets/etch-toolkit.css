@@ -1,3 +1,11 @@
+/*
+ * The one curve for motion: things arrive fast and settle. On :root, since
+ * dialogs and panels are appended to <body>.
+ */
+:root {
+	--etk-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
 /* For screen readers only. */
 .etk-sr {
 	position: absolute;
@@ -62,6 +70,11 @@
 
 	&::backdrop {
 		background-color: rgb(39 39 43 / 0.4);
+		transition: opacity 200ms var(--etk-ease-out);
+
+		@starting-style {
+			opacity: 0;
+		}
 	}
 }
 
@@ -84,6 +97,19 @@
 		0 1px 3px 0 rgb(0 0 0 / 0.15),
 		0 6px 12px 0 rgb(0 0 0 / 0.08),
 		0 18px 24px 0 rgb(0 0 0 / 0.1);
+	/* It rises out of the dim, from the middle like any modal. Closing is instant. */
+	transition:
+		opacity 200ms var(--etk-ease-out),
+		scale 200ms var(--etk-ease-out);
+
+	@starting-style {
+		opacity: 0;
+		scale: 0.96;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		transition-property: opacity;
+	}
 }
 
 .etk-confirm__header {
@@ -169,7 +195,16 @@
 	border-radius: var(--etch-radius-lg);
 	cursor: pointer;
 	user-select: none;
-	transition: background-color 0.15s ease;
+	transition:
+		background-color 0.15s ease,
+		scale 160ms var(--etk-ease-out);
+
+	/* Gives a little under your finger. */
+	@media (prefers-reduced-motion: no-preference) {
+		&:active:not(:disabled) {
+			scale: 0.97;
+		}
+	}
 
 	&:disabled {
 		cursor: not-allowed;
@@ -179,6 +214,11 @@
 	.etk-confirm[aria-busy='true'] &:disabled {
 		cursor: progress;
 		opacity: 0.7;
+	}
+
+	/* Busy, a spinner stands in for the icon so a slow save doesn't look stuck. */
+	.etk-confirm[aria-busy='true'] & .etk-confirm__icon {
+		display: none;
 	}
 }
 
@@ -354,7 +394,7 @@
 		inset: anchor(top) anchor(right) anchor(bottom) anchor(left);
 		border-radius: var(--etk-track-item-radius);
 		background: var(--etk-track-highlight, var(--e-base-semi-light, #3e3e41));
-		transition: inset 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+		transition: inset 0.22s var(--etk-ease-out);
 
 		@media (prefers-reduced-motion: reduce) {
 			transition: none;
@@ -451,7 +491,7 @@
 /*
  * etchToolkit.slider(): the whole box is the slider. The fill (::before) runs
  * up to the thumb (::after), both placed by --etk-slider-p, 0 to 1. It's
- * registered so a change eases, except while you drag. The thumb stops
+ * registered so a click eases, but not a drag or a key. The thumb stops
  * --etk-slider-inset in from each side, clear of the name and value at
  * either end.
  */
@@ -485,7 +525,7 @@
 	/* Sideways is the slider's, up and down still scrolls. */
 	touch-action: pan-y;
 	user-select: none;
-	transition: --etk-slider-p 0.36s cubic-bezier(0.16, 1, 0.3, 1);
+	transition: --etk-slider-p 0.24s var(--etk-ease-out);
 
 	&::before,
 	&::after {
@@ -501,7 +541,7 @@
 		background: color-mix(in srgb, var(--e-foreground-color, #e1e1e5) 7%, transparent);
 	}
 
-	/* Taller and brighter while you're on it. */
+	/* Taller and brighter while you're on it: 12px up to 18px. */
 	&::after {
 		inset-block-start: 50%;
 		inset-inline-start: var(--etk-slider-x);
@@ -512,16 +552,24 @@
 		box-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
 		translate: -50% -50%;
 		transition:
-			block-size 0.26s cubic-bezier(0.22, 1, 0.36, 1),
-			background-color 0.2s ease-out;
+			scale 150ms var(--etk-ease-out),
+			background-color 150ms ease-out;
 	}
 
-	&:is(:hover, .is-dragging, :has(:focus-visible))::after {
-		block-size: 18px;
+	&:is(.is-dragging, :has(:focus-visible))::after {
+		scale: 1 1.5;
 		background: var(--etch-text-color, #f7f7f8);
 	}
 
-	&.is-dragging {
+	/* A tap on a touch screen leaves a hover behind. */
+	@media (hover: hover) and (pointer: fine) {
+		&:hover::after {
+			scale: 1 1.5;
+			background: var(--etch-text-color, #f7f7f8);
+		}
+	}
+
+	&:is(.is-dragging, .is-keying) {
 		transition: none;
 	}
 
@@ -530,9 +578,10 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		&,
+		transition: none;
+
 		&::after {
-			transition: none;
+			transition-property: background-color;
 		}
 	}
 }
@@ -921,11 +970,22 @@
 	cursor: pointer;
 	transition:
 		background-color var(--e-transition, 0.15s ease-in-out),
-		border-color var(--e-transition, 0.15s ease-in-out);
+		border-color var(--e-transition, 0.15s ease-in-out),
+		scale 160ms var(--etk-ease-out);
 
 	&:hover {
 		border-color: var(--etk-line-heavy);
 		background: var(--etk-raised);
+	}
+
+	/*
+	 * Gives a little under your finger. Not the halves of a split button, which
+	 * would pull apart, or one with a tooltip, which a scale would carry off.
+	 */
+	@media (prefers-reduced-motion: no-preference) {
+		&:active:not(:disabled, [aria-disabled="true"], [data-etk-tooltip], .etk-split > *) {
+			scale: 0.97;
+		}
 	}
 
 	&:is(:disabled, [aria-disabled="true"]) {
@@ -1341,6 +1401,19 @@ input.etk-switch {
 	box-shadow:
 		0 4px 12px rgb(0 0 0 / 0.25),
 		0 1px 3px rgb(0 0 0 / 0.2);
+	/* It grows out of its trigger (openPopup() sets the origin) and closes at once. */
+	transition:
+		opacity 150ms var(--etk-ease-out),
+		scale 150ms var(--etk-ease-out);
+
+	@starting-style {
+		opacity: 0;
+		scale: 0.97;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		transition-property: opacity;
+	}
 }
 
 .etk-manager .etk-menu__item {
@@ -1477,8 +1550,8 @@ input.etk-switch {
 		0 6px 12px 0 rgb(0 0 0 / 0.08),
 		0 18px 24px 0 rgb(0 0 0 / 0.1);
 	transition:
-		opacity 200ms,
-		transform 200ms cubic-bezier(0.215, 0.61, 0.355, 1),
+		opacity 200ms var(--etk-ease-out),
+		transform 200ms var(--etk-ease-out),
 		display 200ms allow-discrete;
 
 	@starting-style {
@@ -1493,9 +1566,20 @@ input.etk-switch {
 	}
 }
 
+/* With reduced motion it fades where it stands. */
 @media (prefers-reduced-motion: reduce) {
 	.etk-bulk-bar {
-		transition-property: opacity, display;
+		transition:
+			opacity 200ms var(--etk-ease-out),
+			display 200ms allow-discrete;
+
+		&[hidden] {
+			transform: none;
+		}
+
+		@starting-style {
+			transform: none;
+		}
 	}
 }
 
@@ -1610,10 +1694,13 @@ input.etk-switch {
 		repeating-conic-gradient(#8a8a8e 0 25%, #c8c8cc 0 50%) 0 0 / 6px 6px;
 	box-shadow: 0 0 0 1px rgb(255 255 255 / 0.3);
 	cursor: pointer;
-	transition: scale 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+	transition: scale 0.15s var(--etk-ease-out);
 
-	&:is(button):hover {
-		scale: 1.2;
+	/* Not on touch, where a tap leaves a hover behind. */
+	@media (hover: hover) and (pointer: fine) {
+		&:is(button):hover {
+			scale: 1.2;
+		}
 	}
 
 	&:focus-visible {
@@ -1665,6 +1752,19 @@ input.etk-switch {
 		0 1px 3px 0 rgb(0 0 0 / 0.15),
 		0 6px 12px 0 rgb(0 0 0 / 0.08),
 		0 18px 24px 0 rgb(0 0 0 / 0.1);
+	/* It grows out of its widget (see place() in editorPanel()) and closes at once. */
+	transition:
+		opacity 150ms var(--etk-ease-out),
+		scale 150ms var(--etk-ease-out);
+
+	@starting-style {
+		opacity: 0;
+		scale: 0.97;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		transition-property: opacity;
+	}
 
 	&:not([open]) {
 		display: none;

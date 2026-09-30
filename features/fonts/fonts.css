@@ -698,6 +698,30 @@
 	--etk-icon-size: 12px;
 	display: inline-flex;
 	color: var(--etk-text-60);
+	transition: color var(--e-transition, 0.15s ease-in-out);
+
+	/* Copied: the tick comes into focus in place of the copy icon. Going back is instant. */
+	.is-copied > & > svg {
+		transition:
+			opacity 150ms var(--etk-ease-out),
+			scale 150ms var(--etk-ease-out),
+			filter 150ms var(--etk-ease-out);
+
+		@starting-style {
+			opacity: 0;
+			scale: 0.8;
+			filter: blur(2px);
+		}
+
+		@media (prefers-reduced-motion: reduce) {
+			transition-property: opacity;
+
+			@starting-style {
+				scale: none;
+				filter: none;
+			}
+		}
+	}
 }
 
 .etk-fonts__var--field {
@@ -1155,11 +1179,19 @@
 	cursor: pointer;
 	transition:
 		background-color var(--e-transition, 0.15s ease-in-out),
-		border-color var(--e-transition, 0.15s ease-in-out);
+		border-color var(--e-transition, 0.15s ease-in-out),
+		scale 160ms var(--etk-ease-out);
 
 	&:hover,
 	&[aria-expanded="true"] {
 		border-color: var(--etk-line-heavy);
+	}
+
+	/* Gives a touch under your finger. Any more reads as mushy on a card this big. */
+	@media (prefers-reduced-motion: no-preference) {
+		&:active {
+			scale: 0.99;
+		}
 	}
 
 	&:focus-visible {
@@ -1243,9 +1275,8 @@
 		z-index: -1;
 		inline-size: var(--etk-fonts-spotlight-size, 420px);
 		aspect-ratio: 1;
-		border-radius: 50%;
-		background: var(--etk-spotlight);
-		filter: blur(90px);
+		/* A soft disc drawn as a gradient: a blur this big is slow to fade, in Safari most of all. */
+		background: radial-gradient(closest-side, var(--etk-spotlight) 25%, transparent);
 		opacity: 0;
 		pointer-events: none;
 		transition: opacity var(--e-transition, 0.15s ease-in-out);
@@ -1326,6 +1357,23 @@
 	text {
 		font-family: var(--e-font-code);
 		font-size: 10px;
+	}
+}
+
+/* With files over the drop zone, the two cards part a little, as if making room. */
+.etk-fonts__glyph-card {
+	transition: translate 200ms var(--etk-ease-out);
+
+	@media (prefers-reduced-motion: reduce) {
+		transition: none;
+	}
+
+	.etk-fonts__upload.is-over &--front {
+		translate: 4px -8px;
+	}
+
+	.etk-fonts__upload.is-over &--back {
+		translate: -4px 2px;
 	}
 }
 
@@ -1502,6 +1550,7 @@
 	--etk-spinner-line: 2px;
 
 	color: var(--etk-text);
+	animation-delay: var(--etk-phase, 0s);
 }
 
 .etk-fonts__files-progress {
@@ -1529,6 +1578,7 @@
 		border-radius: 2px;
 		background: var(--etk-text);
 		animation: etk-fonts-progress 1.2s ease-in-out infinite alternate;
+		animation-delay: var(--etk-phase, 0s);
 	}
 }
 
@@ -1547,8 +1597,21 @@
 		animation-duration: 2.4s;
 	}
 
+	/* The whole track breathes instead: a fill left standing would read as real progress. */
 	.etk-fonts__progress::after {
-		animation: none;
+		inset-inline: 0;
+		inline-size: auto;
+		animation-name: etk-fonts-progress-pulse;
+	}
+}
+
+@keyframes etk-fonts-progress-pulse {
+	from {
+		opacity: 0.35;
+	}
+
+	to {
+		opacity: 1;
 	}
 }
 
@@ -1825,6 +1888,15 @@
 	line-height: 1.2;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+/* A Google preview fades in once its font is in, never showing the fallback first. See whenReady(). */
+.etk-fonts [data-preview] {
+	transition: opacity 200ms var(--etk-ease-out);
+
+	&:not(.is-ready) {
+		opacity: 0;
+	}
 }
 
 .etk-fonts__gcuts {

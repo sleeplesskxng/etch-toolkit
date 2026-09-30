@@ -325,6 +325,7 @@
 			dialog.setAttribute( 'aria-busy', 'true' );
 			cancel.disabled = true;
 			confirm.disabled = true;
+			confirm.prepend( el( 'span', { className: 'etk-spinner', 'aria-hidden': 'true' } ) );
 			confirm.lastChild.textContent = ` ${ busyLabel }`;
 			resolveResult( true );
 		} );
@@ -440,6 +441,7 @@
 		const along = ( x ) => Math.min( 1, Math.max( 0, ( x - press.start ) / press.travel ) );
 		root.addEventListener( 'pointerdown', ( event ) => {
 			if ( event.button !== 0 ) return;
+			root.classList.remove( 'is-keying' );
 			// No text selection, and the native input stays out of it. It still takes focus, for the keyboard.
 			event.preventDefault();
 			input.focus( { preventScroll: true } );
@@ -471,8 +473,9 @@
 		};
 		root.addEventListener( 'pointerup', release );
 		root.addEventListener( 'pointercancel', release );
-		// Arrow keys, Page Up and Down, Home and End.
+		// Arrow keys, Page Up and Down, Home and End. A key moves the thumb at once, with no glide to trail behind.
 		input.addEventListener( 'input', () => {
+			root.classList.add( 'is-keying' );
 			const next = Number( input.value );
 			place( fraction( next ) );
 			set( next );
@@ -847,11 +850,15 @@
 		// In the manager, for its tokens and its keyboard fence. Fixed, so no scroller clips it.
 		( trigger.closest( '.etk-manager' ) || document.body ).append( popup );
 		const box = trigger.getBoundingClientRect();
-		const size = popup.getBoundingClientRect();
+		// Its laid-out size: a menu opens scaled down a little, so its box is smaller at first.
+		const size = { width: popup.offsetWidth, height: popup.offsetHeight };
 		const left = Math.max( 8, Math.min( align === 'end' ? box.right - size.width : box.left, window.innerWidth - size.width - 8 ) );
-		const top = box.bottom + 4 + size.height > window.innerHeight - 8 ? Math.max( 8, box.top - 4 - size.height ) : box.bottom + 4;
+		const above = box.bottom + 4 + size.height > window.innerHeight - 8;
+		const top = above ? Math.max( 8, box.top - 4 - size.height ) : box.bottom + 4;
 		popup.style.left = `${ left }px`;
 		popup.style.top = `${ top }px`;
+		// It grows out of the corner by its trigger.
+		popup.style.transformOrigin = `${ align === 'end' ? 'right' : 'left' } ${ above ? 'bottom' : 'top' }`;
 
 		openMenu = { trigger, popup, onclose };
 		trigger.setAttribute( 'aria-expanded', 'true' );
@@ -865,7 +872,7 @@
 		trigger.setAttribute( 'aria-haspopup', 'menu' );
 		trigger.setAttribute( 'aria-expanded', 'false' );
 
-		const show = ( first ) => {
+		const show = ( first, keyed ) => {
 			closePopup();
 			const entries = ( typeof items === 'function' ? items() : items ).filter( Boolean );
 			const choices = [];
@@ -917,13 +924,16 @@
 			);
 			openPopup( trigger, popup, { align } );
 			choices.at( first )?.focus();
+			// From the keyboard it's there at once, the way a shortcut should feel.
+			if ( keyed ) popup.getAnimations().forEach( ( animation ) => animation.finish() );
 		};
 
-		trigger.addEventListener( 'click', () => ( openMenu?.trigger === trigger ? closePopup() : show( 0 ) ) );
+		// A click from Enter or Space has no detail.
+		trigger.addEventListener( 'click', ( e ) => ( openMenu?.trigger === trigger ? closePopup() : show( 0, e.detail === 0 ) ) );
 		trigger.addEventListener( 'keydown', ( e ) => {
 			if ( e.key !== 'ArrowDown' && e.key !== 'ArrowUp' ) return;
 			e.preventDefault();
-			show( e.key === 'ArrowUp' ? -1 : 0 );
+			show( e.key === 'ArrowUp' ? -1 : 0, true );
 		} );
 		return trigger;
 	};
@@ -1644,7 +1654,10 @@
 			const at = anchor.getBoundingClientRect();
 			const gap = 8;
 			const below = at.bottom + gap;
-			mover.moveTo( at.left, below + dialog.offsetHeight <= window.innerHeight - DRAG_EDGE ? below : at.top - gap - dialog.offsetHeight );
+			const fits = below + dialog.offsetHeight <= window.innerHeight - DRAG_EDGE;
+			// It grows out of the corner nearest the widget.
+			dialog.style.transformOrigin = fits ? 'left top' : 'left bottom';
+			mover.moveTo( at.left, fits ? below : at.top - gap - dialog.offsetHeight );
 		};
 		place();
 		focus?.focus();

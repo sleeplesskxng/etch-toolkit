@@ -182,6 +182,7 @@
 	display: inline-flex;
 	flex: none;
 	color: var(--etk-text-60);
+	transition: color var(--e-transition, 0.15s ease-in-out);
 
 	.etk-components__use:hover & {
 		color: var(--etk-text);
@@ -198,6 +199,7 @@
 	font-weight: 400;
 	line-height: 16px;
 	cursor: pointer;
+	transition: color var(--e-transition, 0.15s ease-in-out);
 
 	&:hover {
 		color: var(--etk-text);
@@ -221,6 +223,10 @@
 	border-color: color-mix(in oklch, white 10%, transparent);
 	background: color-mix(in oklch, white 10%, transparent);
 	color: var(--etk-text-60);
+	transition:
+		background-color var(--e-transition, 0.15s ease-in-out),
+		border-color var(--e-transition, 0.15s ease-in-out),
+		color var(--e-transition, 0.15s ease-in-out);
 
 	&:hover {
 		color: var(--etk-text);
@@ -229,6 +235,29 @@
 	svg {
 		inline-size: 14px;
 		block-size: 14px;
+	}
+
+	/* Copied: the tick comes into focus in place of the icon, and back again. */
+	&[data-swap] svg {
+		transition:
+			opacity 150ms var(--etk-ease-out),
+			scale 150ms var(--etk-ease-out),
+			filter 150ms var(--etk-ease-out);
+
+		@starting-style {
+			opacity: 0;
+			scale: 0.8;
+			filter: blur(2px);
+		}
+
+		@media (prefers-reduced-motion: reduce) {
+			transition-property: opacity;
+
+			@starting-style {
+				scale: none;
+				filter: none;
+			}
+		}
 	}
 }
 
@@ -349,6 +378,34 @@
 	.etk-components__help {
 		max-inline-size: 44ch;
 	}
+
+	/*
+	 * A small moment for a rare success: the tick, title, text and actions rise
+	 * in one after another. Nothing else draws this view again, so it plays once.
+	 * The actions work while they fade in.
+	 */
+	> * {
+		transition:
+			opacity 240ms var(--etk-ease-out),
+			translate 240ms var(--etk-ease-out);
+
+		@starting-style {
+			opacity: 0;
+			translate: 0 6px;
+		}
+	}
+
+	> :nth-child(2) {
+		transition-delay: 40ms;
+	}
+
+	> :nth-child(3) {
+		transition-delay: 80ms;
+	}
+
+	> :nth-child(4) {
+		transition-delay: 120ms;
+	}
 }
 
 .etk-components__done-tick {
@@ -360,6 +417,46 @@
 	border-radius: 50%;
 	background: color-mix(in srgb, var(--etk-accent) 14%, transparent);
 	color: var(--etk-accent);
+
+	/* The disc grows a little, then the tick draws itself: 23 is about its length, 24 hides its round cap. */
+	.etk-components__done > & {
+		transition:
+			opacity 200ms var(--etk-ease-out),
+			scale 240ms var(--etk-ease-out);
+
+		@starting-style {
+			opacity: 0;
+			scale: 0.85;
+		}
+	}
+
+	path {
+		stroke-dasharray: 23;
+		transition: stroke-dashoffset 280ms var(--etk-ease-out) 100ms;
+
+		@starting-style {
+			stroke-dashoffset: 24;
+		}
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.etk-components__done > *,
+	.etk-components__done > .etk-components__done-tick {
+		translate: none;
+		scale: none;
+		transition: opacity 200ms ease;
+
+		@starting-style {
+			translate: none;
+			scale: none;
+		}
+	}
+
+	.etk-components__done-tick path {
+		stroke-dasharray: none;
+		transition: none;
+	}
 }
 
 .etk-components__done-actions {
@@ -508,22 +605,15 @@
 	opacity: 0.65;
 	cursor: pointer;
 
+	transition: opacity var(--e-transition, 0.15s ease-in-out);
+
 	&:hover {
 		opacity: 1;
 	}
 
-	.etk-components__caret-icon {
-		transition: transform 0.25s cubic-bezier(0.25, 0.6, 0.1, 1);
-	}
-
+	/* No turn: the whole tree draws again on each toggle, so a transition would never run. */
 	&[aria-expanded="true"] .etk-components__caret-icon {
 		transform: rotate(90deg);
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.etk-components__caret-icon {
-			transition: none;
-		}
 	}
 }
 
@@ -993,6 +1083,7 @@
 	font-weight: 400;
 	text-align: start;
 	cursor: pointer;
+	transition: color var(--e-transition, 0.15s ease-in-out);
 
 	&:hover {
 		color: var(--etk-text-75);

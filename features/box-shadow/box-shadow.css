@@ -13,10 +13,13 @@
 	border-radius: 2px;
 	box-shadow: 1.5px 2px 0 rgb(255 255 255 / 0.25);
 	cursor: pointer;
-	transition: scale 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+	transition: scale 0.15s var(--etk-ease-out);
 
-	&:hover {
-		scale: 1.2;
+	/* Not on touch, where a tap leaves a hover behind. */
+	@media (hover: hover) and (pointer: fine) {
+		&:hover {
+			scale: 1.2;
+		}
 	}
 
 	&:focus-visible {
@@ -38,8 +41,6 @@
  * shows. Only the colors change between the two.
  */
 .etk-shadow__stage {
-	--etk-shadow-ease: cubic-bezier(0.23, 1, 0.32, 1);
-	--etk-shadow-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
 	--etk-shadow-pad: #e8e8ed;
 	--etk-shadow-dot: rgb(0 0 0 / 0.12);
 	--etk-shadow-line: rgb(0 0 0 / 0.07);
@@ -66,7 +67,7 @@
 	box-shadow: inset 0 0 0 1px var(--etk-shadow-line);
 	touch-action: none;
 	user-select: none;
-	transition: background-color 0.2s var(--etk-shadow-ease);
+	transition: background-color 0.2s var(--etk-ease-out);
 }
 
 .etk-shadow__tile {
@@ -78,7 +79,7 @@
 	translate: -50% -50%;
 	border-radius: 11px;
 	background: var(--etk-shadow-tile);
-	transition: background-color 0.2s var(--etk-shadow-ease);
+	transition: background-color 0.2s var(--etk-ease-out);
 }
 
 /* Where the light is, from the middle out to its reach. */
@@ -102,7 +103,7 @@
 	box-shadow: 0 0 0 0.5px var(--etk-shadow-light-edge), 0 2px 8px rgb(0 0 0 / 0.18);
 	cursor: grab;
 	touch-action: none;
-	transition: scale 0.16s var(--etk-shadow-ease);
+	transition: scale 0.16s var(--etk-ease-out);
 
 	.is-dragging-light & {
 		scale: 0.9;
@@ -132,13 +133,13 @@
 	opacity: 0;
 	color: var(--etk-shadow-beam);
 	pointer-events: none;
-	transition: opacity 0.16s var(--etk-shadow-ease), scale 0.2s var(--etk-shadow-ease);
+	transition: opacity 0.16s var(--etk-ease-out), scale 0.2s var(--etk-ease-out);
 
 	.etk-shadow:has(.shows-beam, .is-dragging-beam, .is-dragging-edge, .etk-shadow__for-beam.is-dragging, .etk-shadow__for-beam input:focus-visible, .etk-shadow__for-edge.is-dragging, .etk-shadow__for-edge input:focus-visible) & {
 		scale: 1;
 		opacity: 1;
 		pointer-events: auto;
-		transition: opacity 0.18s var(--etk-shadow-ease), scale 0.32s var(--etk-shadow-spring);
+		transition: opacity 0.18s var(--etk-ease-out), scale 0.22s var(--etk-ease-out);
 	}
 
 	/* The builder caps an svg at its box's width, which here is none. */
@@ -159,7 +160,7 @@
 	stroke-width: 1;
 	stroke-linecap: round;
 	pointer-events: none;
-	transition: stroke-opacity 0.2s var(--etk-shadow-ease), stroke-width 0.2s var(--etk-shadow-ease);
+	transition: stroke-opacity 0.2s var(--etk-ease-out), stroke-width 0.2s var(--etk-ease-out);
 
 	&.is-new {
 		stroke-width: 2;
@@ -173,7 +174,7 @@
 	stroke-linecap: round;
 	stroke-opacity: 0;
 	pointer-events: none;
-	transition: stroke-opacity 0.16s var(--etk-shadow-ease);
+	transition: stroke-opacity 0.16s var(--etk-ease-out);
 
 	.etk-shadow:has(.is-on-edge, .is-dragging-edge, .etk-shadow__for-edge.is-dragging, .etk-shadow__for-edge input:focus-visible) & {
 		stroke-opacity: 0.55;
