@@ -678,7 +678,6 @@
 	--etk-text-45: color-mix(in srgb, var(--etk-text) 45%, transparent);
 	--etk-text-40: color-mix(in srgb, var(--etk-text) 40%, transparent);
 	--etk-text-25: color-mix(in srgb, var(--etk-text) 25%, transparent);
-	--etk-spotlight: color-mix(in srgb, var(--etk-text) 6%, transparent);
 
 	/* Accent and status. */
 	--etk-accent: var(--e-primary, #57e9db);

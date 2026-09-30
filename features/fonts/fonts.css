@@ -1253,38 +1253,14 @@
 	}
 }
 
-/* On hover, a brighter border and a soft light on the top right corner, behind the content. */
+/* On hover, a brighter border. */
 .etk-fonts__upload,
 .etk-fonts__family-add {
 	position: relative;
-	isolation: isolate;
 
 	&:hover:not(.is-over) {
 		border-color: var(--etk-text-40);
 	}
-
-	&:hover::before {
-		opacity: 1;
-	}
-
-	&::before {
-		content: "";
-		position: absolute;
-		inset-block-start: -160px;
-		inset-inline-end: -24px;
-		z-index: -1;
-		inline-size: var(--etk-fonts-spotlight-size, 420px);
-		aspect-ratio: 1;
-		/* A soft disc drawn as a gradient: a blur this big is slow to fade, in Safari most of all. */
-		background: radial-gradient(closest-side, var(--etk-spotlight) 25%, transparent);
-		opacity: 0;
-		pointer-events: none;
-		transition: opacity var(--e-transition, 0.15s ease-in-out);
-	}
-}
-
-.etk-fonts__family-add {
-	--etk-fonts-spotlight-size: 240px;
 }
 
 .etk-fonts__upload-text {
