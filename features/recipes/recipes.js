@@ -11,7 +11,7 @@
  * recipes-settings.js, which saves an import at once.
  */
 ( () => {
-	const { api, el, confirmDialog, afterSave, unsaved, onPageChange, searchBox } = window.etchToolkit || {};
+	const { api, el, confirmDialog, afterSave, unsaved, onPageChange, styleManager, searchBox } = window.etchToolkit || {};
 	if ( ! api ) return;
 
 	// The real Object.entries, kept before the hook below replaces it. Reading recipes
@@ -193,7 +193,6 @@
 
 	/* ---- Recipes tab ---- */
 
-	const INNER = '.style-overview-modal__inner'; // Where every Style Manager tab renders.
 	const SWITCH = '.etch-advanced-switch--tabs';
 	const ETCH_TAB = '.etch-advanced-switch__button';
 
@@ -541,7 +540,7 @@
 
 	const update = () => {
 		frame = 0;
-		const body = document.querySelector( INNER )?.parentElement;
+		const body = styleManager()?.parentElement;
 		const tabs = body?.querySelector( `:scope > ${ SWITCH }` );
 
 		// Style Manager closed. Your draft stays for next time.

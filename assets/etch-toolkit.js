@@ -566,6 +566,15 @@
 	};
 
 	/*
+	 * styleManager(): the element every Style Manager tab renders in, or null
+	 * while it's closed, which is most of the time. An id and two children, so
+	 * page watchers can check it on every change, where a document query that
+	 * finds nothing walks the whole builder.
+	 */
+	const childWith = ( parent, name ) => [ ...( parent?.children || [] ) ].find( ( child ) => child.classList.contains( name ) );
+	const styleManager = () => childWith( childWith( document.getElementById( 'full-screen' ), 'full-screen__body' ), 'style-overview-modal__inner' ) || null;
+
+	/*
 	 * Etch's styles, for code that runs as the page changes, like each frame the
 	 * Style Manager's list scrolls. Etch's styles.list() copies every style, which
 	 * adds up on a big site, so this keeps one copy until the next click or key,
@@ -1667,6 +1676,6 @@
 		return { dialog, close, place };
 	};
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, etchStyles, styleBySelector, onMenu, menuItem, findMenuItem, settingsBarButton, selectAllKey, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorEdit, editorPanel, draggable, colorField, styleDoc, resolveColor, siteColors, isColor } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, styleManager, etchStyles, styleBySelector, onMenu, menuItem, findMenuItem, settingsBarButton, selectAllKey, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorEdit, editorPanel, draggable, colorField, styleDoc, resolveColor, siteColors, isColor } );
 	window.etchToolkit = toolkit;
 } )();

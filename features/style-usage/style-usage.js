@@ -12,10 +12,9 @@
  * clicking the matching row, since the selected style isn't exposed.
  */
 ( () => {
-	const { api, el, onPageChange, styleBySelector } = window.etchToolkit || {};
+	const { api, el, onPageChange, styleManager, styleBySelector } = window.etchToolkit || {};
 	if ( ! api ) return;
 
-	const MODAL = '.style-overview-modal__inner';
 	const LEFT = '.style-overview-modal__left';
 	const LIST = `${ LEFT } .virtual-list`;
 	const SEARCH = `${ LEFT } .searchbar input`;
@@ -289,7 +288,7 @@
 
 		// Style Manager closed: the next open asks again, to pick up saved changes.
 		// Drop any answer still on its way.
-		if ( ! document.querySelector( MODAL ) ) {
+		if ( ! styleManager() ) {
 			checked = false;
 			request = 0;
 			failed = false;

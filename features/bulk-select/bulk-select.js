@@ -26,10 +26,9 @@
  */
 ( () => {
 	const toolkit = window.etchToolkit || {};
-	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, errorDialog, barButton, bulkBar, selectAllKey, onPageChange, etchStyles, styleBySelector, reload, classesIn, isClassSelector } = toolkit;
+	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, errorDialog, barButton, bulkBar, selectAllKey, onPageChange, styleManager, etchStyles, styleBySelector, reload, classesIn, isClassSelector } = toolkit;
 	if ( ! confirmDialog ) return;
 
-	const MODAL = '.style-overview-modal__inner'; // Where every Style Manager tab renders.
 	const ROOT = '.style-overview-modal__left';
 	const SEARCH = '.searchbar input';
 	const ACTIVE_TAB = '.css-input-tabs__trigger[data-state="active"]';
@@ -79,7 +78,7 @@
 	// Find the selector list root. The collections view has no search bar, so it's skipped.
 	// So is Recipes, which covers Etch's view without removing it.
 	const getRoot = () => {
-		const root = document.querySelector( ROOT );
+		const root = styleManager()?.querySelector( ROOT );
 		return root?.querySelector( SEARCH ) && ! root.closest( '.etk-recipes-on' ) ? root : null;
 	};
 
@@ -1032,7 +1031,7 @@
 		// On another tab the bar goes away until Selectors is back. Closing the
 		// Style Manager drops the selection.
 		if ( ! root ) {
-			if ( selected.size && ! document.querySelector( MODAL ) ) clear();
+			if ( selected.size && ! styleManager() ) clear();
 			renderBar( null );
 			return;
 		}
