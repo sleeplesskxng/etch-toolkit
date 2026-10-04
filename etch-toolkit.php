@@ -30,6 +30,7 @@ require ETCH_TOOLKIT_DIR . 'features/color-mix/color-mix.php';
 require ETCH_TOOLKIT_DIR . 'features/box-shadow/box-shadow.php';
 require ETCH_TOOLKIT_DIR . 'features/to-rem/to-rem.php';
 require ETCH_TOOLKIT_DIR . 'features/component-manager/component-manager.php';
+require ETCH_TOOLKIT_DIR . 'features/prop-keys/prop-keys.php';
 
 // Updates come from GitHub releases. Skipped in a git checkout so it never overwrites a dev copy.
 if ( ! is_dir( ETCH_TOOLKIT_DIR . '.git' ) ) {
