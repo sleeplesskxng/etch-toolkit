@@ -86,6 +86,9 @@
 	--etk-gap-inner: 12px;
 
 	max-inline-size: 440px;
+	/* As tall as the window allows. A long message scrolls, the buttons stay. */
+	box-sizing: border-box;
+	max-block-size: calc(100dvh - 32px);
 	display: flex;
 	flex-direction: column;
 	gap: var(--etk-gap);
@@ -113,6 +116,7 @@
 }
 
 .etk-confirm__header {
+	flex: none;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -141,6 +145,19 @@
 	display: flex;
 	flex-direction: column;
 	gap: var(--etk-gap-inner);
+	min-block-size: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	/* Room for its fields' focus rings, which the scroller would clip. */
+	margin: -4px;
+	padding: 4px;
+	border-radius: var(--etch-radius-lg);
+
+	/* Focusable when it scrolls and nothing in it is (see confirmDialog()). */
+	&:focus-visible {
+		outline: 2px solid var(--etch-primary);
+		outline-offset: -2px;
+	}
 
 	p {
 		margin: 0;
@@ -176,6 +193,7 @@
 }
 
 .etk-confirm__actions {
+	flex: none;
 	display: flex;
 	gap: var(--etch-space-md);
 	margin-block-start: var(--etch-space-xs);

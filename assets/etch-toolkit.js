@@ -335,6 +335,8 @@
 		document.body.append( dialog );
 		dialog.showModal();
 		initialFocus?.focus();
+		// A message taller than the window scrolls. Safari only scrolls it from the keyboard if it can take focus.
+		if ( messageEl.scrollHeight > messageEl.clientHeight && ! messageEl.querySelector( 'a[href], button, input, select, textarea, [tabindex]' ) ) messageEl.tabIndex = 0;
 
 		return {
 			element: dialog,
