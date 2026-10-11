@@ -175,7 +175,7 @@
 	/* General                                                             */
 	/* ------------------------------------------------------------------ */
 
-	let settings = config.settings || { deleteData: false, layerSorting: true, fonts: true, componentManager: false };
+	let settings = config.settings || {};
 	const save = async ( changes, message ) => {
 		try {
 			// Kept on window.etchToolkitSettings too, where features read it as it changes.
@@ -189,6 +189,9 @@
 		refresh();
 	};
 
+	// A feature's switch. Each one applies at once, in the builder too.
+	const feature = ( key, label, help ) => toggle( label, settings[ key ] !== false, ( on ) => save( { [ key ]: on }, `${ label } is ${ on ? 'on' : 'off' }.` ), help );
+
 	section( {
 		id: 'general',
 		title: 'General',
@@ -196,31 +199,30 @@
 		order: 0,
 		render: () => [
 			group(
-				'Structure panel',
-				toggle(
-					'Enhanced layer sorting',
-					settings.layerSorting,
-					( on ) => save( { layerSorting: on }, on ? 'Enhanced layer sorting is on.' : 'Enhanced layer sorting is off.' ),
-					'Smoother dragging, with a drop line in the panel and on the canvas. Shift-click to select a range, and drag several layers at once.'
-				)
+				'Style Manager',
+				feature( 'styleUsage', 'Usage counts', 'How many elements use each selector, and an Unused tab for the ones nothing uses.' ),
+				feature( 'bulkSelect', 'Bulk select', 'Select styles with checkboxes, Cmd-click or Shift-click, then rename or delete them together.' ),
+				feature( 'recipes', 'Recipes', 'A Recipes tab to browse Etch’s recipes and add your own, which you use with “?” in any CSS editor. When it’s off, yours aren’t offered.' )
 			),
 			group(
-				'Fonts',
-				toggle(
-					'Font manager',
-					settings.fonts,
-					( on ) => save( { fonts: on }, on ? 'The font manager is on.' : 'The font manager is off.' ),
-					'Upload fonts or add them from Google Fonts, then use them for headings and body text. Opens from the Settings Bar. Your fonts keep working when it’s off.'
-				)
+				'CSS editor',
+				feature( 'colorMix', 'Color mix', 'A swatch by each color opens a panel to mix it with another.' ),
+				feature( 'boxShadow', 'Box shadow', 'A button by each box-shadow opens a panel to build a layered shadow by dragging a light around a card.' ),
+				feature( 'toRem', 'To rem', 'A button before each px value wraps it in to-rem().' )
+			),
+			group(
+				'Structure panel',
+				feature( 'layerSorting', 'Enhanced layer sorting', 'Smoother dragging, with a drop line in the panel and on the canvas. Shift-click to select a range, and drag several layers at once.' ),
+				feature( 'copyClasses', 'Copy and paste classes', 'Copy a layer’s classes from its right-click menu, then paste them onto another. A class in the CSS editor can be copied too.' )
 			),
 			group(
 				'Components',
-				toggle(
-					'Component manager',
-					settings.componentManager,
-					( on ) => save( { componentManager: on }, on ? 'The component manager is on.' : 'The component manager is off.' ),
-					'See your components and where they’re used. Update one from JSON after reviewing the changes. Opens from the Settings Bar.'
-				)
+				feature( 'componentManager', 'Component manager', 'See your components and where they’re used. Update one from JSON after reviewing the changes. Opens from the Settings Bar.' ),
+				feature( 'propKeys', 'Prop keys follow renames', 'When you change a prop’s key in the component editor, the layers that use it change with it.' )
+			),
+			group(
+				'Fonts',
+				feature( 'fonts', 'Font manager', 'Upload fonts or add them from Google Fonts, then use them for headings and body text. Opens from the Settings Bar. Your fonts keep working when it’s off.' )
 			),
 			group(
 				{ title: 'Uninstall', note: 'Fonts and renamed classes always stay, so your site keeps working.' },

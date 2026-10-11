@@ -11,7 +11,7 @@
  * another page too, and goes on the clipboard as text.
  */
 ( () => {
-	const { isClassSelector, classNames: split, onMenu, menuItem, findMenuItem } = window.etchToolkit || {};
+	const { isClassSelector, classNames: split, featureOn, onMenu, menuItem, findMenuItem } = window.etchToolkit || {};
 	if ( ! isClassSelector ) return;
 
 	const LAYER = '.etch-builder-accordion__header[data-blockid]';
@@ -83,6 +83,7 @@
 		before.before( item );
 	};
 
-	onMenu( LAYER, OURS, ( menu, layer ) => addLayerItems( menu, layer.dataset.blockid ) );
-	onMenu( BADGE, OURS, ( menu, badge ) => addBadgeItem( menu, badge.textContent.trim() ) );
+	// Only while it's on in the toolkit's settings.
+	onMenu( LAYER, OURS, ( menu, layer ) => featureOn( 'copyClasses' ) && addLayerItems( menu, layer.dataset.blockid ) );
+	onMenu( BADGE, OURS, ( menu, badge ) => featureOn( 'copyClasses' ) && addBadgeItem( menu, badge.textContent.trim() ) );
 } )();

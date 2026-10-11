@@ -261,7 +261,7 @@
 		return parsed.get( doc );
 	};
 
-	editorWidgets( ( doc ) =>
+	editorWidgets( 'boxShadow', ( doc ) =>
 		shadowsIn( doc ).map( ( found ) => ( {
 			at: found.from,
 			key: 'shadow',

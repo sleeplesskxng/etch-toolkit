@@ -71,7 +71,7 @@
 		return parsed.get( doc );
 	};
 
-	editorWidgets( ( doc ) =>
+	editorWidgets( 'toRem', ( doc ) =>
 		pxInDoc( doc ).map( ( found ) => ( {
 			at: found.from,
 			key: `rem ${ found.text }`,

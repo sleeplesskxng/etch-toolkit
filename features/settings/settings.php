@@ -27,23 +27,40 @@ etch_toolkit_routes(
 	)
 );
 
+/*
+ * Each feature's switch in the settings (General), and whether it's on until
+ * it's changed. A feature that's off still loads in the builder, doing
+ * nothing, so turning it on or off applies at once.
+ */
+const ETCH_TOOLKIT_FEATURES = array(
+	'styleUsage'       => true,
+	'bulkSelect'       => true,
+	'recipes'          => true,
+	'colorMix'         => true,
+	'boxShadow'        => true,
+	'toRem'            => true,
+	'layerSorting'     => true,
+	'copyClasses'      => true,
+	'componentManager' => false,
+	'propKeys'         => true,
+	'fonts'            => true,
+);
+
 /**
- * @return array{deleteData: bool, layerSorting: bool, fonts: bool, componentManager: bool}
+ * @return array<string, bool> deleteData, then each of ETCH_TOOLKIT_FEATURES.
  */
 function etch_toolkit_settings(): array {
 	$settings = (array) get_option( ETCH_TOOLKIT_SETTINGS_OPTION, array() );
-	return array(
-		'deleteData'       => ! empty( $settings['deleteData'] ),
-		// On until turned off.
-		'layerSorting'     => ! array_key_exists( 'layerSorting', $settings ) || ! empty( $settings['layerSorting'] ),
-		'fonts'            => ! array_key_exists( 'fonts', $settings ) || ! empty( $settings['fonts'] ),
-		'componentManager' => ! empty( $settings['componentManager'] ),
-	);
+	$result   = array( 'deleteData' => ! empty( $settings['deleteData'] ) );
+	foreach ( ETCH_TOOLKIT_FEATURES as $key => $default ) {
+		$result[ $key ] = array_key_exists( $key, $settings ) ? ! empty( $settings[ $key ] ) : $default;
+	}
+	return $result;
 }
 
 function etch_toolkit_save_settings( array $input ): void {
 	$settings = etch_toolkit_settings();
-	foreach ( array( 'deleteData', 'layerSorting', 'fonts', 'componentManager' ) as $key ) {
+	foreach ( array_keys( $settings ) as $key ) {
 		if ( array_key_exists( $key, $input ) ) {
 			$settings[ $key ] = (bool) $input[ $key ];
 		}

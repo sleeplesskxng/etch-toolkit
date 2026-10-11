@@ -11,7 +11,7 @@
  * recipes-settings.js, which saves an import at once.
  */
 ( () => {
-	const { api, el, confirmDialog, afterSave, unsaved, onPageChange, styleManager, searchBox } = window.etchToolkit || {};
+	const { api, el, confirmDialog, afterSave, unsaved, featureOn, onFeature, onPageChange, styleManager, searchBox } = window.etchToolkit || {};
 	if ( ! api ) return;
 
 	// The real Object.entries, kept before the hook below replaces it. Reading recipes
@@ -32,10 +32,12 @@
 	let expansions = null;
 	const added = new Set(); // Names put in here, so Etch's own are never replaced or removed.
 
+	// Only while it's on in the toolkit's settings.
 	const addToEtch = () => {
 		if ( ! expansions ) return;
 		for ( const name of added ) delete expansions[ name ];
 		added.clear();
+		if ( ! featureOn( 'recipes' ) ) return;
 		for ( const { name, css } of mine ) {
 			if ( Object.hasOwn( expansions, name ) ) continue;
 			expansions[ name ] = { expandTo: css };
@@ -550,6 +552,15 @@
 			return;
 		}
 
+		// Turned off in the toolkit's settings.
+		if ( ! featureOn( 'recipes' ) ) {
+			on = false;
+			tab.remove();
+			panel.remove();
+			body.classList.remove( 'etk-recipes-on' );
+			return;
+		}
+
 		if ( tab.parentElement !== tabs ) tabs.append( tab );
 		tab.classList.toggle( 'etch-advanced-switch__button--active', on );
 		tab.setAttribute( 'aria-pressed', String( on ) );
@@ -565,4 +576,8 @@
 	};
 
 	onPageChange( update );
+	onFeature( 'recipes', () => {
+		addToEtch();
+		update();
+	} );
 } )();

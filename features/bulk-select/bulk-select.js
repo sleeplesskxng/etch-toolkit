@@ -26,7 +26,7 @@
  */
 ( () => {
 	const toolkit = window.etchToolkit || {};
-	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, errorDialog, barButton, bulkBar, selectAllKey, onPageChange, styleManager, etchStyles, styleBySelector, reload, classesIn, isClassSelector } = toolkit;
+	const { api, save, afterSave, syncStyles, el, plural, editPageClasses, confirmDialog, errorDialog, barButton, bulkBar, selectAllKey, featureOn, onFeature, onPageChange, styleManager, etchStyles, styleBySelector, reload, classesIn, isClassSelector } = toolkit;
 	if ( ! confirmDialog ) return;
 
 	const ROOT = '.style-overview-modal__left';
@@ -76,8 +76,10 @@
 	const listable = ( styles ) => styles.filter( ( s ) => s.selector !== ':root' && s.type !== 'element' );
 
 	// Find the selector list root. The collections view has no search bar, so it's skipped.
-	// So is Recipes, which covers Etch's view without removing it.
+	// So is Recipes, which covers Etch's view without removing it. None while this is off
+	// in the toolkit's settings, so nothing here runs.
 	const getRoot = () => {
+		if ( ! featureOn( 'bulkSelect' ) ) return null;
 		const root = styleManager()?.querySelector( ROOT );
 		return root?.querySelector( SEARCH ) && ! root.closest( '.etk-recipes-on' ) ? root : null;
 	};
@@ -1110,4 +1112,16 @@
 	);
 
 	onPageChange( update, { text: true } );
+
+	// Turned off: no selection, and the rows as Etch drew them.
+	onFeature( 'bulkSelect', ( on ) => {
+		if ( on ) return schedule();
+		renaming?.close();
+		selected.clear();
+		anchor = null;
+		document.querySelectorAll( `.${ CHECK }` ).forEach( ( box ) => box.remove() );
+		document.querySelectorAll( '.etk-row--checked' ).forEach( ( row ) => row.classList.remove( 'etk-row--checked' ) );
+		document.querySelector( '.etk-selecting' )?.classList.remove( 'etk-selecting' );
+		update();
+	} );
 } )();

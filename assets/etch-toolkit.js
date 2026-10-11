@@ -542,6 +542,17 @@
 	};
 
 	/*
+	 * featureOn( key ): whether a feature is on in the toolkit's settings
+	 * (General). On unless it's been turned off. onFeature( key, fn ) runs
+	 * fn( on ) each time it's turned on or off, which applies at once.
+	 */
+	const featureOn = ( key ) => window.etchToolkitSettings?.settings?.[ key ] !== false;
+	const onFeature = ( key, fn ) => {
+		let was = featureOn( key );
+		window.addEventListener( 'etch-toolkit-settings', () => featureOn( key ) !== was && fn( ( was = ! was ) ) );
+	};
+
+	/*
 	 * onPageChange( fn, { text } ): run fn once in the next frame after the
 	 * page's elements change, for features that fit themselves into Etch's UI
 	 * as it redraws. text: true counts changes to text too. One observer for
@@ -1195,15 +1206,16 @@
 	}
 
 	/**
-	 * editorWidgets( find ): widgets in every CSS editor. find( doc ), once per
-	 * version of an editor's text, returns [ { at, key, render( view ) } ]:
-	 * render builds the widget's node, placed before the character at `at`.
-	 * Etch builds and rebuilds its editors, so each one gets them whenever it
-	 * shows up without.
+	 * editorWidgets( feature, find ): widgets in every CSS editor while the
+	 * feature is on (featureOn()). find( doc ), once per version of an
+	 * editor's text, returns [ { at, key, render( view ) } ]: render builds
+	 * the widget's node, placed before the character at `at`. Etch builds and
+	 * rebuilds its editors, so each one gets them whenever it shows up without.
 	 */
-	const editorWidgets = ( find ) => {
+	const editorWidgets = ( feature, find ) => {
 		const decorated = new WeakMap();
 		const decorations = ( view ) => {
+			if ( ! featureOn( feature ) ) return cm.Decoration.none;
 			const doc = view.state.doc;
 			if ( ! decorated.has( doc ) ) {
 				const ranges = find( doc ).map( ( { at, key, render } ) => cm.Decoration.widget( { widget: new Widget( key, render ), side: -1 } ).range( at ) );
@@ -1222,6 +1234,13 @@
 			}
 		};
 		onPageChange( install );
+		// Editors read their decorations again on an update. One without changes leaves Etch's style alone.
+		onFeature( feature, () => {
+			for ( const editor of document.querySelectorAll( CSS_EDITOR ) ) {
+				const view = viewOf( editor );
+				if ( view && codemirror( view ) ) view.update( [ view.state.update( {} ) ] );
+			}
+		} );
 	};
 
 	// The editor's undo command, from its key bindings, which Etch doesn't expose either.
@@ -1680,6 +1699,6 @@
 		return { dialog, close, place };
 	};
 
-	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, onPageChange, styleManager, etchStyles, styleBySelector, onMenu, menuItem, findMenuItem, settingsBarButton, selectAllKey, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorEdit, editorPanel, draggable, colorField, styleDoc, resolveColor, siteColors, isColor } );
+	Object.assign( toolkit, { api, save, afterSave, unsaved, syncStyles, el, plural, errorText, fileSize, classNames, editPageClasses, confirmDialog, errorDialog, slider, rebuild, barButton, bulkBar, featureOn, onFeature, onPageChange, styleManager, etchStyles, styleBySelector, onMenu, menuItem, findMenuItem, settingsBarButton, selectAllKey, managerKeys, openManager, announce, downloadJson, jsonDropzone, searchBox, menu, openPopup, closePopup, popupOpen, reload, classesIn, isClassSelector, ICONS, icon, DELETE_ICON, cssText, editorWidgets, editorEdit, editorPanel, draggable, colorField, styleDoc, resolveColor, siteColors, isColor } );
 	window.etchToolkit = toolkit;
 } )();

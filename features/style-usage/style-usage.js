@@ -12,7 +12,7 @@
  * clicking the matching row, since the selected style isn't exposed.
  */
 ( () => {
-	const { api, el, onPageChange, styleManager, styleBySelector } = window.etchToolkit || {};
+	const { api, el, featureOn, onFeature, onPageChange, styleManager, styleBySelector } = window.etchToolkit || {};
 	if ( ! api ) return;
 
 	const LEFT = '.style-overview-modal__left';
@@ -286,9 +286,9 @@
 	const update = () => {
 		frame = 0;
 
-		// Style Manager closed: the next open asks again, to pick up saved changes.
-		// Drop any answer still on its way.
-		if ( ! styleManager() ) {
+		// Style Manager closed, or this turned off: the next open asks again, to pick
+		// up saved changes. Drop any answer still on its way.
+		if ( ! styleManager() || ! featureOn( 'styleUsage' ) ) {
 			checked = false;
 			request = 0;
 			failed = false;
@@ -319,4 +319,18 @@
 	};
 
 	onPageChange( update, { text: true } );
+
+	// Turned off in the toolkit's settings: Etch's tabs and rows as they were.
+	onFeature( 'styleUsage', ( on ) => {
+		if ( on ) return schedule();
+		unusedOn = false;
+		document.querySelectorAll( `.${ BADGE }, .${ UNUSED }, .${ UNUSED }-tab` ).forEach( ( node ) => node.remove() );
+		document.querySelector( TABS )?.classList.remove( `${ UNUSED }-on` );
+		for ( const trigger of document.querySelectorAll( `${ TABS } > ${ TRIGGER }` ) ) {
+			trigger.tabIndex = trigger.dataset.state === 'active' ? 0 : -1;
+			trigger.setAttribute( 'aria-selected', String( trigger.dataset.state === 'active' ) );
+			delete trigger.dataset.etkUnselected;
+		}
+		update();
+	} );
 } )();

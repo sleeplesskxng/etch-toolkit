@@ -153,7 +153,7 @@
 
 	// ---- Swatches ----
 
-	editorWidgets( ( doc ) =>
+	editorWidgets( 'colorMix', ( doc ) =>
 		colorsInDoc( doc ).map( ( found ) => ( {
 			at: found.from,
 			key: `${ found.text } ${ found.color }`,

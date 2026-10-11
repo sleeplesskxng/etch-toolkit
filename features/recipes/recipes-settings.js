@@ -107,6 +107,7 @@
 		title: 'Recipes',
 		icon: 'cook-book',
 		order: 20,
+		hidden: () => window.etchToolkitSettings?.settings?.recipes === false,
 		open: async () => {
 			recipes = ( await api( 'recipes' ) ).recipes;
 		},
