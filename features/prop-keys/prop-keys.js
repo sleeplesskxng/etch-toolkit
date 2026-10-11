@@ -13,10 +13,15 @@
  * the new key belongs to another prop too, and not in scripts, where Etch
  * doesn't fill in props.
  *
- * Like Etch, it doesn't touch the component's instances, which keep their
- * values under the old key. The change is held in the builder like any
- * other: Etch's Save writes it and Cmd+Z undoes it, in a step of its own
- * after the key's.
+ * The change is held in the builder like any other: Etch's Save writes it
+ * and Cmd+Z undoes it, in a step of its own after the key's.
+ *
+ * Instances keep their values under the old key, where Etch no longer reads
+ * them. If any on the site set one, you're asked whether to rename it there
+ * too. That happens on the server once Etch's Save has written the
+ * component with the new key, so a rename undone first changes nothing.
+ * Etch writes back every page it has open on each Save, so if it has one
+ * of those, you're asked to reload before saving again.
  */
 ( () => {
 	// Etch's API, which shows up after this loads.
@@ -131,6 +136,144 @@
 		window.setTimeout( () => ( status.textContent = message ), 50 );
 	};
 
+	/* ---- Instances ---- */
+
+	// Renames to make in instances once Etch saves: component ID => [ { from, to } ].
+	const pending = new Map();
+	// Posts opened in the builder this time. Etch keeps them, and every Save
+	// writes them back as it has them.
+	const visited = new Set();
+	window.etchToolkit.onPageChange( () => {
+		const id = window.etch?.navigation?.getActivePostId();
+		if ( id ) visited.add( Number( id ) );
+	} );
+
+	// A path in steps, as the server reads it: items[0].label is items, [], label.
+	const steps = ( path ) => path.replace( /\[\d+\]/g, '.[]' ).split( '.' );
+	// Whether props have one at the path. A condition prop's props sit beside it.
+	const has = ( props, path ) => {
+		const [ step, ...rest ] = path;
+		if ( step === '[]' ) return has( props, rest );
+		return ( props || [] ).some( ( prop ) => ( prop.key === step ? ! rest.length || has( prop.properties, rest ) : prop.type?.specialized === 'condition' && has( prop.properties, path ) ) );
+	};
+
+	// The component being edited: the one on the page with a prop at this path.
+	// Etch doesn't say which one its editor has open, and its list follows the
+	// editor, so this is read before the key changes.
+	const editedComponent = ( from ) => {
+		const ids = new Set();
+		const walk = ( block ) => {
+			if ( block.type === 'etch/component' && block.componentId ) ids.add( Number( block.componentId ) );
+			( block.children || [] ).forEach( walk );
+		};
+		blocks().getTree().forEach( walk );
+		let found = window.etch.components.list().filter( ( component ) => ids.has( Number( component.id ) ) && has( component.properties, steps( from ) ) );
+		if ( found.length > 1 ) {
+			const name = document.querySelector( '.component-editor-header__name' )?.textContent.trim();
+			found = found.filter( ( component ) => component.name === name );
+		}
+		return found.length === 1 ? Number( found[ 0 ].id ) : null;
+	};
+
+	const pageList = ( posts ) => {
+		const { el } = window.etchToolkit;
+		return el(
+			'ul',
+			{ className: 'etk-prop-keys__pages' },
+			// WordPress calls components patterns.
+			posts.map( ( post ) => el( 'li', { textContent: `${ post.title || '(no title)' } (${ post.postType === 'wp_block' ? 'Component' : post.type })` } ) )
+		);
+	};
+
+	// A dialog with its Cancel button relabeled, giving focus back when it closes.
+	const ask = ( options, cancelLabel ) => {
+		const back = document.activeElement;
+		const dialog = window.etchToolkit.confirmDialog( { variant: 'primary', ...options } );
+		dialog.element.querySelector( '.etk-confirm__btn--cancel' ).textContent = cancelLabel;
+		return dialog.result.then( ( yes ) => {
+			if ( yes && ! options.keepOpen ) dialog.close();
+			if ( back?.isConnected ) back.focus();
+			return yes;
+		} );
+	};
+
+	// Instances keep their values under the old key, where Etch no longer
+	// reads them. If any set one, ask whether to rename it there on Save.
+	const askAboutInstances = async ( component, from, to ) => {
+		// Renamed again before saving: the instances still have the first key.
+		for ( const list of pending.values() ) {
+			const earlier = list.find( ( rename ) => rename.to === from );
+			if ( earlier ) {
+				earlier.to = to;
+				if ( earlier.from === to ) list.splice( list.indexOf( earlier ), 1 );
+				return;
+			}
+		}
+
+		if ( ! component ) return;
+		const { api, plural } = window.etchToolkit;
+		const { posts } = await api( `prop-keys/instances?${ new URLSearchParams( { component, from, to } ) }` );
+		if ( ! posts.length ) return;
+
+		const instances = posts.reduce( ( sum, post ) => sum + post.elements, 0 );
+		const { el } = window.etchToolkit;
+		const yes = await ask(
+			{
+				title: 'Rename it in instances too?',
+				message: [
+					el( 'p', { textContent: `${ plural( instances, 'instance' ) } of this component set a value for ${ from }. Etch leaves those values under the old key, so they'd show the default instead.` } ),
+					pageList( posts ),
+					el( 'p', { textContent: `Rename ${ from } to ${ to } in them when you save? Each one keeps a revision.` } ),
+				],
+				confirmLabel: 'Rename on save',
+			},
+			'Leave them'
+		);
+		if ( yes ) pending.set( component, [ ...( pending.get( component ) || [] ), { from, to } ] );
+	};
+
+	// Once Etch has saved the component, rename in its instances. The server
+	// only makes the renames the saved component agrees with.
+	window.etchToolkit.afterSave( async () => {
+		if ( ! pending.size ) return;
+		const jobs = [ ...pending ].filter( ( [ , renames ] ) => renames.length );
+		pending.clear();
+
+		const { api, errorDialog, errorText, plural, el, reload } = window.etchToolkit;
+		const posts = [];
+		for ( const [ component, renames ] of jobs ) {
+			try {
+				posts.push( ...( await api( 'prop-keys/rename', 'POST', { component, renames } ) ).posts );
+			} catch ( error ) {
+				errorDialog( "Couldn't rename props in instances", errorText( error ) );
+			}
+		}
+		if ( ! posts.length ) return;
+
+		const done = `Renamed in ${ plural( posts.reduce( ( sum, post ) => sum + post.elements, 0 ), 'instance' ) } on ${ plural( posts.length, 'page' ) }.`;
+		// Components are all loaded with the builder, and Etch keeps every post it opened.
+		const stale = posts.filter( ( post ) => post.postType === 'wp_block' || visited.has( post.id ) );
+		if ( ! stale.length ) {
+			announce( done );
+			return;
+		}
+		const yes = await ask(
+			{
+				title: 'Reload the builder',
+				message: [
+					el( 'p', { textContent: `${ done } The builder still has these as they were before:` } ),
+					pageList( stale ),
+					el( 'p', { textContent: 'Reload before you save again. Saving them as they are would put the old keys back.' } ),
+				],
+				confirmLabel: 'Reload now',
+				busyLabel: 'Reloading…',
+				keepOpen: true,
+			},
+			'Later'
+		);
+		if ( yes ) reload();
+	} );
+
 	/* ---- Watching the props panel ---- */
 
 	// The prop being edited: its row and its key when the field took focus.
@@ -144,7 +287,7 @@
 			const row = event.target.closest?.( ROW );
 			const panel = row?.closest( PANEL );
 			// Only while it's on in the toolkit's settings.
-			editing = panel && window.etchToolkit.featureOn( 'propKeys' ) && window.etch?.blocks?.isInComponentEditMode() ? { row, panel, from: row.dataset.etchPropertyKey } : null;
+			editing = panel && window.etchToolkit.featureOn( 'propKeys' ) && window.etch?.blocks?.isInComponentEditMode() ? { row, panel, from: row.dataset.etchPropertyKey, component: editedComponent( row.dataset.etchPropertyKey ) } : null;
 		},
 		true
 	);
@@ -153,7 +296,7 @@
 		'focusout',
 		( event ) => {
 			if ( ! editing?.row.contains( event.target ) ) return;
-			const { row, panel, from } = editing;
+			const { row, panel, from, component } = editing;
 			editing = null;
 			const to = row.dataset.etchPropertyKey;
 			if ( ! from || ! to || to === from ) return;
@@ -165,6 +308,7 @@
 			const conditions = renameConditions( panel, from, to );
 			const places = [ layers && plural( layers, 'layer' ), conditions && plural( conditions, 'condition' ) ].filter( Boolean );
 			if ( places.length ) announce( `props.${ from } renamed to props.${ to } in ${ places.join( ' and ' ) }.` );
+			askAboutInstances( component, from, to ).catch( ( error ) => window.etchToolkit.errorDialog( "Couldn't check the component's instances", window.etchToolkit.errorText( error ) ) );
 		},
 		true
 	);
