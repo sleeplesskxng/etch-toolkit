@@ -64,7 +64,9 @@
 	/**
 	 * A switch row: title and help on the left, the switch on the right. A
 	 * checkbox with role="switch", so it reads as on or off. onchange gets
-	 * the new value and may return a promise. The switch is busy until it settles.
+	 * the new value and may return a promise. The switch is busy until it
+	 * settles: aria-disabled, not disabled, which would drop its focus, so
+	 * refresh() can put focus back on it.
 	 */
 	const toggle = ( label, checked, onchange, help ) => {
 		const id = uid();
@@ -76,13 +78,13 @@
 			class: 'etk-switch',
 			checked,
 			'aria-describedby': helpId,
+			onclick: ( e ) => input.getAttribute( 'aria-disabled' ) === 'true' && e.preventDefault(),
 			onchange: async ( e ) => {
-				input.disabled = true;
+				input.setAttribute( 'aria-disabled', 'true' );
 				try {
 					await onchange( e.target.checked );
 				} finally {
-					input.disabled = false;
-					input.focus();
+					input.removeAttribute( 'aria-disabled' );
 				}
 			},
 		} );

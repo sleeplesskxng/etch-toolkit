@@ -97,7 +97,7 @@
 }
 
 /* Busy while its change saves. It keeps its look, or every flip would blink. */
-.etk-settings input.etk-switch:disabled {
+.etk-settings input.etk-switch[aria-disabled='true'] {
 	opacity: 1;
 	cursor: progress;
 }
