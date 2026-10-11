@@ -68,7 +68,7 @@
 	 * settles: aria-disabled, not disabled, which would drop its focus, so
 	 * refresh() can put focus back on it.
 	 */
-	const toggle = ( label, checked, onchange, help ) => {
+	const toggle = ( label, checked, onchange, help, beta = false ) => {
 		const id = uid();
 		const helpId = help ? `${ id }-help` : null;
 		const input = el( 'input', {
@@ -89,7 +89,7 @@
 			},
 		} );
 		return row(
-			el( 'div', { class: 'etk-settings__toggle' }, el( 'div', { class: 'etk-settings__toggle-text' }, el( 'label', { class: 'etk-settings__row-title', htmlFor: id, textContent: label } ), help ? el( 'p', { class: 'etk-manager__help', id: helpId, textContent: help } ) : null ), input )
+			el( 'div', { class: 'etk-settings__toggle' }, el( 'div', { class: 'etk-settings__toggle-text' }, el( 'label', { class: 'etk-settings__row-title', htmlFor: id }, label, beta ? [ ' ', el( 'span', { class: 'etk-badge etk-badge--warning etk-settings__beta', textContent: 'Beta' } ) ] : null ), help ? el( 'p', { class: 'etk-manager__help', id: helpId, textContent: help } ) : null ), input )
 		);
 	};
 
@@ -190,7 +190,7 @@
 	};
 
 	// A feature's switch. Each one applies at once, in the builder too.
-	const feature = ( key, label, help ) => toggle( label, settings[ key ] !== false, ( on ) => save( { [ key ]: on }, `${ label } is ${ on ? 'on' : 'off' }.` ), help );
+	const feature = ( key, label, help, { beta = false } = {} ) => toggle( label, settings[ key ] !== false, ( on ) => save( { [ key ]: on }, `${ label } is ${ on ? 'on' : 'off' }.` ), help, beta );
 
 	section( {
 		id: 'general',
@@ -218,7 +218,7 @@
 			group(
 				'Components',
 				feature( 'componentManager', 'Component manager', 'See your components and where they’re used. Update one from JSON after reviewing the changes. Opens from the Settings Bar.' ),
-				feature( 'propKeys', 'Prop keys follow renames', 'When you change a prop’s key in the component editor, the layers that use it change with it.' )
+				feature( 'propKeyRenames', 'Prop keys follow renames', 'When you change a prop’s key in the component editor, the layers and condition props that use it change with it. Instances that set a value for it can be renamed too.', { beta: true } )
 			),
 			group(
 				'Fonts',

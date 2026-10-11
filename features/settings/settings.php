@@ -42,7 +42,8 @@ const ETCH_TOOLKIT_FEATURES = array(
 	'layerSorting'     => true,
 	'copyClasses'      => true,
 	'componentManager' => false,
-	'propKeys'         => true,
+	// Beta, off until turned on. A new key, so it's off even where 0.7.0 saved propKeys on.
+	'propKeyRenames'   => false,
 	'fonts'            => true,
 );
 

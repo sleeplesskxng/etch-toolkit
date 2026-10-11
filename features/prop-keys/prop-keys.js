@@ -287,7 +287,7 @@
 			const row = event.target.closest?.( ROW );
 			const panel = row?.closest( PANEL );
 			// Only while it's on in the toolkit's settings.
-			editing = panel && window.etchToolkit.featureOn( 'propKeys' ) && window.etch?.blocks?.isInComponentEditMode() ? { row, panel, from: row.dataset.etchPropertyKey, component: editedComponent( row.dataset.etchPropertyKey ) } : null;
+			editing = panel && window.etchToolkit.featureOn( 'propKeyRenames' ) && window.etch?.blocks?.isInComponentEditMode() ? { row, panel, from: row.dataset.etchPropertyKey, component: editedComponent( row.dataset.etchPropertyKey ) } : null;
 		},
 		true
 	);
