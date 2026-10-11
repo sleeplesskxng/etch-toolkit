@@ -5,8 +5,9 @@
  * key follows the name, leaves every {props.oldKey} in the component's
  * layers reading nothing. Once you leave the field, they're renamed to the
  * new key: in text, attributes, loops, conditions, raw HTML and the props
- * given to nested components. A group's children go along with it, so
- * props.meta.label becomes props.info.label.
+ * given to nested components, and in the expressions of condition props.
+ * A group's children go along with it, so props.meta.label becomes
+ * props.info.label.
  *
  * Only whole keys: renaming title leaves props.titleColor alone. Not while
  * the new key belongs to another prop too, and not in scripts, where Etch
@@ -23,6 +24,7 @@
 
 	const PANEL = '.component-editor-properties';
 	const ROW = '[data-etch-property-key]'; // A prop's path: title, meta.label.
+	const CONDITION = 'input.condition-property-content__input';
 
 	// Etch updates layers through update() for these. Anything else, like a
 	// condition, takes replacing the layer.
@@ -102,6 +104,21 @@
 		return count;
 	};
 
+	// Condition props hold an expression, like props.show === true, that Etch
+	// only keeps in the editor. It's set through the field, as typing would.
+	const renameConditions = ( panel, from, to ) => {
+		const rename = renamer( from, to );
+		let count = 0;
+		panel.querySelectorAll( CONDITION ).forEach( ( input ) => {
+			const value = rename( input.value );
+			if ( value === input.value ) return;
+			input.value = value;
+			input.dispatchEvent( new Event( 'input', { bubbles: true } ) );
+			count++;
+		} );
+		return count;
+	};
+
 	let status = null;
 	const announce = ( message ) => {
 		if ( ! status ) {
@@ -143,8 +160,11 @@
 			// Another prop has the key too: which one props.to means is up to you.
 			if ( [ ...panel.querySelectorAll( ROW ) ].filter( ( other ) => other.dataset.etchPropertyKey === to ).length > 1 ) return;
 			if ( ! window.etch?.blocks?.isInComponentEditMode() ) return;
-			const count = renameLayers( from, to );
-			if ( count ) announce( `props.${ from } renamed to props.${ to } in ${ count === 1 ? '1 layer' : `${ count } layers` }.` );
+			const { plural } = window.etchToolkit;
+			const layers = renameLayers( from, to );
+			const conditions = renameConditions( panel, from, to );
+			const places = [ layers && plural( layers, 'layer' ), conditions && plural( conditions, 'condition' ) ].filter( Boolean );
+			if ( places.length ) announce( `props.${ from } renamed to props.${ to } in ${ places.join( ' and ' ) }.` );
 		},
 		true
 	);
