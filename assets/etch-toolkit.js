@@ -1569,6 +1569,8 @@
 			// A modal dialog gets the presses on its backdrop too.
 			const r = box.getBoundingClientRect();
 			if ( event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom ) return;
+			// Or its scrollbar, when a short window makes it scroll.
+			if ( event.clientX - r.left >= box.clientLeft + box.clientWidth ) return;
 			press = { id: event.pointerId, x: event.clientX, y: event.clientY, left: r.left, top: r.top, moving: false };
 		} );
 		box.addEventListener( 'pointermove', ( event ) => {

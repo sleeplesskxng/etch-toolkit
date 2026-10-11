@@ -1753,6 +1753,10 @@ input.etk-switch {
 	box-sizing: border-box;
 	inline-size: 300px;
 	max-inline-size: calc(100vw - 32px);
+	/* Inside draggable()'s 16px edges. In a short window it scrolls. */
+	max-block-size: calc(100dvh - 32px);
+	overflow-y: auto;
+	overscroll-behavior: contain;
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
@@ -1790,6 +1794,11 @@ input.etk-switch {
 	/* Nothing dims, so you can watch the canvas. */
 	&::backdrop {
 		background: transparent;
+	}
+
+	/* Its parts keep their size, so a short window scrolls it rather than squashing them. */
+	> * {
+		flex-shrink: 0;
 	}
 
 	.etk-slider {
